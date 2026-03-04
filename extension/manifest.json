@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "YouTube 参加型ゲーム参加者マネージャー",
+  "name": "麻雀参加型メンバーを管理するやーつ",
   "version": "1.0.0",
   "description": "YouTubeライブのチャットから参加希望を検知し、参加者管理と次回候補表示を行います。",
   "content_scripts": [
