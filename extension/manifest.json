@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube 参加型ゲーム参加者マネージャー",
+  "version": "1.0.0",
+  "description": "YouTubeライブのチャットから参加希望を検知し、参加者管理と次回候補表示を行います。",
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["content.js"],
+      "css": ["style.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
