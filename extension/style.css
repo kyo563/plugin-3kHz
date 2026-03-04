@@ -3,7 +3,7 @@
   top: 12px;
   right: 12px;
   z-index: 999999;
-  width: 420px;
+  width: 760px;
   max-height: 90vh;
   overflow: auto;
   background: rgba(17, 17, 17, 0.95);
@@ -21,6 +21,66 @@
   margin: 0;
 }
 
+#yt-join-manager.yt-green-screen {
+  background: #00b140;
+  border-color: #007f2e;
+}
+
+.yt-font-default {
+  font-family: "Noto Sans JP", sans-serif;
+}
+
+.yt-font-gothic {
+  font-family: "Yu Gothic", "Meiryo", sans-serif;
+}
+
+.yt-font-mincho {
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+}
+
+.yt-font-mono {
+  font-family: "Consolas", "Menlo", monospace;
+}
+
+.yt-join-layout {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 12px;
+  align-items: start;
+}
+
+.yt-join-main {
+  min-width: 0;
+}
+
+.yt-join-settings {
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  padding-left: 12px;
+}
+
+.yt-setting-block {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yt-setting-block label {
+  color: #e6e6e6;
+  font-size: 12px;
+}
+
+.yt-setting-block textarea,
+.yt-setting-block select {
+  width: 100%;
+  border: 1px solid #666;
+  border-radius: 6px;
+  background: #1f1f1f;
+  color: #fff;
+  padding: 6px;
+  font-size: 12px;
+}
+
 .yt-join-header {
   display: flex;
   justify-content: space-between;
@@ -30,10 +90,11 @@
 
 .yt-join-keyword {
   color: #d4d4d4;
-  margin-bottom: 8px;
+  margin-top: 8px;
+  word-break: break-word;
 }
 
-#yt-join-reset {
+.yt-join-btn {
   border: 1px solid #666;
   background: #2d2d2d;
   color: #fff;
@@ -42,8 +103,7 @@
   cursor: pointer;
 }
 
-#yt-join-reset:hover,
-.yt-join-plus1:hover {
+.yt-join-btn:hover {
   background: #3b3b3b;
 }
 
@@ -60,18 +120,22 @@
   text-align: left;
 }
 
-.yt-join-table td:nth-child(3),
-.yt-join-table td:nth-child(4) {
+.yt-join-table td:nth-child(3) {
   text-align: center;
+  width: 42px;
 }
 
-.yt-join-plus1 {
-  border: 1px solid #777;
-  background: #2d2d2d;
-  color: #fff;
-  border-radius: 4px;
-  padding: 2px 8px;
-  cursor: pointer;
+.yt-join-actions {
+  min-width: 156px;
+}
+
+.yt-join-actions .yt-join-btn {
+  margin: 2px 2px 2px 0;
+  padding: 2px 6px;
+}
+
+.yt-join-remove {
+  border-color: #984848;
 }
 
 .yt-join-empty {
