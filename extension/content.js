@@ -3,7 +3,7 @@
   const MAX_PLAYERS = 3;
 
   const state = {
-    participants: new Map(), // normalizedUsername => { username, joinNo, count }
+    participants: new Map(), // normalizedUsername => { username, displayName, joinNo, count }
     joinOrder: [],
     nextRounds: [[], []],
     chatObserver: null,
@@ -26,7 +26,7 @@
   }
 
   function computeNextRounds() {
-    const sorted = getSortedParticipants().map((item) => item.username);
+    const sorted = getSortedParticipants().map((item) => item.displayName);
     state.nextRounds = [
       sorted.slice(0, MAX_PLAYERS),
       sorted.slice(MAX_PLAYERS, MAX_PLAYERS * 2),
@@ -40,6 +40,7 @@
     const joinNo = state.joinOrder.length + 1;
     state.participants.set(normalizedUsername, {
       username: username.trim(),
+      displayName: username.trim(),
       joinNo,
       count: 0,
     });
@@ -47,6 +48,16 @@
     computeNextRounds();
     render();
     return true;
+  }
+
+  function updateDisplayName(normalizedUsername, displayName) {
+    const participant = state.participants.get(normalizedUsername);
+    if (!participant) return;
+
+    const trimmedName = displayName.trim();
+    participant.displayName = trimmedName || participant.username;
+    computeNextRounds();
+    render();
   }
 
   function incrementCount(username) {
@@ -88,7 +99,15 @@
         (p) => `
           <tr>
             <td>${p.joinNo}</td>
-            <td title="${escapeHtml(p.username)}">${escapeHtml(p.username)}</td>
+            <td>
+              <input
+                class="yt-join-display-name"
+                type="text"
+                value="${escapeHtml(p.displayName)}"
+                data-normalized-username="${escapeHtml(normalizeUsername(p.username))}"
+                title="元ユーザー名: ${escapeHtml(p.username)}"
+              />
+            </td>
             <td>${p.count}</td>
             <td><button class="yt-join-plus1" data-normalized-username="${escapeHtml(normalizeUsername(p.username))}">+1</button></td>
           </tr>
@@ -149,6 +168,17 @@
       button.addEventListener("click", () => {
         const username = button.getAttribute("data-normalized-username");
         if (username) incrementCount(username);
+      });
+    });
+
+    ui.querySelectorAll(".yt-join-display-name").forEach((input) => {
+      input.addEventListener("change", () => {
+        const username = input.getAttribute("data-normalized-username");
+        if (username) updateDisplayName(username, input.value);
+      });
+      input.addEventListener("blur", () => {
+        const username = input.getAttribute("data-normalized-username");
+        if (username) updateDisplayName(username, input.value);
       });
     });
   }
