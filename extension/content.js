@@ -3,7 +3,7 @@
   const MAX_PLAYERS = 3;
 
   const state = {
-    participants: new Map(), // username => { joinNo, count }
+    participants: new Map(), // normalizedUsername => { username, joinNo, count }
     joinOrder: [],
     nextRounds: [[], []],
     chatObserver: null,
@@ -13,12 +13,16 @@
   let ui = null;
 
   function getSortedParticipants() {
-    return [...state.participants.entries()]
-      .map(([username, info]) => ({ username, ...info }))
+    return [...state.participants.values()]
+      .map((info) => ({ ...info }))
       .sort((a, b) => {
         if (a.count !== b.count) return a.count - b.count;
         return a.joinNo - b.joinNo;
       });
+  }
+
+  function normalizeUsername(username) {
+    return username.trim().replace(/\s+/g, " ").toLocaleLowerCase("ja-JP");
   }
 
   function computeNextRounds() {
@@ -30,18 +34,24 @@
   }
 
   function registerParticipant(username) {
-    if (!username || state.participants.has(username)) return false;
+    const normalizedUsername = normalizeUsername(username);
+    if (!normalizedUsername || state.participants.has(normalizedUsername)) return false;
 
     const joinNo = state.joinOrder.length + 1;
-    state.participants.set(username, { joinNo, count: 0 });
-    state.joinOrder.push(username);
+    state.participants.set(normalizedUsername, {
+      username: username.trim(),
+      joinNo,
+      count: 0,
+    });
+    state.joinOrder.push(normalizedUsername);
     computeNextRounds();
     render();
     return true;
   }
 
   function incrementCount(username) {
-    const participant = state.participants.get(username);
+    const normalizedUsername = normalizeUsername(username);
+    const participant = state.participants.get(normalizedUsername);
     if (!participant) return;
 
     participant.count += 1;
@@ -80,7 +90,7 @@
             <td>${p.joinNo}</td>
             <td title="${escapeHtml(p.username)}">${escapeHtml(p.username)}</td>
             <td>${p.count}</td>
-            <td><button class="yt-join-plus1" data-username="${escapeHtml(p.username)}">+1</button></td>
+            <td><button class="yt-join-plus1" data-normalized-username="${escapeHtml(normalizeUsername(p.username))}">+1</button></td>
           </tr>
         `
       )
@@ -137,7 +147,7 @@
     ui.querySelector("#yt-join-reset")?.addEventListener("click", resetSession);
     ui.querySelectorAll(".yt-join-plus1").forEach((button) => {
       button.addEventListener("click", () => {
-        const username = button.getAttribute("data-username");
+        const username = button.getAttribute("data-normalized-username");
         if (username) incrementCount(username);
       });
     });
