@@ -193,11 +193,39 @@
     return authorNode?.textContent?.trim() || "";
   }
 
+  function normalizeMessageText(text) {
+    return text.trim().replace(/\s+/g, " ");
+  }
+
+  function getNodeUniqueToken(node) {
+    return (
+      node.getAttribute("id") ||
+      node.getAttribute("data-message-id") ||
+      node.getAttribute("data-item-id") ||
+      node.querySelector("#timestamp")?.getAttribute("aria-label") ||
+      node.querySelector("#timestamp")?.textContent?.trim() ||
+      ""
+    );
+  }
+
   function processChatNode(node) {
     if (!(node instanceof HTMLElement)) return;
 
-    const id = node.getAttribute("id") || "";
-    const key = `${id}:${node.textContent?.slice(0, 80) || ""}`;
+    const username = getAuthorName(node);
+    if (!username) return;
+
+    const text = getMessageText(node);
+    const normalizedAuthor = normalizeUsername(username);
+    const normalizedText = normalizeMessageText(text);
+    const uniqueToken = getNodeUniqueToken(node);
+    const receivedAtBucket = Math.floor(Date.now() / 5000);
+
+    // 同一ユーザー + 同一文面の短時間連投は同じ key になり、重複として除外される。
+    // 投稿者名を key に含めるため、別ユーザーが同文面を送った場合は別 key で登録される。
+    const key = uniqueToken
+      ? `${normalizedAuthor}:${normalizedText}:${uniqueToken}`
+      : `${normalizedAuthor}:${normalizedText}:bucket-${receivedAtBucket}`;
+
     if (state.lastProcessedMessageIds.has(key)) return;
     state.lastProcessedMessageIds.add(key);
 
@@ -206,11 +234,7 @@
       state.lastProcessedMessageIds = new Set(arr);
     }
 
-    const text = getMessageText(node);
     if (!text.includes(KEYWORD)) return;
-
-    const username = getAuthorName(node);
-    if (!username) return;
 
     registerParticipant(username);
   }
