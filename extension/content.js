@@ -1,13 +1,20 @@
+import { createLiveChatApiPoller } from "./chatApiClient.js";
+
 (() => {
   const KEYWORD = "参加希望";
   const MAX_PLAYERS = 3;
+  const DEDUP_LIMIT = 2000;
+  const DEDUP_RETAIN = 1000;
 
   const state = {
     participants: new Map(), // normalizedUsername => { username, displayName, joinNo, count }
     joinOrder: [],
     nextRounds: [[], []],
     chatObserver: null,
-    lastProcessedMessageIds: new Set(),
+    processedMessageKeys: new Set(),
+    domMonitoringHealthy: false,
+    apiMonitoringHealthy: false,
+    apiPoller: null,
   };
 
   let ui = null;
@@ -74,7 +81,7 @@
     state.participants.clear();
     state.joinOrder = [];
     state.nextRounds = [[], []];
-    state.lastProcessedMessageIds.clear();
+    state.processedMessageKeys.clear();
     render();
   }
 
@@ -183,6 +190,34 @@
     });
   }
 
+  function makeDedupKey({ authorId, publishedAt, message }) {
+    return `${authorId}::${publishedAt}::${message.trim()}`;
+  }
+
+  function rememberProcessedKey(key) {
+    state.processedMessageKeys.add(key);
+    if (state.processedMessageKeys.size > DEDUP_LIMIT) {
+      const recent = [...state.processedMessageKeys].slice(-DEDUP_RETAIN);
+      state.processedMessageKeys = new Set(recent);
+    }
+  }
+
+  function processMessagePayload(payload) {
+    const message = payload.message?.trim() || "";
+    const authorId = payload.authorId?.trim() || "unknown-author";
+    const publishedAt = payload.publishedAt?.trim() || "unknown-time";
+    const authorName = payload.authorName?.trim() || payload.authorId?.trim() || "";
+
+    const dedupKey = makeDedupKey({ authorId, publishedAt, message });
+    if (state.processedMessageKeys.has(dedupKey)) return;
+    rememberProcessedKey(dedupKey);
+
+    if (!message.includes(KEYWORD)) return;
+    if (!authorName) return;
+
+    registerParticipant(authorName);
+  }
+
   function getMessageText(node) {
     const messageNode = node.querySelector("#message") || node.querySelector(".message");
     return messageNode?.textContent?.trim() || "";
@@ -193,26 +228,30 @@
     return authorNode?.textContent?.trim() || "";
   }
 
+  function getAuthorChannelId(node) {
+    const authorNode = node.querySelector("#author-name") || node.querySelector(".author-name");
+    return authorNode?.getAttribute("data-author-id") || "";
+  }
+
+  function getPublishedAt(node) {
+    return (
+      node.getAttribute("timestamp-usec") ||
+      node.getAttribute("data-timestamp-usec") ||
+      node.getAttribute("data-timestamp") ||
+      ""
+    );
+  }
+
   function processChatNode(node) {
     if (!(node instanceof HTMLElement)) return;
 
-    const id = node.getAttribute("id") || "";
-    const key = `${id}:${node.textContent?.slice(0, 80) || ""}`;
-    if (state.lastProcessedMessageIds.has(key)) return;
-    state.lastProcessedMessageIds.add(key);
-
-    if (state.lastProcessedMessageIds.size > 1000) {
-      const arr = [...state.lastProcessedMessageIds].slice(-500);
-      state.lastProcessedMessageIds = new Set(arr);
-    }
-
-    const text = getMessageText(node);
-    if (!text.includes(KEYWORD)) return;
-
-    const username = getAuthorName(node);
-    if (!username) return;
-
-    registerParticipant(username);
+    processMessagePayload({
+      source: "dom",
+      authorId: getAuthorChannelId(node),
+      authorName: getAuthorName(node),
+      message: getMessageText(node),
+      publishedAt: getPublishedAt(node),
+    });
   }
 
   function attachChatObserver() {
@@ -245,7 +284,51 @@
 
     observer.observe(chatApp, { childList: true, subtree: true });
     state.chatObserver = observer;
+    state.domMonitoringHealthy = true;
     return true;
+  }
+
+  function readStorage(keys) {
+    if (!chrome?.storage?.local) {
+      return Promise.resolve({});
+    }
+
+    return new Promise((resolve) => {
+      chrome.storage.local.get(keys, (result) => {
+        resolve(result || {});
+      });
+    });
+  }
+
+  async function startApiPolling() {
+    try {
+      const config = await readStorage(["YT_LIVE_CHAT_API_KEY", "YT_LIVE_CHAT_ID"]);
+      const liveChatId =
+        config.YT_LIVE_CHAT_ID || new URLSearchParams(window.location.search).get("liveChatId");
+      const apiKey =
+        config.YT_LIVE_CHAT_API_KEY || new URLSearchParams(window.location.search).get("apiKey");
+
+      if (!liveChatId || !apiKey) {
+        console.info("[yt-join-manager] Live Chat API 設定がないためDOM監視のみで継続します");
+        return;
+      }
+
+      state.apiPoller = createLiveChatApiPoller({
+        apiKey,
+        liveChatId,
+        onMessages: (messages) => {
+          state.apiMonitoringHealthy = true;
+          messages.forEach((message) => processMessagePayload(message));
+        },
+        onError: (error) => {
+          state.apiMonitoringHealthy = false;
+          console.warn("[yt-join-manager] API補助経路でエラー", error);
+        },
+      });
+    } catch (error) {
+      state.apiMonitoringHealthy = false;
+      console.warn("[yt-join-manager] API補助経路の初期化に失敗", error);
+    }
   }
 
   function mountUi() {
@@ -260,16 +343,21 @@
     render();
   }
 
-  function init() {
-    mountUi();
-
+  function initDomMonitoringWithRetry() {
     if (!attachChatObserver()) {
+      state.domMonitoringHealthy = false;
       const interval = setInterval(() => {
         if (attachChatObserver()) {
           clearInterval(interval);
         }
       }, 2000);
     }
+  }
+
+  function init() {
+    mountUi();
+    initDomMonitoringWithRetry();
+    startApiPolling();
   }
 
   if (document.readyState === "loading") {
