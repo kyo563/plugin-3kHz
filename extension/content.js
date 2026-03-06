@@ -239,6 +239,14 @@
     registerParticipant(username);
   }
 
+  function syncExistingChatNodes(root) {
+    root
+      .querySelectorAll(
+        "yt-live-chat-text-message-renderer, yt-live-chat-paid-message-renderer"
+      )
+      .forEach((node) => processChatNode(node));
+  }
+
   function attachChatObserver() {
     const chatApp = document.querySelector("yt-live-chat-app") || document.querySelector("#chat");
     if (!chatApp) return false;
@@ -268,6 +276,7 @@
     });
 
     observer.observe(chatApp, { childList: true, subtree: true });
+    syncExistingChatNodes(chatApp);
     state.chatObserver = observer;
     return true;
   }
