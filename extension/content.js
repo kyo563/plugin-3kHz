@@ -7,7 +7,9 @@
     joinOrder: [],
     nextRounds: [[], []],
     chatObserver: null,
-    lastProcessedMessageIds: new Set(),
+    processedMessageKeys: new Set(),
+    domSourceHealthy: false,
+    apiSourceHealthy: false,
   };
 
   let ui = null;
@@ -23,6 +25,10 @@
 
   function normalizeUsername(username) {
     return username.trim().replace(/\s+/g, " ").toLocaleLowerCase("ja-JP");
+  }
+
+  function normalizeMessageText(text) {
+    return text.trim().replace(/\s+/g, " ");
   }
 
   function computeNextRounds() {
@@ -74,7 +80,7 @@
     state.participants.clear();
     state.joinOrder = [];
     state.nextRounds = [[], []];
-    state.lastProcessedMessageIds.clear();
+    state.processedMessageKeys.clear();
     render();
   }
 
@@ -139,6 +145,13 @@
     `;
   }
 
+  function currentPathLabel() {
+    if (state.domSourceHealthy && state.apiSourceHealthy) return "通常+補助（DOM+API）";
+    if (state.domSourceHealthy) return "通常（DOM）";
+    if (state.apiSourceHealthy) return "補助（API）";
+    return "再同期待ち";
+  }
+
   function render() {
     if (!ui) return;
 
@@ -150,6 +163,7 @@
         <button id="yt-join-reset">配信リセット</button>
       </div>
       <div class="yt-join-keyword">検知キーワード: <strong>${KEYWORD}</strong></div>
+      <div class="yt-join-keyword">取得経路: <strong>${currentPathLabel()}</strong></div>
       <section>
         <h4>参加者一覧</h4>
         ${renderParticipantsTable()}
@@ -183,6 +197,33 @@
     });
   }
 
+  function buildDedupKey({ authorId, authorName, message, publishedAtMs }) {
+    const safeAuthorId = normalizeUsername(authorId || authorName || "");
+    const normalizedMessage = normalizeMessageText(message || "");
+    const publishedBucket = Math.floor((publishedAtMs || Date.now()) / 1000);
+    return `${safeAuthorId}:${publishedBucket}:${normalizedMessage}`;
+  }
+
+  function rememberDedupKey(key) {
+    state.processedMessageKeys.add(key);
+    if (state.processedMessageKeys.size > 2000) {
+      state.processedMessageKeys = new Set([...state.processedMessageKeys].slice(-1000));
+    }
+  }
+
+  function ingestMessage(messageEvent) {
+    const authorName = messageEvent.authorName?.trim() || "";
+    const text = messageEvent.message?.trim() || "";
+    if (!authorName || !text) return;
+
+    const dedupKey = buildDedupKey(messageEvent);
+    if (state.processedMessageKeys.has(dedupKey)) return;
+    rememberDedupKey(dedupKey);
+
+    if (!text.includes(KEYWORD)) return;
+    registerParticipant(authorName);
+  }
+
   function getMessageText(node) {
     const messageNode = node.querySelector("#message") || node.querySelector(".message");
     return messageNode?.textContent?.trim() || "";
@@ -193,50 +234,31 @@
     return authorNode?.textContent?.trim() || "";
   }
 
-  function normalizeMessageText(text) {
-    return text.trim().replace(/\s+/g, " ");
-  }
-
-  function getNodeUniqueToken(node) {
-    return (
-      node.getAttribute("id") ||
-      node.getAttribute("data-message-id") ||
-      node.getAttribute("data-item-id") ||
+  function getDomPublishedAtMs(node) {
+    const raw =
+      node.getAttribute("data-timestamp-usec") ||
       node.querySelector("#timestamp")?.getAttribute("aria-label") ||
       node.querySelector("#timestamp")?.textContent?.trim() ||
-      ""
-    );
+      "";
+
+    const usec = Number(raw);
+    if (!Number.isNaN(usec) && usec > 0) return Math.floor(usec / 1000);
+    return Date.now();
   }
 
   function processChatNode(node) {
     if (!(node instanceof HTMLElement)) return;
 
-    const username = getAuthorName(node);
-    if (!username) return;
+    const authorName = getAuthorName(node);
+    const message = getMessageText(node);
+    if (!authorName || !message) return;
 
-    const text = getMessageText(node);
-    const normalizedAuthor = normalizeUsername(username);
-    const normalizedText = normalizeMessageText(text);
-    const uniqueToken = getNodeUniqueToken(node);
-    const receivedAtBucket = Math.floor(Date.now() / 5000);
-
-    // 同一ユーザー + 同一文面の短時間連投は同じ key になり、重複として除外される。
-    // 投稿者名を key に含めるため、別ユーザーが同文面を送った場合は別 key で登録される。
-    const key = uniqueToken
-      ? `${normalizedAuthor}:${normalizedText}:${uniqueToken}`
-      : `${normalizedAuthor}:${normalizedText}:bucket-${receivedAtBucket}`;
-
-    if (state.lastProcessedMessageIds.has(key)) return;
-    state.lastProcessedMessageIds.add(key);
-
-    if (state.lastProcessedMessageIds.size > 1000) {
-      const arr = [...state.lastProcessedMessageIds].slice(-500);
-      state.lastProcessedMessageIds = new Set(arr);
-    }
-
-    if (!text.includes(KEYWORD)) return;
-
-    registerParticipant(username);
+    ingestMessage({
+      authorName,
+      authorId: node.getAttribute("author-external-channel-id") || "",
+      message,
+      publishedAtMs: getDomPublishedAtMs(node),
+    });
   }
 
   function syncExistingChatNodes(root) {
@@ -245,6 +267,18 @@
         "yt-live-chat-text-message-renderer, yt-live-chat-paid-message-renderer"
       )
       .forEach((node) => processChatNode(node));
+  }
+
+  function setDomSourceStatus(healthy) {
+    const changed = state.domSourceHealthy !== healthy;
+    state.domSourceHealthy = healthy;
+    if (changed) render();
+  }
+
+  function setApiSourceStatus(healthy) {
+    const changed = state.apiSourceHealthy !== healthy;
+    state.apiSourceHealthy = healthy;
+    if (changed) render();
   }
 
   function attachChatObserver() {
@@ -278,7 +312,34 @@
     observer.observe(chatApp, { childList: true, subtree: true });
     syncExistingChatNodes(chatApp);
     state.chatObserver = observer;
+    setDomSourceStatus(true);
     return true;
+  }
+
+  function attachApiPolling() {
+    const sourceFactory = window.YtJoinApiSource?.createYoutubeLiveChatApiSource;
+    if (!sourceFactory) {
+      setApiSourceStatus(false);
+      return;
+    }
+
+    const source = sourceFactory({
+      onMessages(messages) {
+        messages.forEach((message) => {
+          ingestMessage({
+            authorName: message.author,
+            authorId: message.authorId,
+            message: message.message,
+            publishedAtMs: Math.floor((message.publishedAt || 0) / 1000),
+          });
+        });
+      },
+      onStatus(status) {
+        setApiSourceStatus(Boolean(status?.ok));
+      },
+    });
+
+    source.start();
   }
 
   function mountUi() {
@@ -295,8 +356,10 @@
 
   function init() {
     mountUi();
+    attachApiPolling();
 
     if (!attachChatObserver()) {
+      setDomSourceStatus(false);
       const interval = setInterval(() => {
         if (attachChatObserver()) {
           clearInterval(interval);

@@ -1,12 +1,17 @@
 {
   "manifest_version": 3,
   "name": "麻雀参加型メンバーを管理するやーつ",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "YouTubeライブのチャットから参加希望を検知し、参加者管理と次回候補表示を行います。",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://www.youtube.com/youtubei/v1/live_chat/*"
+  ],
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/*"],
-      "js": ["content.js"],
+      "js": ["chat_api_source.js", "content.js"],
       "css": ["style.css"],
       "run_at": "document_idle"
     }
