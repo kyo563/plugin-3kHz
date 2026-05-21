@@ -56,6 +56,10 @@ def _build_next_user() -> dict:
 
 
 def add_mock_user() -> None:
+    if not state["is_open"]:
+        _log("受付終了中の参加希望")
+        return
+
     user = _build_next_user()
     if len(state["current"]) < GROUP_SIZE:
         state["current"].append(user)
@@ -64,10 +68,21 @@ def add_mock_user() -> None:
 
     if state["priority_mode"] and len(state["waiting"]) >= GROUP_SIZE:
         next_slice = state["waiting"][:GROUP_SIZE]
-        max_count = max(u["participation_count"] for u in next_slice)
-        if user["participation_count"] < max_count:
-            demoted = next_slice[-1]
-            state["waiting"] = next_slice[:-1] + [user, demoted] + state["waiting"][GROUP_SIZE:]
+        candidates = [
+            (index, queued_user)
+            for index, queued_user in enumerate(next_slice)
+            if queued_user["participation_count"] > user["participation_count"]
+        ]
+
+        if candidates:
+            demote_index, demoted = candidates[-1]
+            new_next = [
+                queued_user
+                for index, queued_user in enumerate(next_slice)
+                if index != demote_index
+            ]
+            new_next.append(user)
+            state["waiting"] = new_next + [demoted] + state["waiting"][GROUP_SIZE:]
             _log(f"低消化優先: {user['display_name']} をNEXTへ、{demoted['display_name']} をQUEUE先頭へ")
             return
 
