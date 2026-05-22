@@ -1,18 +1,56 @@
-<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Control</title><link rel="stylesheet" href="/static/control.css"></head><body>
-<div class="wrap"><h1>待機列整理アプリ / 管理画面</h1>
-<div class="status">
-<span id="conn">接続状態: Mock Provider connected</span>
-<span id="open"></span><span id="priority"></span><span>40秒状態変更ロック: 有効</span>
-</div>
-<div class="actions">
-<button data-api="/api/mock/toggle-open">受付開始 / 受付終了</button>
-<button data-api="/api/mock/toggle-priority">低消化回数優先モード ON/OFF</button>
-<button data-api="/api/mock/move-next">次へ進める</button>
-<button data-api="/api/mock/add">テスト参加者を追加</button>
-<button data-api="/api/mock/cancel">テスト取消</button>
-<button data-api="/api/mock/reset">リセット</button>
-<button disabled>上へ</button><button disabled>下へ</button><button disabled>手動追加</button><button disabled>手動削除</button>
-</div>
-<div class="grid"><section><h2>NOW</h2><ul id="now"></ul></section><section><h2>NEXT</h2><ul id="next"></ul></section><section><h2>QUEUE</h2><ul id="queue"></ul></section></div>
-<section><h2>操作ログ</h2><ul id="logs"></ul></section>
-</div><script src="/static/control.js"></script></body></html>
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Control</title>
+    <link rel="stylesheet" href="/static/control.css">
+</head>
+<body>
+    <div class="wrap">
+        <h1>待機列整理アプリ / 管理画面</h1>
+
+        <div class="status">
+            <span id="conn">接続状態: Mock Provider connected</span>
+            <span id="open"></span>
+            <span id="priority"></span>
+            <span>40秒状態変更ロック: 有効</span>
+        </div>
+
+        <div class="actions">
+            <button data-api="/api/mock/toggle-open">受付開始 / 受付終了</button>
+            <button data-api="/api/mock/toggle-priority">低消化回数優先モード ON/OFF</button>
+            <button data-api="/api/mock/move-next">次へ進める</button>
+            <button data-api="/api/mock/add">テスト参加者を追加</button>
+            <button data-api="/api/mock/cancel">テスト取消</button>
+            <button data-api="/api/mock/reset">リセット</button>
+            <button disabled>上へ</button>
+            <button disabled>下へ</button>
+            <button disabled>手動追加</button>
+            <button disabled>手動削除</button>
+        </div>
+
+        <div class="grid">
+            <section>
+                <h2>NOW</h2>
+                <ul id="now"></ul>
+            </section>
+            <section>
+                <h2>NEXT</h2>
+                <ul id="next"></ul>
+            </section>
+            <section>
+                <h2>QUEUE</h2>
+                <ul id="queue"></ul>
+            </section>
+        </div>
+
+        <section>
+            <h2>操作ログ</h2>
+            <ul id="logs"></ul>
+        </section>
+    </div>
+
+    <script src="/static/control.js"></script>
+</body>
+</html>

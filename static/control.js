@@ -1,6 +1,80 @@
-const q=(s)=>document.querySelector(s);
-const list=(id,arr,withCount)=>{const el=q(id);el.innerHTML="";arr.forEach(u=>{const li=document.createElement("li");const name=u.display_name??"";if(withCount&&u.participation_count!==undefined){li.textContent=`${name} [参加: ${u.participation_count}回]`;}else{li.textContent=name;}el.appendChild(li);});};
-async function refresh(){const s=await fetch('/api/state').then(r=>r.json());q('#open').textContent=`受付状態: ${s.is_open?'受付中':'受付終了'}`;q('#priority').textContent=`低消化回数優先モード: ${s.priority_mode?'ON':'OFF'}`;list('#now',s.now_view,true);list('#next',s.next_view,true);list('#queue',s.queue_view,true);list('#logs',[...s.logs].reverse().map(t=>({display_name:t})),false);}
-async function post(api){await fetch(api,{method:'POST'});await refresh();}
-document.querySelectorAll('button[data-api]').forEach(b=>b.addEventListener('click',()=>post(b.dataset.api)));
-refresh();setInterval(refresh,2000);
+const q = (selector) => document.querySelector(selector);
+
+function setConnectionError(message) {
+    q("#conn").textContent = `接続状態: ${message}`;
+}
+
+function renderList(selector, users, withCount) {
+    const el = q(selector);
+    el.innerHTML = "";
+
+    users.forEach((user) => {
+        const li = document.createElement("li");
+        const name = user.display_name ?? "";
+
+        if (withCount && !user.is_placeholder && user.participation_count !== undefined) {
+            li.textContent = `${name} [参加: ${user.participation_count}回]`;
+        } else {
+            li.textContent = name;
+        }
+
+        el.appendChild(li);
+    });
+}
+
+async function fetchState() {
+    try {
+        const response = await fetch("/api/state");
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        setConnectionError("Mock Provider connected");
+        return await response.json();
+    } catch (error) {
+        console.error(error);
+        setConnectionError("状態取得に失敗しました");
+        return null;
+    }
+}
+
+function renderState(state) {
+    q("#open").textContent = `受付状態: ${state.is_open ? "受付中" : "受付終了"}`;
+    q("#priority").textContent = `低消化回数優先モード: ${state.priority_mode ? "ON" : "OFF"}`;
+
+    renderList("#now", state.now_view, true);
+    renderList("#next", state.next_view, true);
+    renderList("#queue", state.queue_view, true);
+
+    const logs = [...state.logs].reverse().map((text) => ({ display_name: text }));
+    renderList("#logs", logs, false);
+}
+
+async function refresh() {
+    const state = await fetchState();
+    if (!state) {
+        return;
+    }
+
+    renderState(state);
+}
+
+async function post(api) {
+    try {
+        const response = await fetch(api, { method: "POST" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        await refresh();
+    } catch (error) {
+        console.error(error);
+        setConnectionError("操作に失敗しました");
+    }
+}
+
+document
+    .querySelectorAll("button[data-api]")
+    .forEach((button) => button.addEventListener("click", () => post(button.dataset.api)));
+
+refresh();
+setInterval(refresh, 2000);
