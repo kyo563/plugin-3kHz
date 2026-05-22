@@ -38,6 +38,11 @@ def api_state():
     return mock_state.build_view_state()
 
 
+@app.get("/api/overlay-state")
+def api_overlay_state():
+    return mock_state.build_overlay_state()
+
+
 @app.post("/api/mock/add")
 def api_add():
     mock_state.add_mock_user()

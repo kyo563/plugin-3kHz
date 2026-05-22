@@ -16,7 +16,11 @@ INITIAL_STATE = {
     "waiting": [
         {"user_id": "u3", "display_name": "Cさん", "participation_count": 0},
         {"user_id": "u4", "display_name": "Dさん", "participation_count": 1},
-        {"user_id": "u5", "display_name": "とても長い名前の参加希望者サンプルさん", "participation_count": 0},
+        {
+            "user_id": "u5",
+            "display_name": "とても長い名前の参加希望者サンプルさん",
+            "participation_count": 0,
+        },
         {"user_id": "u6", "display_name": "Eさん", "participation_count": 3},
     ],
     "logs": ["モックを初期化しました"],
@@ -55,6 +59,13 @@ def _build_next_user() -> dict:
     }
 
 
+def _pad_open_slots(users: list[dict]) -> list[dict]:
+    return users + [
+        {"display_name": OPEN_SLOT_LABEL, "is_placeholder": True}
+        for _ in range(max(0, GROUP_SIZE - len(users)))
+    ]
+
+
 def add_mock_user() -> None:
     if not state["is_open"]:
         _log("受付終了中の参加希望")
@@ -83,7 +94,10 @@ def add_mock_user() -> None:
             ]
             new_next.append(user)
             state["waiting"] = new_next + [demoted] + state["waiting"][GROUP_SIZE:]
-            _log(f"低消化優先: {user['display_name']} をNEXTへ、{demoted['display_name']} をQUEUE先頭へ")
+            _log(
+                f"低消化優先: {user['display_name']} をNEXTへ、"
+                f"{demoted['display_name']} をQUEUE先頭へ"
+            )
             return
 
     state["waiting"].append(user)
@@ -120,19 +134,29 @@ def toggle_priority() -> None:
 
 def build_view_state() -> dict:
     current = list(state["current"])
-    now_with_placeholder = current + [
-        {"display_name": OPEN_SLOT_LABEL, "is_placeholder": True}
-        for _ in range(max(0, GROUP_SIZE - len(current)))
-    ]
     waiting = state["waiting"]
+
     next_users = waiting[:GROUP_SIZE]
     queue_users = waiting[GROUP_SIZE:]
 
     return {
         **state,
-        "now_view": now_with_placeholder,
-        "next_view": next_users,
+        "now_view": _pad_open_slots(current),
+        "next_view": _pad_open_slots(next_users),
         "queue_view": queue_users,
-        "waiting_count": len(waiting),
-        "waiting_group_count": (len(waiting) + GROUP_SIZE - 1) // GROUP_SIZE,
+        "total_waiting_count": len(waiting),
+        "total_waiting_group_count": (len(waiting) + GROUP_SIZE - 1) // GROUP_SIZE,
+        "queue_count": len(queue_users),
+        "queue_group_count": (len(queue_users) + GROUP_SIZE - 1) // GROUP_SIZE,
+    }
+
+
+def build_overlay_state() -> dict:
+    view = build_view_state()
+    return {
+        "is_open": view["is_open"],
+        "now_view": view["now_view"],
+        "next_view": view["next_view"],
+        "queue_count": view["queue_count"],
+        "queue_group_count": view["queue_group_count"],
     }
