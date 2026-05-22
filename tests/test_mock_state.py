@@ -58,6 +58,21 @@ def test_priority_mode_demotes_higher_participation_user_only():
 def test_overlay_state_hides_sensitive_fields():
     overlay = mock_state.build_overlay_state()
 
-    assert "participation_count" not in overlay
-    assert "user_id" not in overlay
-    assert "logs" not in overlay
+    forbidden_top_level_keys = {
+        "logs",
+        "current",
+        "waiting",
+        "priority_mode",
+        "cooldown_seconds",
+        "total_waiting_count",
+        "total_waiting_group_count",
+        "queue_view",
+    }
+    for key in forbidden_top_level_keys:
+        assert key not in overlay
+
+    for section in ("now_view", "next_view"):
+        for user in overlay[section]:
+            assert set(user.keys()) <= {"display_name", "is_placeholder"}
+            assert "user_id" not in user
+            assert "participation_count" not in user

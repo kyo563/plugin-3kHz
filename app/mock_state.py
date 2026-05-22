@@ -66,6 +66,15 @@ def _pad_open_slots(users: list[dict]) -> list[dict]:
     ]
 
 
+def _to_overlay_user(user: dict) -> dict:
+    overlay_user = {
+        "display_name": user.get("display_name", ""),
+    }
+    if user.get("is_placeholder"):
+        overlay_user["is_placeholder"] = True
+    return overlay_user
+
+
 def add_mock_user() -> None:
     if not state["is_open"]:
         _log("受付終了中の参加希望")
@@ -155,8 +164,8 @@ def build_overlay_state() -> dict:
     view = build_view_state()
     return {
         "is_open": view["is_open"],
-        "now_view": view["now_view"],
-        "next_view": view["next_view"],
+        "now_view": [_to_overlay_user(user) for user in view["now_view"]],
+        "next_view": [_to_overlay_user(user) for user in view["next_view"]],
         "queue_count": view["queue_count"],
         "queue_group_count": view["queue_group_count"],
     }
