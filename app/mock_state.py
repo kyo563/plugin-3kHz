@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-GROUP_SIZE = 3
-OPEN_SLOT_LABEL = "参加者募集中"
+from app.services.overlay_state_service import OverlayStateService
+from app.services.queue_service import GROUP_SIZE, OPEN_SLOT_LABEL, QueueService
 
 INITIAL_STATE = {
     "is_open": True,
@@ -35,11 +35,8 @@ TEST_USERS = [
 
 state = deepcopy(INITIAL_STATE)
 _add_counter = 0
-
-
-def _log(message: str) -> None:
-    state["logs"].append(message)
-    state["logs"] = state["logs"][-30:]
+_queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL)
+_overlay_service = OverlayStateService()
 
 
 def reset_state() -> None:
@@ -59,113 +56,29 @@ def _build_next_user() -> dict:
     }
 
 
-def _pad_open_slots(users: list[dict]) -> list[dict]:
-    return users + [
-        {"display_name": OPEN_SLOT_LABEL, "is_placeholder": True}
-        for _ in range(max(0, GROUP_SIZE - len(users)))
-    ]
-
-
-def _to_overlay_user(user: dict) -> dict:
-    overlay_user = {
-        "display_name": user.get("display_name", ""),
-    }
-    if user.get("is_placeholder"):
-        overlay_user["is_placeholder"] = True
-    return overlay_user
-
-
 def add_mock_user() -> None:
-    if not state["is_open"]:
-        _log("受付終了中の参加希望")
-        return
-
-    user = _build_next_user()
-    if len(state["current"]) < GROUP_SIZE:
-        state["current"].append(user)
-        _log(f"{user['display_name']} をNOWへ補充しました")
-        return
-
-    if state["priority_mode"] and len(state["waiting"]) >= GROUP_SIZE:
-        next_slice = state["waiting"][:GROUP_SIZE]
-        candidates = [
-            (index, queued_user)
-            for index, queued_user in enumerate(next_slice)
-            if queued_user["participation_count"] > user["participation_count"]
-        ]
-
-        if candidates:
-            demote_index, demoted = candidates[-1]
-            new_next = [
-                queued_user
-                for index, queued_user in enumerate(next_slice)
-                if index != demote_index
-            ]
-            new_next.append(user)
-            state["waiting"] = new_next + [demoted] + state["waiting"][GROUP_SIZE:]
-            _log(
-                f"低消化優先: {user['display_name']} をNEXTへ、"
-                f"{demoted['display_name']} をQUEUE先頭へ"
-            )
-            return
-
-    state["waiting"].append(user)
-    _log(f"{user['display_name']} を待機列へ追加しました")
+    _queue_service.add_user(state, _build_next_user())
 
 
 def cancel_mock_user() -> None:
-    if state["waiting"]:
-        removed = state["waiting"].pop(0)
-        _log(f"{removed['display_name']} を取消しました")
-        return
-    _log("取消対象がいません")
+    _queue_service.cancel_user(state)
 
 
 def move_next() -> None:
-    for user in state["current"]:
-        user["participation_count"] += 1
-
-    next_users = state["waiting"][:GROUP_SIZE]
-    state["waiting"] = state["waiting"][GROUP_SIZE:]
-    state["current"] = next_users
-    _log("次へ進めるを実行しました")
+    _queue_service.move_next(state)
 
 
 def toggle_open() -> None:
-    state["is_open"] = not state["is_open"]
-    _log("受付状態を切り替えました")
+    _queue_service.toggle_open(state)
 
 
 def toggle_priority() -> None:
-    state["priority_mode"] = not state["priority_mode"]
-    _log("低消化回数優先モードを切り替えました")
+    _queue_service.toggle_priority(state)
 
 
 def build_view_state() -> dict:
-    current = list(state["current"])
-    waiting = state["waiting"]
-
-    next_users = waiting[:GROUP_SIZE]
-    queue_users = waiting[GROUP_SIZE:]
-
-    return {
-        **state,
-        "now_view": _pad_open_slots(current),
-        "next_view": _pad_open_slots(next_users),
-        "queue_view": queue_users,
-        "total_waiting_count": len(waiting),
-        "total_waiting_group_count": (len(waiting) + GROUP_SIZE - 1) // GROUP_SIZE,
-        "queue_count": len(queue_users),
-        "queue_group_count": (len(queue_users) + GROUP_SIZE - 1) // GROUP_SIZE,
-    }
+    return _queue_service.build_view_state(state)
 
 
 def build_overlay_state() -> dict:
-    view = build_view_state()
-    return {
-        "is_open": view["is_open"],
-        "now_view": [_to_overlay_user(user) for user in view["now_view"]],
-        "next_view": [_to_overlay_user(user) for user in view["next_view"]],
-        "queue_count": view["queue_count"],
-        "queue_group_count": view["queue_group_count"],
-    }
+    return _overlay_service.build_overlay_state(build_view_state())
