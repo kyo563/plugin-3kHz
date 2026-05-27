@@ -41,12 +41,12 @@ def _build_comment(**kwargs) -> ReceivedComment:
 
 def test_receive_endpoint_accepts_valid_payload():
     result = receive_external_comment(_build_comment())
-    assert result.model_dump(by_alias=True) == {"status": "accepted", "duplicate": False}
+    assert result.model_dump(by_alias=True) == {"status": "accepted", "duplicate": False, "command": "join"}
 
 
 def test_manual_endpoint_accepts_valid_payload_and_forces_manual_source():
     result = receive_manual_comment(_build_comment(source="external"))
-    assert result.model_dump(by_alias=True) == {"status": "accepted", "duplicate": False}
+    assert result.model_dump(by_alias=True) == {"status": "accepted", "duplicate": False, "command": "join"}
 
     state = api_state()
     assert any("source=manual" in log for log in state["logs"])
@@ -56,8 +56,8 @@ def test_duplicate_external_message_id_returns_duplicate_true_on_second_request(
     first = receive_external_comment(_build_comment(external_message_id="dup-1"))
     second = receive_external_comment(_build_comment(external_message_id="dup-1"))
 
-    assert first.model_dump() == {"status": "accepted", "duplicate": False}
-    assert second.model_dump() == {"status": "accepted", "duplicate": True}
+    assert first.model_dump() == {"status": "accepted", "duplicate": False, "command": "join"}
+    assert second.model_dump() == {"status": "accepted", "duplicate": True, "command": "ignore"}
 
 
 def test_invalid_payload_is_rejected_by_schema_validation():
@@ -103,5 +103,31 @@ def test_operation_logs_do_not_store_message_external_message_id_or_user_key():
     assert "秘密の本文" not in logs
     assert "secret-external-id" not in logs
     assert "secret-user-key" not in logs
-    assert "コメント受信: source=external, display_name=視聴者テスト" in logs
+    assert "コメント受信: source=external, display_name=視聴者テスト, command=ignore" in logs
     assert "重複コメントを除外: source=external, display_name=視聴者テスト" in logs
+
+
+def test_receive_endpoint_returns_join_cancel_ignore_commands():
+    join_payload = _payload(external_message_id="cmd-join")
+    join_payload["message"] = "こんにちは参加希望"
+    assert receive_external_comment(ReceivedComment(**join_payload)).model_dump() == {
+        "status": "accepted",
+        "duplicate": False,
+        "command": "join",
+    }
+
+    cancel_payload = _payload(external_message_id="cmd-cancel")
+    cancel_payload["message"] = "参加を辞退します"
+    assert receive_external_comment(ReceivedComment(**cancel_payload)).model_dump() == {
+        "status": "accepted",
+        "duplicate": False,
+        "command": "cancel",
+    }
+
+    ignore_payload = _payload(external_message_id="cmd-ignore")
+    ignore_payload["message"] = "参加したいです"
+    assert receive_external_comment(ReceivedComment(**ignore_payload)).model_dump() == {
+        "status": "accepted",
+        "duplicate": False,
+        "command": "ignore",
+    }

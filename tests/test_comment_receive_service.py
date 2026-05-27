@@ -27,6 +27,7 @@ def test_receive_first_comment_is_not_duplicate():
 
     assert result.status == "accepted"
     assert result.duplicate is False
+    assert result.command == "join"
 
 
 def test_receive_same_external_message_id_marks_duplicate():
@@ -39,6 +40,7 @@ def test_receive_same_external_message_id_marks_duplicate():
     assert first.duplicate is False
     assert second.status == "accepted"
     assert second.duplicate is True
+    assert second.command == "ignore"
 
 
 def test_receive_without_external_message_id_is_not_deduplicated():
@@ -50,6 +52,7 @@ def test_receive_without_external_message_id_is_not_deduplicated():
 
     assert first.duplicate is False
     assert second.duplicate is False
+    assert second.command == "join"
 
 
 def test_old_external_message_id_is_forgotten_after_rotation():
@@ -63,6 +66,7 @@ def test_old_external_message_id_is_forgotten_after_rotation():
     replay = service.receive(_comment(external_message_id="id-1"))
 
     assert replay.duplicate is False
+    assert replay.command == "join"
 
 
 def test_logs_do_not_include_message_external_message_id_user_key():
@@ -78,3 +82,4 @@ def test_logs_do_not_include_message_external_message_id_user_key():
     assert "sensitive-user" not in combined
     assert "source=external" in combined
     assert "display_name=視聴者A" in combined
+    assert "command=ignore" in combined

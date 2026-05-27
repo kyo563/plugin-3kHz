@@ -233,13 +233,17 @@ MVP完成までは、以下の順序で進めます。
    - `ExternalChatProvider` は外部チャット取得アプリケーションからの入力を受ける
    - `ManualTestProvider` は開発・検証・デモ入力を受け、`source=manual` に補正する
    - `CommentReceiveService` は `externalMessageId` の重複除外（インメモリ、再起動非保持）を行う
-   - 受信段階では待機列へ反映しない（CommentNormalizer / CommandDetector は次段階）
+   - レスポンスは `status` / `duplicate` / `command` を返す
+   - 受信段階では待機列へ反映しない（判定結果はQueueService未接続）
 
-5. コメント正規化・コマンド判定
-   - `CommentNormalizer` で表記ゆれを吸収する
-   - `CommandDetector` で参加希望・取消ワードを判定する
-   - 完全一致、前方一致、正規化後判定を基本とする
-   - 過剰検知を避ける
+5. コメント正規化・コマンド判定（実装済み）
+   - `CommentNormalizer` は前後空白除去、全角空白統一、連続空白圧縮、改行/タブ空白化、全角英数字半角化、英字小文字化を行う
+   - joinは正規化後文字列に **`参加希望`**（連続4文字）が含まれる場合のみ
+   - ただし `参加希望者` / `参加希望順` を含むコメントは joinにせず ignore（誤検知防止）
+   - cancelは `参加辞退` または `参加を辞退` を含む場合のみ
+   - joinとcancelが同時に含まれる場合は cancel を優先
+   - 類義語・英語・ひらがな表記は判定対象外
+   - コメント本文・正規化本文・`externalMessageId`・`userKey` 生値は保存しない
 
 6. 待機列本ロジック
    - NOWが3人未満で受付中の場合、新規参加希望者をNOWへ直接補充する
