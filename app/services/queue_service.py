@@ -21,15 +21,15 @@ class QueueService:
             for _ in range(max(0, self.group_size - len(users)))
         ]
 
-    def add_user(self, state: dict, user: dict) -> None:
+    def add_user(self, state: dict, user: dict) -> bool:
         if not state["is_open"]:
             self._log(state, "受付終了中の参加希望")
-            return
+            return False
 
         if len(state["current"]) < self.group_size:
             state["current"].append(user)
             self._log(state, f"{user['display_name']} をNOWへ補充しました")
-            return
+            return True
 
         if state["priority_mode"] and len(state["waiting"]) >= self.group_size:
             next_slice = state["waiting"][: self.group_size]
@@ -53,10 +53,44 @@ class QueueService:
                     f"低消化優先: {user['display_name']} をNEXTへ、"
                     f"{demoted['display_name']} をQUEUE先頭へ",
                 )
-                return
+                return True
 
         state["waiting"].append(user)
         self._log(state, f"{user['display_name']} を待機列へ追加しました")
+        return True
+
+    def join_or_requeue_user_by_id(self, state: dict, user: dict) -> bool:
+        existing_user = None
+        for section in ("current", "waiting"):
+            users = state[section]
+            for index, queued_user in enumerate(users):
+                if queued_user.get("user_id") == user.get("user_id"):
+                    existing_user = users.pop(index)
+                    break
+            if existing_user is not None:
+                break
+
+        if existing_user is None:
+            return self.add_user(state, user)
+
+        if not state["is_open"]:
+            state[section].insert(index, existing_user)
+            self._log(state, "受付終了中の再参加希望")
+            return False
+
+        declared_player_name = user.get("declared_player_name")
+        merged_user = {
+            **existing_user,
+            "display_name": user.get("display_name", existing_user.get("display_name", "")),
+        }
+        if declared_player_name:
+            merged_user["declared_player_name"] = declared_player_name
+            self._log(state, f"{merged_user['display_name']} の申告名を更新して最後尾へ移動しました")
+        else:
+            self._log(state, f"{merged_user['display_name']} が再参加希望したため最後尾へ移動しました")
+
+        state["waiting"].append(merged_user)
+        return True
 
     def cancel_user(self, state: dict) -> None:
         if state["waiting"]:

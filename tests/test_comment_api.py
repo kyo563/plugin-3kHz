@@ -79,7 +79,7 @@ def test_receive_comment_reflects_queue_and_overlay_is_minimal():
     before_total = len(before["current"]) + len(before["waiting"])
     after_total = len(after["current"]) + len(after["waiting"])
     assert after_total == before_total + 1
-    assert set(overlay.keys()) == {"is_open", "show_declared_player_name_on_overlay", "now_view", "next_view", "queue_count", "queue_group_count"}
+    assert set(overlay.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count"}
     assert "logs" not in overlay
     for section in ("now_view", "next_view"):
         for user in overlay[section]:
@@ -159,3 +159,67 @@ def test_receive_cancel_removes_same_user():
     receive_external_comment(ReceivedComment(**cancel))
     after = api_state()
     assert len(after["current"]) + len(after["waiting"]) == len(before["current"]) + len(before["waiting"]) - 1
+
+
+def test_rejoin_moves_existing_user_to_waiting_tail_for_receive_and_manual():
+    p1 = _payload(external_message_id="rj-1", source="external")
+    p1["userKey"] = "same-user"
+    p1["displayName"] = "Aさん"
+    p1["message"] = "参加希望"
+    receive_external_comment(ReceivedComment(**p1))
+
+    p2 = _payload(external_message_id="rj-2", source="external")
+    p2["userKey"] = "same-user"
+    p2["displayName"] = "Aさん改"
+    p2["message"] = "参加希望"
+    receive_external_comment(ReceivedComment(**p2))
+
+    state = api_state()
+    assert state["waiting"][-1]["display_name"] == "Aさん改"
+
+    m1 = _payload(external_message_id="mrj-1", source="manual")
+    m1["userKey"] = "manual-user"
+    m1["displayName"] = "Mさん"
+    m1["message"] = "参加希望"
+    receive_manual_comment(ReceivedComment(**m1))
+
+    m2 = _payload(external_message_id="mrj-2", source="manual")
+    m2["userKey"] = "manual-user"
+    m2["displayName"] = "Mさん改"
+    m2["message"] = "参加希望"
+    receive_manual_comment(ReceivedComment(**m2))
+
+    state2 = api_state()
+    assert state2["waiting"][-1]["display_name"] == "Mさん改"
+
+
+def test_rejoin_with_declared_player_name_updates_state():
+    p1 = _payload(external_message_id="name-upd-1")
+    p1["userKey"] = "name-user"
+    p1["displayName"] = "Aさん"
+    p1["message"] = "参加希望"
+    receive_external_comment(ReceivedComment(**p1))
+
+    p2 = _payload(external_message_id="name-upd-2")
+    p2["userKey"] = "name-user"
+    p2["displayName"] = "Aさん"
+    p2["message"] = "参加希望 名前 たなかたろう"
+    receive_external_comment(ReceivedComment(**p2))
+
+    state = api_state()
+    target = [u for u in (state["current"] + state["waiting"]) if u.get("display_name") == "Aさん"][-1]
+    assert target["declared_player_name"] == "たなかたろう"
+
+
+def test_ignore_messages_do_not_join_for_join_excludes():
+    payloads = ["参加希望者", "参加希望順"]
+    before = api_state()
+    before_total = len(before["current"]) + len(before["waiting"])
+    for i, msg in enumerate(payloads):
+        p = _payload(external_message_id=f"ig-{i}")
+        p["message"] = msg
+        result = receive_external_comment(ReceivedComment(**p)).model_dump()
+        assert result["command"] == "ignore"
+    after = api_state()
+    after_total = len(after["current"]) + len(after["waiting"])
+    assert after_total == before_total
