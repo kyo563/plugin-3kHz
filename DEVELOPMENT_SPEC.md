@@ -187,138 +187,23 @@ MVP対象外（将来検討）:
 
 ## 12. 開発ロードマップ
 
-### 12.1 現在地
+### 12.1 現在地（実装済み）
 
-現在は、FastAPIベースの画面モックとWindows向け簡易起動導線が整った段階です。
+以下は実装済み。
 
-完了済み:
-- `/control` 管理画面モック
-- `/overlay` OBS表示モック
-- `/settings` 設定画面モック
-- `/api/state`
-- `/api/overlay-state`
-- `QueueService` / `OverlayStateService` の分離
-- `PersistenceService`（インメモリ境界）の導入
-- `app/main.py` から `app/routes/` へのAPI・ページroute分離
-- `start.bat` によるWindows簡易起動
+- `QueueService` / `OverlayStateService` 導入
+- SQLite保存・再起動復元
+- 外部コメント受信口（`POST /api/comments/receive` / `POST /api/comments/manual`）
+- join / cancel の待機列反映
+- `declared_player_name` の保存・表示
+- 再join時の waiting 最後尾移動
+- `/control` による手動調整UI/API（並び替え・末尾移動・削除・申告名編集/削除）
 
-この段階は、画面構成・操作感・OBS表示を確認するためのモック完成段階であり、MVP本実装完了ではありません。
+### 12.2 次の実装候補
 
-### 12.2 今後の開発順序
-
-MVP完成までは、以下の順序で進めます。
-
-1. モック検証
-   - `start.bat` による起動確認
-   - `/control`、`/overlay`、`/settings` の表示確認
-   - OBSブラウザソースでの表示確認
-   - テスト参加者操作によるNOW / NEXT / QUEUEの挙動確認
-
-2. 本実装の土台整理
-   - `mock_state.py` に集中している責務を段階的に分離する
-   - `QueueService` / `OverlayStateService` は完了
-   - `PersistenceService` 境界（インメモリ）は完了
-   - `ControlApi` 相当のroute分離は完了
-   - APIの外部挙動はなるべく変えず、内部構造を整理する
-
-3. SQLite保存（実装済み）
-   - 受付状態、NOW、waiting、参加回数、設定、操作ログを保存する
-   - 起動時に状態を復元する
-   - `next` status は作らない
-   - `waiting` 上位3件をNEXT、4件目以降をQUEUEとして扱う
-   - 「参加者募集中」はDBに保存しない
-
-4. 外部コメント受信口（実装済み）
-   - 受信APIは `POST /api/comments/receive` と `POST /api/comments/manual` を提供済み
-   - `ExternalChatProvider` は外部チャット取得アプリケーションからの入力を受ける
-   - `ManualTestProvider` は開発・検証・デモ入力を受け、`source=manual` に補正する
-   - `CommentReceiveService` は `externalMessageId` の重複除外（インメモリ、再起動非保持）を行う
-   - レスポンスは `status` / `duplicate` / `command` を返す
-   - join / cancel は待機列へ反映される
-- 同一ユーザーが再度 join した場合、既存位置を削除して waiting 最後尾へ並び直す
-- 再join時、declared_player_name が指定されていれば更新する
-- 再join時、declared_player_name が指定されていなければ既存値を維持する
-- 再join時、participation_count は維持する
-- 受付停止中は新規joinも再joinも受け付けない（順番変更しない）
-
-
-6. コメント正規化・コマンド判定（実装済み）
-   - `CommentNormalizer` は前後空白除去、全角空白統一、連続空白圧縮、改行/タブ空白化、全角英数字半角化、英字小文字化を行う
-   - joinは正規化後文字列に **`参加希望`**（連続4文字）が含まれる場合のみ
-   - ただし join 除外は `参加希望者` / `参加希望順` のみ
-   - cancelは `参加辞退` または `参加を辞退` を含む場合のみ
-   - joinとcancelが同時に含まれる場合は cancel を優先
-   - joinコメントで `参加希望 名前 <申告名>` を含む場合、`declared_player_name` をレスポンスへ返す
-   - `declared_player_name` は待機列に反映され、OBS表示は設定値に応じて `display_name` を整形して返す
-- `/api/overlay-state` は `show_declared_player_name_on_overlay` を返さない
-   - コメント本文・正規化本文・`externalMessageId`・`userKey` 生値は保存しない
-   - `declared_player_name` の実値もログ保存しない
-6. 待機列本ロジック
-   - NOWが3人未満で受付中の場合、新規参加希望者をNOWへ直接補充する
-   - NOWが満員の場合はwaitingへ追加する
-   - 取消、再参加、重複、次へ進める、手動追加、手動削除、上下移動を整理する
-   - 低消化回数優先モードと40秒ロックを実装する
-
-7. 管理画面の実用化
-   - NOW / NEXT / QUEUEを明確に表示する
-   - 参加回数を管理画面に表示する
-   - 手動操作、操作ログ、エラー表示、接続状態表示を整える
-
-8. OBS表示の仕上げ
-   - OBS側には参加回数や内部情報を表示しない
-   - `/api/overlay-state` は表示専用の最小レスポンスを維持する
-   - 長い名前、省略表示、背景透過、視認性を確認する
-
-9. 設定画面の最低限実装
-   - 参加希望ワード
-   - 取消ワード
-   - 表示タイトル
-   - 受付初期状態
-   - 外部連携設定
-   - OBS表示URLコピー
-   - 設定保存・復元
-
-10. 実配信前テスト
-    - 参加、取消、再参加、重複、長い名前、絵文字、受付終了中の参加希望、QUEUE大量、再起動復元、OBS再読み込みを確認する
-    - 1時間程度の疑似配信運用で破綻しないことを確認する
-
-11. 配布準備
-    - `start.bat` の安定化
-    - README整備
-    - OBS設定手順
-    - トラブルシュート
-    - exe化はMVP本実装が固まってから検討する
-
-### 12.3 次に着手する推奨PR
-
-次に着手するPRは、いきなりSQLite実装ではなく、サービス層分離を優先します。
-
-推奨:
-- `QueueService` の導入
-- `OverlayStateService` の導入
-- 現在の `mock_state.py` のロジックを段階的に移す
-- API挙動は極力変えない
-- 既存テストを維持する
-
-理由:
-SQLiteや外部コメント受信を先に入れると、`mock_state.py` に責務が集中し続け、後から分解しにくくなるためです。
-
-
-## コメントコマンドの待機列反映（#32次段階）
-- join / cancel の検出結果を待機列へ反映。
-- join時に declared_player_name を participants へ保存。
-- user_id は source + userKey のハッシュで保存し、生の userKey は保存しない。
-- 管理画面は declared_player_name を常に併記。
-- OBSは show_declared_player_name_on_overlay=true の場合のみ併記。
-- /api/overlay-state は declared_player_name の個別フィールドを返さず、整形済み display_name のみ返す。
-- コメント本文・正規化本文・externalMessageId・userKey生値・badges詳細は保存しない。
-
-
-## 手動調整操作（/control）
-
-- 手動調整は `/control` で行い、`/overlay` は表示専用のままとする。
-- 操作対象の同一人物判定は必ず `user_id` を使い、`declared_player_name` は判定に使わない。
-- waiting はドラッグ＆ドロップで並び替え可能。
-- 右クリック操作: 最後尾へ移動 / 削除 / 申告名編集 / 申告名削除。
-- 右クリック対象は current / waiting の実参加者のみ。`参加者募集中` プレースホルダーは対象外。
-- `/api/overlay-state` には `user_id` / `declared_player_name` 個別フィールド / `participation_count` / `logs` を含めない。
+- 40秒状態変更ロック
+- 参加回数管理の実運用確認
+- OBS表示の省略・視認性調整
+- 設定画面の実用化
+- 実配信前テスト
+- 配布準備
