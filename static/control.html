@@ -24,10 +24,6 @@
             <button data-api="/api/mock/add">テスト参加者を追加</button>
             <button data-api="/api/mock/cancel">テスト取消</button>
             <button data-api="/api/mock/reset">リセット</button>
-            <button disabled>上へ</button>
-            <button disabled>下へ</button>
-            <button disabled>手動追加</button>
-            <button disabled>手動削除</button>
         </div>
 
         <div class="grid">
@@ -36,11 +32,11 @@
                 <ul id="now"></ul>
             </section>
             <section>
-                <h2>NEXT</h2>
+                <h2>NEXT（ドラッグで並び替え可）</h2>
                 <ul id="next"></ul>
             </section>
             <section>
-                <h2>QUEUE</h2>
+                <h2>QUEUE（ドラッグで並び替え可）</h2>
                 <ul id="queue"></ul>
             </section>
         </div>
@@ -50,6 +46,13 @@
             <ul id="logs"></ul>
         </section>
     </div>
+
+    <ul id="context-menu" style="display:none;position:absolute;z-index:1000;background:#fff;border:1px solid #ccc;list-style:none;padding:4px;margin:0;">
+        <li><button type="button" data-action="move-tail">待機列の最後尾へ移動</button></li>
+        <li><button type="button" data-action="remove">削除</button></li>
+        <li><button type="button" data-action="edit-name">申告名を編集</button></li>
+        <li><button type="button" data-action="clear-name">申告名を削除</button></li>
+    </ul>
 
     <script src="/static/control.js"></script>
 </body>

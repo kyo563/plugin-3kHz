@@ -106,3 +106,61 @@ def test_join_or_requeue_does_not_change_order_when_closed():
     assert [u["user_id"] for u in state["waiting"]] == ["u1", "u2"]
     assert state["waiting"][0]["display_name"] == "A"
     assert state["waiting"][0]["declared_player_name"] == "名"
+
+
+def test_reorder_waiting_reorders_by_user_id_and_keeps_rest_tail_order():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = [_user("c1", "C1")]
+    state["waiting"] = [_user("u1", "A"), _user("u2", "B"), _user("u3", "C"), _user("u4", "D")]
+
+    service.reorder_waiting(state, ["u3", "u1"])
+
+    assert [u["user_id"] for u in state["waiting"]] == ["u3", "u1", "u2", "u4"]
+    assert [u["user_id"] for u in state["current"]] == ["c1"]
+
+
+def test_remove_user_by_id_removes_from_current_and_waiting_and_is_safe_when_missing():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = [_user("u1", "A")]
+    state["waiting"] = [_user("u2", "B")]
+
+    service.remove_user_by_id(state, "u1")
+    assert [u["user_id"] for u in state["current"]] == []
+
+    service.remove_user_by_id(state, "u2")
+    assert [u["user_id"] for u in state["waiting"]] == []
+
+    service.remove_user_by_id(state, "none")
+    assert state["waiting"] == []
+
+
+def test_move_user_to_waiting_tail_moves_from_current_or_waiting():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = [_user("u1", "A")]
+    state["waiting"] = [_user("u2", "B"), _user("u3", "C")]
+
+    service.move_user_to_waiting_tail(state, "u1")
+    assert [u["user_id"] for u in state["current"]] == []
+    assert [u["user_id"] for u in state["waiting"]] == ["u2", "u3", "u1"]
+
+    service.move_user_to_waiting_tail(state, "u2")
+    assert [u["user_id"] for u in state["waiting"]] == ["u3", "u1", "u2"]
+
+
+def test_update_declared_player_name_updates_by_user_id_only():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = [_user("u1", "A", declared_player_name="x")]
+    state["waiting"] = [_user("u2", "B", declared_player_name="same-name")]
+
+    service.update_declared_player_name(state, "u1", "新しい申告名")
+    assert state["current"][0]["declared_player_name"] == "新しい申告名"
+
+    service.update_declared_player_name(state, "u1", "")
+    assert state["current"][0]["declared_player_name"] is None
+
+    service.update_declared_player_name(state, "u2", "a" * 40)
+    assert state["waiting"][0]["declared_player_name"] == "a" * 32
