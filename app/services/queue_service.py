@@ -21,6 +21,14 @@ class QueueService:
             for _ in range(max(0, self.group_size - len(users)))
         ]
 
+    def _find_and_remove_user(self, state: dict, user_id: str):
+        for section in ("current", "waiting"):
+            users = state[section]
+            for index, user in enumerate(users):
+                if user.get("user_id") == user_id:
+                    return users.pop(index)
+        return None
+
     def add_user(self, state: dict, user: dict) -> bool:
         if not state["is_open"]:
             self._log(state, "受付終了中の参加希望")
@@ -91,6 +99,59 @@ class QueueService:
 
         state["waiting"].append(merged_user)
         return True
+
+    def reorder_waiting(self, state: dict, ordered_user_ids: list[str]) -> None:
+        waiting = list(state["waiting"])
+        waiting_by_id = {
+            user.get("user_id"): user
+            for user in waiting
+            if user.get("user_id")
+        }
+        used = set()
+        reordered = []
+
+        for user_id in ordered_user_ids:
+            user = waiting_by_id.get(user_id)
+            if user is not None and user_id not in used:
+                reordered.append(user)
+                used.add(user_id)
+
+        for user in waiting:
+            user_id = user.get("user_id")
+            if user_id not in used:
+                reordered.append(user)
+
+        state["waiting"] = reordered
+        self._log(state, "待機列を手動で並び替えました")
+
+    def remove_user_by_id(self, state: dict, user_id: str) -> None:
+        removed = self._find_and_remove_user(state, user_id)
+        if removed is None:
+            self._log(state, "手動削除: 対象が見つかりません")
+            return
+        self._log(state, f"{removed.get('display_name', '')} を手動で削除しました")
+
+    def move_user_to_waiting_tail(self, state: dict, user_id: str) -> None:
+        user = self._find_and_remove_user(state, user_id)
+        if user is None:
+            self._log(state, "手動移動: 対象が見つかりません")
+            return
+        state["waiting"].append(user)
+        self._log(state, f"{user.get('display_name', '')} を待機列最後尾へ移動しました")
+
+    def update_declared_player_name(self, state: dict, user_id: str, declared_player_name: str | None) -> None:
+        normalized = (declared_player_name or "").strip()
+        trimmed = normalized[:32]
+        new_value = trimmed or None
+
+        for section in ("current", "waiting"):
+            for user in state[section]:
+                if user.get("user_id") == user_id:
+                    user["declared_player_name"] = new_value
+                    self._log(state, "申告名を更新しました")
+                    return
+
+        self._log(state, "申告名更新: 対象が見つかりません")
 
     def cancel_user(self, state: dict) -> None:
         if state["waiting"]:

@@ -312,3 +312,13 @@ SQLiteや外部コメント受信を先に入れると、`mock_state.py` に責�
 - OBSは show_declared_player_name_on_overlay=true の場合のみ併記。
 - /api/overlay-state は declared_player_name の個別フィールドを返さず、整形済み display_name のみ返す。
 - コメント本文・正規化本文・externalMessageId・userKey生値・badges詳細は保存しない。
+
+
+## 手動調整操作（/control）
+
+- 手動調整は `/control` で行い、`/overlay` は表示専用のままとする。
+- 操作対象の同一人物判定は必ず `user_id` を使い、`declared_player_name` は判定に使わない。
+- waiting はドラッグ＆ドロップで並び替え可能。
+- 右クリック操作: 最後尾へ移動 / 削除 / 申告名編集 / 申告名削除。
+- 右クリック対象は current / waiting の実参加者のみ。`参加者募集中` プレースホルダーは対象外。
+- `/api/overlay-state` には `user_id` / `declared_player_name` 個別フィールド / `participation_count` / `logs` を含めない。
