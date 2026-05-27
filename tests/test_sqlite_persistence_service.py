@@ -12,6 +12,8 @@ INITIAL = {
     "cooldown_seconds": 40,
     "current": [],
     "waiting": [],
+    "user_action_locks": {},
+    "show_declared_player_name_on_overlay": False,
     "logs": ["init"],
 }
 
@@ -29,6 +31,8 @@ def _sample_state():
             {"user_id": "w4", "display_name": "W4", "participation_count": 0},
             {"user_id": "x", "display_name": "参加者募集中", "participation_count": 0, "is_placeholder": True},
         ],
+        "user_action_locks": {"comment:abc": "2026-01-01T00:00:40+00:00"},
+        "show_declared_player_name_on_overlay": False,
         "logs": ["one", "two"],
     }
 
@@ -69,3 +73,30 @@ def test_no_next_status_and_no_placeholder_persisted(tmp_path):
 
     assert all(status in ("current", "waiting") for status, _ in rows)
     assert all(name != "参加者募集中" for _, name in rows)
+
+
+def test_user_action_locks_broken_json_fallback_and_old_db_compat(tmp_path):
+    db_path = tmp_path / "state.sqlite3"
+    service = SQLitePersistenceService(initial_state=INITIAL, db_path=str(db_path))
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("DELETE FROM app_state WHERE key = ?", ("user_action_locks",))
+        conn.execute("INSERT OR REPLACE INTO app_state(key, value) VALUES(?, ?)", ("user_action_locks", "{bad json"))
+
+    restored = service.get_state()
+    assert restored["user_action_locks"] == {}
+
+
+def test_user_action_locks_saved_and_no_userkey_in_db(tmp_path):
+    db_path = tmp_path / "state.sqlite3"
+    service = SQLitePersistenceService(initial_state=INITIAL, db_path=str(db_path))
+    state = _sample_state()
+    state["user_action_locks"] = {"comment:hashed": "2026-01-01T00:00:40+00:00"}
+    service.set_state(state)
+
+    restored = service.get_state()
+    assert restored["user_action_locks"] == state["user_action_locks"]
+
+    with sqlite3.connect(db_path) as conn:
+        values = "\n".join(v for (v,) in conn.execute("SELECT value FROM app_state").fetchall())
+    assert "user-raw" not in values

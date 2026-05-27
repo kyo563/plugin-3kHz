@@ -23,6 +23,7 @@ INITIAL_STATE = {
         {"user_id": "u6", "display_name": "Eさん", "participation_count": 3},
     ],
     "show_declared_player_name_on_overlay": False,
+    "user_action_locks": {},
     "logs": ["モックを初期化しました"],
 }
 

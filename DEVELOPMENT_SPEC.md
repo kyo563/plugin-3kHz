@@ -201,7 +201,9 @@ MVP対象外（将来検討）:
 
 ### 12.2 次の実装候補
 
-- 40秒状態変更ロック
+- 40秒状態変更ロック（実装済み。コメント由来の join / cancel / rejoin のみ対象。/control 手動操作は対象外）
+- ロックは user_id 単位で管理し、declared_player_name は判定に使わない
+- userKey生値は保存せず、cooldown_seconds を使用する
 - 参加回数管理の実運用確認
 - OBS表示の省略・視認性調整
 - 設定画面の実用化
