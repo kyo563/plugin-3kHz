@@ -22,3 +22,4 @@ class ReceivedComment(BaseModel):
 class CommentReceiveResult(BaseModel):
     status: str
     duplicate: bool
+    command: str
