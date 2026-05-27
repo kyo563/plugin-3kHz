@@ -70,6 +70,32 @@ ChatProvider
 - `externalMessageId` は重複処理用の一時データ
 - `message` は判定後に長期保存しない
 
+
+## 6.1 コメント受信API仕様（固定）
+
+### POST /api/comments/receive
+外部チャット取得アプリケーションからコメントを受け取る入口。
+
+### POST /api/comments/manual
+開発・検証・デモ用に手動コメントを投入する入口。
+
+受信payload（`ReceivedComment`）:
+- `source`
+- `externalMessageId`
+- `receivedAt`
+- `displayName`
+- `userKey`
+- `message`
+- `badges.owner` / `badges.moderator` / `badges.member`
+
+運用ルール:
+- duplicate時レスポンスは `{"status": "accepted", "duplicate": true}` を維持する
+- `message` は判定用の一時利用のみ
+- `externalMessageId` は重複除外用の一時利用のみ
+- `userKey` は将来の同一ユーザー判定用だが、生値を長期保存しない
+- `badges` は判定補助用であり、MVPでは長期保存しない
+- コメント本文 / `externalMessageId` / `userKey` 生値はSQLiteへ長期保存しない
+
 ## 7. データ保存方針
 
 SQLiteには、運用上必要なデータを保存します。
@@ -202,10 +228,12 @@ MVP完成までは、以下の順序で進めます。
    - `waiting` 上位3件をNEXT、4件目以降をQUEUEとして扱う
    - 「参加者募集中」はDBに保存しない
 
-4. 外部コメント受信口（次段階）
-   - 外部チャット取得アプリケーションからコメントデータを受け取る入力口を用意する
-   - `ExternalChatProvider` と `ManualTestProvider` の責務を分ける
-   - 重複メッセージを除外できるようにする
+4. 外部コメント受信口（実装済み）
+   - 受信APIは `POST /api/comments/receive` と `POST /api/comments/manual` を提供済み
+   - `ExternalChatProvider` は外部チャット取得アプリケーションからの入力を受ける
+   - `ManualTestProvider` は開発・検証・デモ入力を受け、`source=manual` に補正する
+   - `CommentReceiveService` は `externalMessageId` の重複除外（インメモリ、再起動非保持）を行う
+   - 受信段階では待機列へ反映しない（CommentNormalizer / CommandDetector は次段階）
 
 5. コメント正規化・コマンド判定
    - `CommentNormalizer` で表記ゆれを吸収する
