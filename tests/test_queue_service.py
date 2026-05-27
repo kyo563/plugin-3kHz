@@ -189,3 +189,50 @@ def test_non_move_next_operations_do_not_increment_participation_counts():
     state["waiting"] = [_user("u3", "C")]
     service.move_user_to_waiting_tail(state, "u3")
     assert state["participation_counts"] == {"u1": 1, "u2": 1}
+
+
+
+def test_move_next_handles_empty_current_and_short_waiting_without_error():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = []
+    state["waiting"] = [_user("u1", "A"), _user("u2", "B")]
+    state["participation_counts"] = {"u1": 5}
+
+    service.move_next(state)
+
+    assert [u["user_id"] for u in state["current"]] == ["u1", "u2"]
+    assert state["waiting"] == []
+    assert state["participation_counts"] == {"u1": 5}
+
+
+def test_move_next_increments_current_even_when_waiting_is_empty():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = [_user("u1", "A", participation_count=0)]
+    state["waiting"] = []
+    state["participation_counts"] = {"u1": "bad"}
+
+    service.move_next(state)
+
+    assert state["participation_counts"]["u1"] == 1
+    assert state["current"] == []
+
+
+def test_move_next_skips_placeholder_without_user_id_and_normalizes_negative_count():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = [{"display_name": "参加者募集中", "is_placeholder": True}, _user("u1", "A", participation_count=-3)]
+    state["waiting"] = [_user("u2", "B")]
+    state["participation_counts"] = {"u1": -5}
+
+    service.move_next(state)
+
+    assert state["participation_counts"]["u1"] == 1
+    assert [u["user_id"] for u in state["current"]] == ["u2"]
+
+
+def test_control_html_has_new_move_next_wording():
+    html = Path("static/control.html").read_text(encoding="utf-8")
+    assert "次の対戦に移る（参加回数+1）" in html
+    assert "次へ進める" not in html

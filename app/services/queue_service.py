@@ -184,7 +184,9 @@ class QueueService:
         return False
 
     def move_next(self, state: dict) -> None:
-        counts = state.setdefault("participation_counts", {})
+        raw_counts = state.get("participation_counts")
+        counts = raw_counts if isinstance(raw_counts, dict) else {}
+        state["participation_counts"] = counts
         for user in state["current"]:
             if user.get("is_placeholder"):
                 continue
@@ -198,12 +200,18 @@ class QueueService:
             if base < 0:
                 base = 0
             counts[user_id] = base + 1
-            user["participation_count"] = max(int(user.get("participation_count", 0)), counts[user_id])
+            try:
+                current_count = int(user.get("participation_count", 0))
+            except (TypeError, ValueError):
+                current_count = 0
+            if current_count < 0:
+                current_count = 0
+            user["participation_count"] = max(current_count, counts[user_id])
 
         next_users = state["waiting"][: self.group_size]
         state["waiting"] = state["waiting"][self.group_size :]
         state["current"] = next_users
-        self._log(state, "次へ進めるを実行しました")
+        self._log(state, "次の対戦に移りました（対戦中グループの参加回数+1）")
 
     def toggle_open(self, state: dict) -> None:
         state["is_open"] = not state["is_open"]
