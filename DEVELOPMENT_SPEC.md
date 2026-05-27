@@ -171,6 +171,9 @@ MVP対象外（将来検討）:
 - `/settings` 設定画面モック
 - `/api/state`
 - `/api/overlay-state`
+- `QueueService` / `OverlayStateService` の分離
+- `PersistenceService`（インメモリ境界）の導入
+- `app/main.py` から `app/routes/` へのAPI・ページroute分離
 - `start.bat` によるWindows簡易起動
 
 この段階は、画面構成・操作感・OBS表示を確認するためのモック完成段階であり、MVP本実装完了ではありません。
@@ -187,13 +190,12 @@ MVP完成までは、以下の順序で進めます。
 
 2. 本実装の土台整理
    - `mock_state.py` に集中している責務を段階的に分離する
-   - `QueueService`
-   - `OverlayStateService`
-   - `PersistenceService`
-   - `ControlApi`
+   - `QueueService` / `OverlayStateService` は完了
+   - `PersistenceService` 境界（インメモリ）は完了
+   - `ControlApi` 相当のroute分離は完了
    - APIの外部挙動はなるべく変えず、内部構造を整理する
 
-3. SQLite保存
+3. SQLite保存（次段階）
    - 受付状態、NOW、waiting、参加回数、設定、操作ログを保存する
    - 起動時に状態を復元する
    - `next` status は作らない
