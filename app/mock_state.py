@@ -85,3 +85,10 @@ def build_view_state() -> dict:
 
 def build_overlay_state() -> dict:
     return _overlay_service.build_overlay_state(build_view_state())
+
+
+def add_log(message: str) -> None:
+    def _append_log(app_state: dict) -> None:
+        app_state.setdefault("logs", []).append(message)
+
+    _persistence_service.mutate_state(_append_log)
