@@ -1,7 +1,9 @@
+import os
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+os.environ["WAITING_LIST_DB_PATH"] = str(Path(__file__).resolve().parent / "tmp_mock_state.sqlite3")
 
 from app import mock_state
 
@@ -37,21 +39,24 @@ def test_add_mock_user_does_not_change_state_when_closed():
 
 
 def test_priority_mode_demotes_higher_participation_user_only():
-    mock_state.state["current"] = [
+    state = mock_state.build_view_state()
+    state["current"] = [
         {"user_id": "c1", "display_name": "C1", "participation_count": 0},
         {"user_id": "c2", "display_name": "C2", "participation_count": 0},
         {"user_id": "c3", "display_name": "C3", "participation_count": 0},
     ]
-    mock_state.state["waiting"] = [
+    state["waiting"] = [
         {"user_id": "w1", "display_name": "W1", "participation_count": 0},
         {"user_id": "w2", "display_name": "W2", "participation_count": 0},
         {"user_id": "w3", "display_name": "W3", "participation_count": 2},
         {"user_id": "w4", "display_name": "W4", "participation_count": 0},
     ]
+    mock_state.set_mock_state_for_test(state)
 
     mock_state.add_mock_user()
 
-    waiting_ids = [u["user_id"] for u in mock_state.state["waiting"]]
+    after = mock_state.build_view_state()
+    waiting_ids = [u["user_id"] for u in after["waiting"]]
     assert waiting_ids[:4] == ["w1", "w2", "test1", "w3"]
 
 

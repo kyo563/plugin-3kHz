@@ -62,3 +62,9 @@ YouTubeライブの参加希望コメントを整理し、配信者が参加型�
 - `start.bat` をダブルクリックすると、必要なら `.venv` 作成と依存インストールを行って起動します。
 - 起動後、`http://127.0.0.1:8080/control` が自動で開きます。
 - `run.bat` は開発者向けの簡易起動として残しています。
+
+
+## SQLite保存先
+
+- デフォルトDBファイル: `data/waiting_list.sqlite3`
+- 環境変数 `WAITING_LIST_DB_PATH` で変更可能
