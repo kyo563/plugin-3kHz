@@ -13,6 +13,7 @@ def _base_state(is_open: bool = True) -> dict:
         "waiting": [],
         "logs": [],
         "priority_mode": False,
+        "participation_counts": {},
     }
 
 
@@ -164,3 +165,27 @@ def test_update_declared_player_name_updates_by_user_id_only():
 
     service.update_declared_player_name(state, "u2", "a" * 40)
     assert state["waiting"][0]["declared_player_name"] == "a" * 32
+
+
+def test_move_next_increments_participation_counts_for_current_only():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = [_user("u1", "A", participation_count=1), {"display_name": "参加者募集中", "is_placeholder": True}]
+    state["waiting"] = [_user("u2", "B", participation_count=3)]
+    state["participation_counts"] = {"u1": 2, "u2": 10}
+    service.move_next(state)
+    assert state["participation_counts"]["u1"] == 3
+    assert state["participation_counts"]["u2"] == 10
+
+
+def test_non_move_next_operations_do_not_increment_participation_counts():
+    service = QueueService()
+    state = _base_state()
+    state["current"] = [_user("u1", "A", participation_count=1)]
+    state["waiting"] = [_user("u2", "B", participation_count=1)]
+    state["participation_counts"] = {"u1": 1, "u2": 1}
+    service.cancel_user_by_id(state, "u2")
+    service.remove_user_by_id(state, "u1")
+    state["waiting"] = [_user("u3", "C")]
+    service.move_user_to_waiting_tail(state, "u3")
+    assert state["participation_counts"] == {"u1": 1, "u2": 1}

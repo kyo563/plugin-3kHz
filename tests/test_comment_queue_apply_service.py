@@ -26,6 +26,7 @@ def _state(is_open=True):
         "waiting": [],
         "show_declared_player_name_on_overlay": False,
         "user_action_locks": {},
+        "participation_counts": {},
         "logs": [],
     }
 
@@ -86,3 +87,23 @@ def test_duplicate_ignore_closed_join_and_missing_cancel_do_not_set_lock():
     s.apply(_comment(user_key="j"), _result("join"))
     s.apply(_comment(user_key="c"), _result("cancel"))
     assert p.get_state().get("user_action_locks", {}) == {}
+
+
+def test_join_reflects_saved_participation_count_and_invalid_falls_back_zero():
+    st = _state()
+    identity = UserIdentityService()
+    uid1 = identity.build_comment_user_id("external", "k1")
+    uid2 = identity.build_comment_user_id("external", "k2")
+    st["participation_counts"] = {uid1: 2, uid2: "bad"}
+    p = PersistenceService(initial_state=st)
+    clock = MutableNow(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    s = _service(p, clock)
+    s.apply(_comment(user_key="k1"), _result("join"))
+    user = (p.get_state()["current"] + p.get_state()["waiting"])[0]
+    assert user["participation_count"] == 2
+
+    clock.now = datetime(2026, 1, 1, 0, 0, 41, tzinfo=timezone.utc)
+    s.apply(_comment(user_key="k2", display_name="Bさん"), _result("join"))
+    users = p.get_state()["current"] + p.get_state()["waiting"]
+    b = [u for u in users if u["display_name"] == "Bさん"][0]
+    assert b["participation_count"] == 0
