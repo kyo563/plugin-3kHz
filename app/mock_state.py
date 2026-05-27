@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from copy import deepcopy
-
 from app.services.overlay_state_service import OverlayStateService
+from app.services.persistence_service import PersistenceService
 from app.services.queue_service import GROUP_SIZE, OPEN_SLOT_LABEL, QueueService
 
 INITIAL_STATE = {
@@ -33,15 +32,16 @@ TEST_USERS = [
     {"display_name": "長い名前のテスト参加者サンプル", "participation_count": 0},
 ]
 
-state = deepcopy(INITIAL_STATE)
 _add_counter = 0
 _queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL)
 _overlay_service = OverlayStateService()
+_persistence_service = PersistenceService(initial_state=INITIAL_STATE)
+state = _persistence_service.get_state()
 
 
 def reset_state() -> None:
     global state, _add_counter
-    state = deepcopy(INITIAL_STATE)
+    state = _persistence_service.reset_state()
     _add_counter = 0
 
 
@@ -57,27 +57,27 @@ def _build_next_user() -> dict:
 
 
 def add_mock_user() -> None:
-    _queue_service.add_user(state, _build_next_user())
+    _persistence_service.mutate_state(lambda app_state: _queue_service.add_user(app_state, _build_next_user()))
 
 
 def cancel_mock_user() -> None:
-    _queue_service.cancel_user(state)
+    _persistence_service.mutate_state(_queue_service.cancel_user)
 
 
 def move_next() -> None:
-    _queue_service.move_next(state)
+    _persistence_service.mutate_state(_queue_service.move_next)
 
 
 def toggle_open() -> None:
-    _queue_service.toggle_open(state)
+    _persistence_service.mutate_state(_queue_service.toggle_open)
 
 
 def toggle_priority() -> None:
-    _queue_service.toggle_priority(state)
+    _persistence_service.mutate_state(_queue_service.toggle_priority)
 
 
 def build_view_state() -> dict:
-    return _queue_service.build_view_state(state)
+    return _queue_service.build_view_state(_persistence_service.get_state())
 
 
 def build_overlay_state() -> dict:
