@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from app.services.overlay_state_service import OverlayStateService
-from app.services.persistence_service import PersistenceService
 from app.services.queue_service import GROUP_SIZE, OPEN_SLOT_LABEL, QueueService
+from app.services.sqlite_persistence_service import SQLitePersistenceService
 
 INITIAL_STATE = {
     "is_open": True,
@@ -35,14 +35,17 @@ TEST_USERS = [
 _add_counter = 0
 _queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL)
 _overlay_service = OverlayStateService()
-_persistence_service = PersistenceService(initial_state=INITIAL_STATE)
-state = _persistence_service.get_state()
+_persistence_service = SQLitePersistenceService(initial_state=INITIAL_STATE)
 
 
 def reset_state() -> None:
-    global state, _add_counter
-    state = _persistence_service.reset_state()
+    global _add_counter
+    _persistence_service.reset_state()
     _add_counter = 0
+
+
+def set_mock_state_for_test(new_state: dict) -> None:
+    _persistence_service.set_state(new_state)
 
 
 def _build_next_user() -> dict:

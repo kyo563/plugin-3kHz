@@ -1,7 +1,9 @@
+import os
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+os.environ["WAITING_LIST_DB_PATH"] = str(Path(__file__).resolve().parent / "tmp_routes.sqlite3")
 
 from app import mock_state
 from app.main import app
