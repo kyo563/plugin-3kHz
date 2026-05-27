@@ -68,3 +68,13 @@ YouTubeライブの参加希望コメントを整理し、配信者が参加型�
 
 - デフォルトDBファイル: `data/waiting_list.sqlite3`
 - 環境変数 `WAITING_LIST_DB_PATH` で変更可能
+
+
+## コメント受信API（MVP土台）
+
+- `POST /api/comments/receive`: 外部チャット取得アプリケーションからHTTPでコメントを受け取る入口
+- `POST /api/comments/manual`: 開発・検証・デモ用の手動コメント投入入口
+- 本アプリは配信サイトAPIへ直接接続しない
+- 受信段階ではコメントを待機列へ反映しない（CommentNormalizer / CommandDetector は次段階）
+- コメント本文・`externalMessageId`・`userKey` 生値はSQLiteへ長期保存しない
+- `/api/overlay-state` はOBS表示専用の最小レスポンスを維持する
