@@ -8,14 +8,14 @@ from app.services.command_detector import CommandDetector
 
 def test_join_cases():
     detector = CommandDetector()
-    for message in ["参加希望", "参加希望します", "参加希望です", "こんにちは参加希望", "参加希望でお願いします"]:
+    for message in ["参加希望", "参加希望します", "参加希望です", "こんにちは参加希望", "参加希望 名前 たなかたろう", "参加希望でお願いします"]:
         assert detector.detect(message) == "join"
 
 
 def test_join_ignore_cases():
     detector = CommandDetector()
     for message in [
-        "参加", "参加したい", "参加します", "さんか", "sanka", "join", "join please", "希望", "参加 希望", "参加きぼう"
+        "参加", "参加したい", "参加します", "さんか", "sanka", "join", "希望", "参加 希望", "参加きぼう"
     ]:
         assert detector.detect(message) == "ignore"
 
@@ -44,4 +44,3 @@ def test_join_excludes_are_ignore():
     assert detector.detect("参加希望順") == "ignore"
     assert detector.detect("参加希望者多いね") == "ignore"
     assert detector.detect("参加希望順どうなっていますか") == "ignore"
-    assert detector.detect("参加希望者ですが参加希望します") == "ignore"

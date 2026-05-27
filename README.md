@@ -75,7 +75,7 @@ YouTubeライブの参加希望コメントを整理し、配信者が参加型�
 - `POST /api/comments/receive`: 外部チャット取得アプリケーションからHTTPでコメントを受け取る入口
 - `POST /api/comments/manual`: 開発・検証・デモ用の手動コメント投入入口
 - 本アプリは配信サイトAPIへ直接接続しない
-- 受信APIレスポンスは `status` / `duplicate` / `command` を返す
+- 受信APIレスポンスは `status` / `duplicate` / `command` / `declared_player_name` を返す
 - 現段階ではコメントを待機列へ反映しない（判定結果はQueueService未接続）
 - コメント本文・`externalMessageId`・`userKey` 生値はSQLiteへ長期保存しない
 - `/api/overlay-state` はOBS表示専用の最小レスポンスを維持する

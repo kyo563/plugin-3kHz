@@ -41,12 +41,12 @@ def _build_comment(**kwargs) -> ReceivedComment:
 
 def test_receive_endpoint_accepts_valid_payload():
     result = receive_external_comment(_build_comment())
-    assert result.model_dump(by_alias=True) == {"status": "accepted", "duplicate": False, "command": "join"}
+    assert result.model_dump(by_alias=True) == {"status": "accepted", "duplicate": False, "command": "join", "declared_player_name": None}
 
 
 def test_manual_endpoint_accepts_valid_payload_and_forces_manual_source():
     result = receive_manual_comment(_build_comment(source="external"))
-    assert result.model_dump(by_alias=True) == {"status": "accepted", "duplicate": False, "command": "join"}
+    assert result.model_dump(by_alias=True) == {"status": "accepted", "duplicate": False, "command": "join", "declared_player_name": None}
 
     state = api_state()
     assert any("source=manual" in log for log in state["logs"])
@@ -56,8 +56,8 @@ def test_duplicate_external_message_id_returns_duplicate_true_on_second_request(
     first = receive_external_comment(_build_comment(external_message_id="dup-1"))
     second = receive_external_comment(_build_comment(external_message_id="dup-1"))
 
-    assert first.model_dump() == {"status": "accepted", "duplicate": False, "command": "join"}
-    assert second.model_dump() == {"status": "accepted", "duplicate": True, "command": "ignore"}
+    assert first.model_dump() == {"status": "accepted", "duplicate": False, "command": "join", "declared_player_name": None}
+    assert second.model_dump() == {"status": "accepted", "duplicate": True, "command": "ignore", "declared_player_name": None}
 
 
 def test_invalid_payload_is_rejected_by_schema_validation():
@@ -89,7 +89,7 @@ def test_receive_comment_does_not_change_current_or_waiting_and_overlay_is_minim
 def test_operation_logs_do_not_store_message_external_message_id_or_user_key():
     db_path = mock_state._persistence_service._db_path
     payload = _payload(external_message_id="secret-external-id")
-    payload["message"] = "秘密の本文"
+    payload["message"] = "参加希望 名前 たなかたろう"
     payload["userKey"] = "secret-user-key"
     comment = ReceivedComment(**payload)
 
@@ -100,10 +100,10 @@ def test_operation_logs_do_not_store_message_external_message_id_or_user_key():
         rows = conn.execute("SELECT message FROM operation_logs ORDER BY id").fetchall()
 
     logs = "\n".join(message for (message,) in rows)
-    assert "秘密の本文" not in logs
+    assert "たなかたろう" not in logs
     assert "secret-external-id" not in logs
     assert "secret-user-key" not in logs
-    assert "コメント受信: source=external, display_name=視聴者テスト, command=ignore" in logs
+    assert "コメント受信: source=external, display_name=視聴者テスト, command=join, declared_player_name=yes" in logs
     assert "重複コメントを除外: source=external, display_name=視聴者テスト" in logs
 
 
@@ -114,6 +114,7 @@ def test_receive_endpoint_returns_join_cancel_ignore_commands():
         "status": "accepted",
         "duplicate": False,
         "command": "join",
+        "declared_player_name": None,
     }
 
     cancel_payload = _payload(external_message_id="cmd-cancel")
@@ -122,6 +123,7 @@ def test_receive_endpoint_returns_join_cancel_ignore_commands():
         "status": "accepted",
         "duplicate": False,
         "command": "cancel",
+        "declared_player_name": None,
     }
 
     ignore_payload = _payload(external_message_id="cmd-ignore")
@@ -130,4 +132,19 @@ def test_receive_endpoint_returns_join_cancel_ignore_commands():
         "status": "accepted",
         "duplicate": False,
         "command": "ignore",
+        "declared_player_name": None,
     }
+
+
+def test_receive_and_manual_endpoint_return_declared_player_name():
+    payload = _payload(external_message_id="name-api-1")
+    payload["message"] = "参加希望 名前 たなかたろう"
+    receive_result = receive_external_comment(ReceivedComment(**payload)).model_dump()
+    assert receive_result["command"] == "join"
+    assert receive_result["declared_player_name"] == "たなかたろう"
+
+    manual_payload = _payload(external_message_id="name-api-2", source="external")
+    manual_payload["message"] = "こんにちは参加希望 名前 たなかたろう"
+    manual_result = receive_manual_comment(ReceivedComment(**manual_payload)).model_dump()
+    assert manual_result["command"] == "join"
+    assert manual_result["declared_player_name"] == "たなかたろう"
