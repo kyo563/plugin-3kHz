@@ -41,13 +41,20 @@ class CommentQueueApplyService:
 
             changed = False
             if result.command == "join":
+                saved_counts = state.get("participation_counts") or {}
+                try:
+                    saved_participation_count = int(saved_counts.get(user_id, 0))
+                except (TypeError, ValueError):
+                    saved_participation_count = 0
+                if saved_participation_count < 0:
+                    saved_participation_count = 0
                 changed = self._queue_service.join_or_requeue_user_by_id(
                     state,
                     {
                         "user_id": user_id,
                         "display_name": comment.display_name,
                         "declared_player_name": result.declared_player_name,
-                        "participation_count": 0,
+                        "participation_count": saved_participation_count,
                     },
                 )
             elif result.command == "cancel":

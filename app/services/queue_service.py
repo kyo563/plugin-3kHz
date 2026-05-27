@@ -87,9 +87,21 @@ class QueueService:
             return False
 
         declared_player_name = user.get("declared_player_name")
+        existing_count = existing_user.get("participation_count", 0)
+        incoming_count = user.get("participation_count", 0)
+        try:
+            existing_count = int(existing_count)
+        except (TypeError, ValueError):
+            existing_count = 0
+        try:
+            incoming_count = int(incoming_count)
+        except (TypeError, ValueError):
+            incoming_count = 0
+        merged_count = max(existing_count, incoming_count, 0)
         merged_user = {
             **existing_user,
             "display_name": user.get("display_name", existing_user.get("display_name", "")),
+            "participation_count": merged_count,
         }
         if declared_player_name:
             merged_user["declared_player_name"] = declared_player_name
@@ -172,8 +184,21 @@ class QueueService:
         return False
 
     def move_next(self, state: dict) -> None:
+        counts = state.setdefault("participation_counts", {})
         for user in state["current"]:
-            user["participation_count"] += 1
+            if user.get("is_placeholder"):
+                continue
+            user_id = user.get("user_id")
+            if not user_id:
+                continue
+            try:
+                base = int(counts.get(user_id, 0))
+            except (TypeError, ValueError):
+                base = 0
+            if base < 0:
+                base = 0
+            counts[user_id] = base + 1
+            user["participation_count"] = max(int(user.get("participation_count", 0)), counts[user_id])
 
         next_users = state["waiting"][: self.group_size]
         state["waiting"] = state["waiting"][self.group_size :]

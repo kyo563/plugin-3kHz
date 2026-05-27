@@ -24,6 +24,7 @@ INITIAL_STATE = {
     ],
     "show_declared_player_name_on_overlay": False,
     "user_action_locks": {},
+    "participation_counts": {},
     "logs": ["モックを初期化しました"],
 }
 

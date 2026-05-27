@@ -16,6 +16,7 @@ INITIAL = {
     "waiting": [],
     "user_action_locks": {},
     "show_declared_player_name_on_overlay": False,
+    "participation_counts": {},
     "logs": ["init"],
 }
 
@@ -35,6 +36,7 @@ def _sample_state():
         ],
         "user_action_locks": {"comment:abc": "2026-01-01T00:00:40+00:00"},
         "show_declared_player_name_on_overlay": False,
+        "participation_counts": {"comment:u1": 1, "comment:w1": -2},
         "logs": ["one", "two"],
     }
 
@@ -51,6 +53,7 @@ def test_sqlite_persists_and_restores_state(tmp_path):
     assert restored["priority_mode"] is False
     assert len(restored["waiting"]) == 4
     assert restored["logs"] == ["one", "two"]
+    assert restored["participation_counts"] == {"comment:u1": 1, "comment:w1": 0}
 
 
 def test_reset_state_restores_initial_and_db(tmp_path):
@@ -87,6 +90,16 @@ def test_user_action_locks_broken_json_fallback_and_old_db_compat(tmp_path):
 
     restored = service.get_state()
     assert restored["user_action_locks"] == {}
+
+
+def test_participation_counts_broken_json_fallback_and_old_db_compat(tmp_path):
+    db_path = tmp_path / "state.sqlite3"
+    service = SQLitePersistenceService(initial_state=INITIAL, db_path=str(db_path))
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("DELETE FROM app_state WHERE key = ?", ("participation_counts",))
+        conn.execute("INSERT OR REPLACE INTO app_state(key, value) VALUES(?, ?)", ("participation_counts", "{bad json"))
+    restored = service.get_state()
+    assert restored["participation_counts"] == {}
 
 
 def test_user_action_locks_saved_and_no_userkey_in_db(tmp_path):

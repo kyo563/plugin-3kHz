@@ -73,6 +73,19 @@ class SQLitePersistenceService:
         if self._is_empty():
             self.set_state(deepcopy(self._initial_state))
 
+    def _sanitize_participation_counts(self, raw: object) -> dict[str, int]:
+        if not isinstance(raw, dict):
+            return {}
+        sanitized: dict[str, int] = {}
+        for key, value in raw.items():
+            user_id = str(key)
+            try:
+                count = int(value)
+            except (TypeError, ValueError):
+                count = 0
+            sanitized[user_id] = max(0, count)
+        return sanitized
+
     def get_state(self) -> dict:
         with self._connect() as conn:
             app_state_rows = conn.execute("SELECT key, value FROM app_state").fetchall()
@@ -105,6 +118,13 @@ class SQLitePersistenceService:
                     user_action_locks = {str(k): str(v) for k, v in parsed.items()}
             except (TypeError, ValueError, json.JSONDecodeError):
                 user_action_locks = {}
+        participation_counts = {}
+        raw_participation_counts = app_state.get("participation_counts")
+        if raw_participation_counts:
+            try:
+                participation_counts = self._sanitize_participation_counts(json.loads(raw_participation_counts))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                participation_counts = {}
 
         return {
             "is_open": app_state.get("is_open", "1") == "1",
@@ -112,6 +132,7 @@ class SQLitePersistenceService:
             "cooldown_seconds": int(app_state.get("cooldown_seconds", "40")),
             "show_declared_player_name_on_overlay": app_state.get("show_declared_player_name_on_overlay", "0") == "1",
             "user_action_locks": user_action_locks,
+            "participation_counts": participation_counts,
             "current": current,
             "waiting": waiting,
             "logs": [row["message"] for row in reversed(logs)],
@@ -128,6 +149,7 @@ class SQLitePersistenceService:
                 ("cooldown_seconds", str(state["cooldown_seconds"])),
                 ("show_declared_player_name_on_overlay", "1" if state.get("show_declared_player_name_on_overlay", False) else "0"),
                 ("user_action_locks", json.dumps(state.get("user_action_locks", {}), ensure_ascii=False)),
+                ("participation_counts", json.dumps(self._sanitize_participation_counts(state.get("participation_counts", {})), ensure_ascii=False)),
             ])
                 conn.execute("DELETE FROM participants")
                 for status in ("current", "waiting"):

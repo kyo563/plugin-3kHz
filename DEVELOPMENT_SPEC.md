@@ -204,11 +204,17 @@ MVP対象外（将来検討）:
   - user_id 単位で管理
   - declared_player_name は判定に使わない
   - userKey生値は保存しない
-  - cooldown_seconds を使用
+  - cooldown_seconds を使用- 参加回数管理
+  - move_next 時に current 参加者の参加回数を +1
+  - user_id 単位で `participation_counts` に保存
+  - 再起動後も復元
+  - コメント由来の再参加時に保存済み回数を反映
+  - userKey生値は保存しない
+
 
 ### 12.2 次の実装候補
 
-- 参加回数管理の実運用確認
+- 参加回数の配信またぎ恒久管理は将来検討
 - OBS表示の省略・視認性調整
 - 設定画面の実用化
 - 実配信前テスト

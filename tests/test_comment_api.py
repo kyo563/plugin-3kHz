@@ -15,6 +15,7 @@ from app.routes.comment_api import receive_external_comment, receive_manual_comm
 from app.routes.control_api import api_state
 from app.routes.overlay_api import api_overlay_state
 from app.schemas.comment import ReceivedComment
+from app.services.user_identity_service import UserIdentityService
 
 
 def setup_function():
@@ -223,3 +224,22 @@ def test_ignore_messages_do_not_join_for_join_excludes():
     after = api_state()
     after_total = len(after["current"]) + len(after["waiting"])
     assert after_total == before_total
+
+
+def test_join_uses_saved_participation_count_and_move_next_persists_it():
+    identity = UserIdentityService()
+    user_id = identity.build_comment_user_id("external", "user-raw-1")
+    state = mock_state._persistence_service.get_state()
+    state["current"] = []
+    state["waiting"] = []
+    state["participation_counts"] = {user_id: 2}
+    mock_state._persistence_service.set_state(state)
+
+    receive_external_comment(_build_comment(external_message_id="pc-1"))
+    joined = api_state()
+    user = (joined["current"] + joined["waiting"])[0]
+    assert user["participation_count"] == 2
+
+    mock_state.move_next()
+    after = mock_state._persistence_service.get_state()
+    assert after["participation_counts"][user_id] == 3
