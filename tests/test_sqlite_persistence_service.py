@@ -1,5 +1,7 @@
 import sqlite3
 import sys
+import threading
+import time
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -100,3 +102,58 @@ def test_user_action_locks_saved_and_no_userkey_in_db(tmp_path):
     with sqlite3.connect(db_path) as conn:
         values = "\n".join(v for (v,) in conn.execute("SELECT value FROM app_state").fetchall())
     assert "user-raw" not in values
+
+
+def test_mutate_state_is_serialized(tmp_path):
+    db_path = tmp_path / "state.sqlite3"
+    service = SQLitePersistenceService(initial_state=INITIAL, db_path=str(db_path))
+
+    entered = threading.Event()
+    release = threading.Event()
+    order = []
+
+    def first_callback(state):
+        order.append("first_enter")
+        entered.set()
+        release.wait(timeout=1)
+        state["logs"].append("first")
+
+    def second_callback(state):
+        order.append("second_enter")
+        state["logs"].append("second")
+
+    t1 = threading.Thread(target=lambda: service.mutate_state(first_callback))
+    t2 = threading.Thread(target=lambda: service.mutate_state(second_callback))
+
+    t1.start()
+    entered.wait(timeout=1)
+    t2.start()
+    time.sleep(0.05)
+
+    assert order == ["first_enter"]
+
+    release.set()
+    t1.join(timeout=2)
+    t2.join(timeout=2)
+
+    assert order == ["first_enter", "second_enter"]
+
+
+def test_concurrent_mutate_state_does_not_lose_updates(tmp_path):
+    db_path = tmp_path / "state.sqlite3"
+    service = SQLitePersistenceService(initial_state=INITIAL, db_path=str(db_path))
+
+    def add_log(message):
+        service.mutate_state(lambda state: state["logs"].append(message))
+
+    t1 = threading.Thread(target=add_log, args=("a",))
+    t2 = threading.Thread(target=add_log, args=("b",))
+
+    t1.start()
+    t2.start()
+    t1.join(timeout=2)
+    t2.join(timeout=2)
+
+    logs = service.get_state()["logs"]
+    assert "a" in logs
+    assert "b" in logs
