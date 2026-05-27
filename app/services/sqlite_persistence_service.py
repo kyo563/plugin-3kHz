@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,7 @@ class SQLitePersistenceService:
     def __init__(self, initial_state: dict, db_path: str | None = None):
         self._initial_state = deepcopy(initial_state)
         self._db_path = db_path or os.getenv("WAITING_LIST_DB_PATH") or DEFAULT_DB_PATH
+        self._lock = threading.RLock()
         self._ensure_parent_dir()
         self._initialize_schema()
         self._initialize_if_empty()
@@ -116,35 +118,38 @@ class SQLitePersistenceService:
         }
 
     def set_state(self, state: dict) -> None:
-        timestamp = self._now()
-        with self._connect() as conn:
-            conn.execute("DELETE FROM app_state")
-            conn.executemany("INSERT INTO app_state(key, value) VALUES(?, ?)", [
+        with self._lock:
+            timestamp = self._now()
+            with self._connect() as conn:
+                conn.execute("DELETE FROM app_state")
+                conn.executemany("INSERT INTO app_state(key, value) VALUES(?, ?)", [
                 ("is_open", "1" if state["is_open"] else "0"),
                 ("priority_mode", "1" if state["priority_mode"] else "0"),
                 ("cooldown_seconds", str(state["cooldown_seconds"])),
                 ("show_declared_player_name_on_overlay", "1" if state.get("show_declared_player_name_on_overlay", False) else "0"),
                 ("user_action_locks", json.dumps(state.get("user_action_locks", {}), ensure_ascii=False)),
             ])
-            conn.execute("DELETE FROM participants")
-            for status in ("current", "waiting"):
-                for position, user in enumerate(state.get(status, [])):
-                    if user.get("is_placeholder") or user.get("display_name") == "参加者募集中":
-                        continue
-                    conn.execute("""
+                conn.execute("DELETE FROM participants")
+                for status in ("current", "waiting"):
+                    for position, user in enumerate(state.get(status, [])):
+                        if user.get("is_placeholder") or user.get("display_name") == "参加者募集中":
+                            continue
+                        conn.execute("""
                         INSERT INTO participants(user_id, display_name, declared_player_name, status, position, participation_count, created_at, updated_at)
                         VALUES(?, ?, ?, ?, ?, ?, ?, ?)
                     """, (user["user_id"], user["display_name"], user.get("declared_player_name"), status, position, user.get("participation_count", 0), user.get("created_at", timestamp), timestamp))
-            conn.execute("DELETE FROM operation_logs")
-            for message in state.get("logs", [])[-30:]:
-                conn.execute("INSERT INTO operation_logs(message, created_at) VALUES(?, ?)", (message, timestamp))
+                conn.execute("DELETE FROM operation_logs")
+                for message in state.get("logs", [])[-30:]:
+                    conn.execute("INSERT INTO operation_logs(message, created_at) VALUES(?, ?)", (message, timestamp))
 
     def reset_state(self) -> dict:
-        self.set_state(deepcopy(self._initial_state))
-        return self.get_state()
+        with self._lock:
+            self.set_state(deepcopy(self._initial_state))
+            return self.get_state()
 
     def mutate_state(self, callback: Callable[[dict], None]) -> dict:
-        state = self.get_state()
-        callback(state)
-        self.set_state(state)
-        return state
+        with self._lock:
+            state = self.get_state()
+            callback(state)
+            self.set_state(state)
+            return state

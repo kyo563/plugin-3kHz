@@ -198,12 +198,16 @@ MVP対象外（将来検討）:
 - `declared_player_name` の保存・表示
 - 再join時の waiting 最後尾移動
 - `/control` による手動調整UI/API（並び替え・末尾移動・削除・申告名編集/削除）
+- 40秒状態変更ロック
+  - コメント由来の join / cancel / rejoin のみ対象
+  - `/control` 手動操作は対象外
+  - user_id 単位で管理
+  - declared_player_name は判定に使わない
+  - userKey生値は保存しない
+  - cooldown_seconds を使用
 
 ### 12.2 次の実装候補
 
-- 40秒状態変更ロック（実装済み。コメント由来の join / cancel / rejoin のみ対象。/control 手動操作は対象外）
-- ロックは user_id 単位で管理し、declared_player_name は判定に使わない
-- userKey生値は保存せず、cooldown_seconds を使用する
 - 参加回数管理の実運用確認
 - OBS表示の省略・視認性調整
 - 設定画面の実用化
