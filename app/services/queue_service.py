@@ -65,6 +65,16 @@ class QueueService:
             return
         self._log(state, "取消対象がいません")
 
+    def cancel_user_by_id(self, state: dict, user_id: str) -> None:
+        for section in ("waiting", "current"):
+            users = state[section]
+            for index, user in enumerate(users):
+                if user.get("user_id") == user_id:
+                    removed = users.pop(index)
+                    self._log(state, f"{removed['display_name']} を取消しました")
+                    return
+        self._log(state, "取消対象がいません")
+
     def move_next(self, state: dict) -> None:
         for user in state["current"]:
             user["participation_count"] += 1

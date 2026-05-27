@@ -44,3 +44,9 @@ def api_toggle_priority():
 def api_reset():
     mock_state.reset_state()
     return mock_state.build_view_state()
+
+
+@router.post('/api/settings/toggle-overlay-player-name')
+def api_toggle_overlay_player_name():
+    mock_state.toggle_overlay_player_name()
+    return mock_state.build_view_state()

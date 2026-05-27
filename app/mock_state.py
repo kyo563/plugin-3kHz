@@ -22,6 +22,7 @@ INITIAL_STATE = {
         },
         {"user_id": "u6", "display_name": "Eさん", "participation_count": 3},
     ],
+    "show_declared_player_name_on_overlay": False,
     "logs": ["モックを初期化しました"],
 }
 
@@ -85,6 +86,12 @@ def build_view_state() -> dict:
 
 def build_overlay_state() -> dict:
     return _overlay_service.build_overlay_state(build_view_state())
+
+
+def toggle_overlay_player_name() -> None:
+    def _toggle(state: dict) -> None:
+        state["show_declared_player_name_on_overlay"] = not state.get("show_declared_player_name_on_overlay", False)
+    _persistence_service.mutate_state(_toggle)
 
 
 def add_log(message: str) -> None:

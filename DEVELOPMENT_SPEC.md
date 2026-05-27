@@ -296,3 +296,13 @@ MVP完成までは、以下の順序で進めます。
 
 理由:
 SQLiteや外部コメント受信を先に入れると、`mock_state.py` に責務が集中し続け、後から分解しにくくなるためです。
+
+
+## コメントコマンドの待機列反映（#32次段階）
+- join / cancel の検出結果を待機列へ反映。
+- join時に declared_player_name を participants へ保存。
+- user_id は source + userKey のハッシュで保存し、生の userKey は保存しない。
+- 管理画面は declared_player_name を常に併記。
+- OBSは show_declared_player_name_on_overlay=true の場合のみ併記。
+- /api/overlay-state は declared_player_name の個別フィールドを返さず、整形済み display_name のみ返す。
+- コメント本文・正規化本文・externalMessageId・userKey生値・badges詳細は保存しない。
