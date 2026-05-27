@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from copy import deepcopy
@@ -93,11 +94,22 @@ class SQLitePersistenceService:
             }
             (current if row["status"] == "current" else waiting).append(user)
 
+        user_action_locks = {}
+        raw_user_action_locks = app_state.get("user_action_locks")
+        if raw_user_action_locks:
+            try:
+                parsed = json.loads(raw_user_action_locks)
+                if isinstance(parsed, dict):
+                    user_action_locks = {str(k): str(v) for k, v in parsed.items()}
+            except (TypeError, ValueError, json.JSONDecodeError):
+                user_action_locks = {}
+
         return {
             "is_open": app_state.get("is_open", "1") == "1",
             "priority_mode": app_state.get("priority_mode", "1") == "1",
             "cooldown_seconds": int(app_state.get("cooldown_seconds", "40")),
             "show_declared_player_name_on_overlay": app_state.get("show_declared_player_name_on_overlay", "0") == "1",
+            "user_action_locks": user_action_locks,
             "current": current,
             "waiting": waiting,
             "logs": [row["message"] for row in reversed(logs)],
@@ -112,6 +124,7 @@ class SQLitePersistenceService:
                 ("priority_mode", "1" if state["priority_mode"] else "0"),
                 ("cooldown_seconds", str(state["cooldown_seconds"])),
                 ("show_declared_player_name_on_overlay", "1" if state.get("show_declared_player_name_on_overlay", False) else "0"),
+                ("user_action_locks", json.dumps(state.get("user_action_locks", {}), ensure_ascii=False)),
             ])
             conn.execute("DELETE FROM participants")
             for status in ("current", "waiting"):

@@ -151,17 +151,17 @@ def test_receive_and_manual_endpoint_return_declared_player_name():
     assert manual_result["declared_player_name"] == "たなかたろう"
 
 
-def test_receive_cancel_removes_same_user():
+def test_receive_cancel_same_user_is_blocked_within_cooldown():
     join = _payload(external_message_id="join-1"); join["message"]="参加希望"
     cancel = _payload(external_message_id="cancel-1"); cancel["message"]="参加辞退"
     receive_external_comment(ReceivedComment(**join))
     before = api_state()
     receive_external_comment(ReceivedComment(**cancel))
     after = api_state()
-    assert len(after["current"]) + len(after["waiting"]) == len(before["current"]) + len(before["waiting"]) - 1
+    assert len(after["current"]) + len(after["waiting"]) == len(before["current"]) + len(before["waiting"])
 
 
-def test_rejoin_moves_existing_user_to_waiting_tail_for_receive_and_manual():
+def test_rejoin_within_cooldown_is_not_applied_for_receive_and_manual():
     p1 = _payload(external_message_id="rj-1", source="external")
     p1["userKey"] = "same-user"
     p1["displayName"] = "Aさん"
@@ -175,7 +175,7 @@ def test_rejoin_moves_existing_user_to_waiting_tail_for_receive_and_manual():
     receive_external_comment(ReceivedComment(**p2))
 
     state = api_state()
-    assert state["waiting"][-1]["display_name"] == "Aさん改"
+    assert all(u.get("display_name") != "Aさん改" for u in (state["current"] + state["waiting"]))
 
     m1 = _payload(external_message_id="mrj-1", source="manual")
     m1["userKey"] = "manual-user"
@@ -190,10 +190,10 @@ def test_rejoin_moves_existing_user_to_waiting_tail_for_receive_and_manual():
     receive_manual_comment(ReceivedComment(**m2))
 
     state2 = api_state()
-    assert state2["waiting"][-1]["display_name"] == "Mさん改"
+    assert all(u.get("display_name") != "Mさん改" for u in (state2["current"] + state2["waiting"]))
 
 
-def test_rejoin_with_declared_player_name_updates_state():
+def test_rejoin_with_declared_player_name_during_cooldown_does_not_update_state():
     p1 = _payload(external_message_id="name-upd-1")
     p1["userKey"] = "name-user"
     p1["displayName"] = "Aさん"
@@ -208,7 +208,7 @@ def test_rejoin_with_declared_player_name_updates_state():
 
     state = api_state()
     target = [u for u in (state["current"] + state["waiting"]) if u.get("display_name") == "Aさん"][-1]
-    assert target["declared_player_name"] == "たなかたろう"
+    assert target["declared_player_name"] is None
 
 
 def test_ignore_messages_do_not_join_for_join_excludes():

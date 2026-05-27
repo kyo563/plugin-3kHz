@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -7,7 +8,13 @@ from app.schemas.comment import CommentReceiveResult, ReceivedComment
 from app.services.comment_queue_apply_service import CommentQueueApplyService
 from app.services.persistence_service import PersistenceService
 from app.services.queue_service import QueueService
+from app.services.state_change_cooldown_service import StateChangeCooldownService
 from app.services.user_identity_service import UserIdentityService
+
+
+class MutableNow:
+    def __init__(self, now: datetime):
+        self.now = now
 
 
 def _state(is_open=True):
@@ -18,61 +25,64 @@ def _state(is_open=True):
         "current": [],
         "waiting": [],
         "show_declared_player_name_on_overlay": False,
+        "user_action_locks": {},
         "logs": [],
     }
 
 
 def _comment(user_key="k1", message="参加希望", source="external", display_name="Aさん"):
-    return ReceivedComment(
-        source=source,
-        externalMessageId=None,
-        receivedAt="2026-01-01T00:00:00Z",
-        displayName=display_name,
-        userKey=user_key,
-        message=message,
-        badges={"owner": False, "moderator": False, "member": False},
-    )
+    return ReceivedComment(source=source, externalMessageId=None, receivedAt="2026-01-01T00:00:00Z", displayName=display_name, userKey=user_key, message=message, badges={"owner": False, "moderator": False, "member": False})
 
 
 def _result(command="join", duplicate=False, declared=None):
     return CommentReceiveResult(status="accepted", duplicate=duplicate, command=command, declared_player_name=declared)
 
 
-def test_rejoin_moves_to_waiting_tail_not_duplicated_and_updates_declared_name():
+def _service(p, mutable_now):
+    return CommentQueueApplyService(p, QueueService(), UserIdentityService(), StateChangeCooldownService(now_provider=lambda: mutable_now.now))
+
+
+def test_join_then_immediate_cancel_is_ignored_by_lock():
     p = PersistenceService(initial_state=_state())
-    service = CommentQueueApplyService(p, QueueService(), UserIdentityService())
-
-    c = _comment(user_key="same", display_name="Aさん")
-    service.apply(c, _result("join", False, None))
-    service.apply(_comment(user_key="same", display_name="Aさん改"), _result("join", False, "たなかたろう"))
-
+    clock = MutableNow(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    s = _service(p, clock)
+    c = _comment(user_key="same")
+    s.apply(c, _result("join"))
+    s.apply(c, _result("cancel"))
     st = p.get_state()
-    all_users = st["current"] + st["waiting"]
-    assert len([u for u in all_users if u["user_id"] == all_users[-1]["user_id"]]) == 1
-    assert st["waiting"][-1]["declared_player_name"] == "たなかたろう"
+    assert len(st["current"]) + len(st["waiting"]) == 1
 
 
-def test_duplicate_and_ignore_do_nothing():
+def test_lock_expires_then_cancel_can_apply():
     p = PersistenceService(initial_state=_state())
-    service = CommentQueueApplyService(p, QueueService(), UserIdentityService())
-    before = p.get_state()
-
-    service.apply(_comment(), _result("join", True, None))
-    service.apply(_comment(), _result("ignore", False, None))
-
-    after = p.get_state()
-    assert after["current"] == before["current"]
-    assert after["waiting"] == before["waiting"]
-
-
-def test_cancel_removes_target_user():
-    p = PersistenceService(initial_state=_state())
-    q = QueueService()
-    u = UserIdentityService()
-    service = CommentQueueApplyService(p, q, u)
-
-    c = _comment(user_key="target")
-    service.apply(c, _result("join", False, None))
-    service.apply(c, _result("cancel", False, None))
+    clock = MutableNow(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    s = _service(p, clock)
+    c = _comment(user_key="same")
+    s.apply(c, _result("join"))
+    clock.now = datetime(2026, 1, 1, 0, 0, 41, tzinfo=timezone.utc)
+    s.apply(c, _result("cancel"))
     st = p.get_state()
     assert len(st["current"]) + len(st["waiting"]) == 0
+
+
+def test_lock_blocks_declared_name_update_for_rejoin():
+    p = PersistenceService(initial_state=_state())
+    clock = MutableNow(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    s = _service(p, clock)
+    c = _comment(user_key="same")
+    s.apply(c, _result("join"))
+    s.apply(c, _result("join", declared="たなかたろう"))
+    st = p.get_state()
+    user = (st["current"] + st["waiting"])[0]
+    assert user.get("declared_player_name") is None
+
+
+def test_duplicate_ignore_closed_join_and_missing_cancel_do_not_set_lock():
+    p = PersistenceService(initial_state=_state(is_open=False))
+    clock = MutableNow(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    s = _service(p, clock)
+    s.apply(_comment(user_key="d"), _result("join", duplicate=True))
+    s.apply(_comment(user_key="i"), _result("ignore"))
+    s.apply(_comment(user_key="j"), _result("join"))
+    s.apply(_comment(user_key="c"), _result("cancel"))
+    assert p.get_state().get("user_action_locks", {}) == {}
