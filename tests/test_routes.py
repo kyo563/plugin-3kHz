@@ -26,7 +26,7 @@ def test_api_state_returns_control_view_state():
 def test_api_overlay_state_returns_minimal_overlay_payload():
     data = api_overlay_state()
 
-    assert set(data.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count"}
+    assert set(data.keys()) == {"is_open", "show_declared_player_name_on_overlay", "now_view", "next_view", "queue_count", "queue_group_count"}
 
     assert "logs" not in data
     for section in ("now_view", "next_view"):
@@ -50,3 +50,4 @@ def test_route_urls_are_unchanged():
     assert "/api/mock/toggle-open" in paths
     assert "/api/mock/toggle-priority" in paths
     assert "/api/mock/reset" in paths
+    assert "/api/settings/toggle-overlay-player-name" in paths

@@ -31,37 +31,35 @@ class SQLitePersistenceService:
 
     def _initialize_schema(self) -> None:
         with self._connect() as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS app_state (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS participants (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id TEXT NOT NULL,
                     display_name TEXT NOT NULL,
+                    declared_player_name TEXT NULL,
                     status TEXT NOT NULL CHECK(status IN ('current','waiting','done','cancelled')),
                     position INTEGER NOT NULL,
                     participation_count INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS operation_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     message TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
-                """
-            )
+                """)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(participants)").fetchall()}
+            if "declared_player_name" not in columns:
+                conn.execute("ALTER TABLE participants ADD COLUMN declared_player_name TEXT NULL")
 
     def _is_empty(self) -> bool:
         with self._connect() as conn:
@@ -76,38 +74,30 @@ class SQLitePersistenceService:
         with self._connect() as conn:
             app_state_rows = conn.execute("SELECT key, value FROM app_state").fetchall()
             app_state = {row["key"]: row["value"] for row in app_state_rows}
-
-            participants = conn.execute(
-                """
-                SELECT user_id, display_name, status, participation_count, created_at, updated_at
+            participants = conn.execute("""
+                SELECT user_id, display_name, declared_player_name, status, participation_count, created_at, updated_at
                 FROM participants
                 ORDER BY status, position
-                """
-            ).fetchall()
+                """).fetchall()
+            logs = conn.execute("SELECT message FROM operation_logs ORDER BY id DESC LIMIT 30").fetchall()
 
-            logs = conn.execute(
-                "SELECT message FROM operation_logs ORDER BY id DESC LIMIT 30"
-            ).fetchall()
-
-        current = []
-        waiting = []
+        current, waiting = [], []
         for row in participants:
             user = {
                 "user_id": row["user_id"],
                 "display_name": row["display_name"],
+                "declared_player_name": row["declared_player_name"],
                 "participation_count": row["participation_count"],
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
             }
-            if row["status"] == "current":
-                current.append(user)
-            elif row["status"] == "waiting":
-                waiting.append(user)
+            (current if row["status"] == "current" else waiting).append(user)
 
         return {
             "is_open": app_state.get("is_open", "1") == "1",
             "priority_mode": app_state.get("priority_mode", "1") == "1",
             "cooldown_seconds": int(app_state.get("cooldown_seconds", "40")),
+            "show_declared_player_name_on_overlay": app_state.get("show_declared_player_name_on_overlay", "0") == "1",
             "current": current,
             "waiting": waiting,
             "logs": [row["message"] for row in reversed(logs)],
@@ -117,43 +107,24 @@ class SQLitePersistenceService:
         timestamp = self._now()
         with self._connect() as conn:
             conn.execute("DELETE FROM app_state")
-            conn.executemany(
-                "INSERT INTO app_state(key, value) VALUES(?, ?)",
-                [
-                    ("is_open", "1" if state["is_open"] else "0"),
-                    ("priority_mode", "1" if state["priority_mode"] else "0"),
-                    ("cooldown_seconds", str(state["cooldown_seconds"])),
-                ],
-            )
-
+            conn.executemany("INSERT INTO app_state(key, value) VALUES(?, ?)", [
+                ("is_open", "1" if state["is_open"] else "0"),
+                ("priority_mode", "1" if state["priority_mode"] else "0"),
+                ("cooldown_seconds", str(state["cooldown_seconds"])),
+                ("show_declared_player_name_on_overlay", "1" if state.get("show_declared_player_name_on_overlay", False) else "0"),
+            ])
             conn.execute("DELETE FROM participants")
             for status in ("current", "waiting"):
                 for position, user in enumerate(state.get(status, [])):
                     if user.get("is_placeholder") or user.get("display_name") == "参加者募集中":
                         continue
-                    conn.execute(
-                        """
-                        INSERT INTO participants(
-                            user_id, display_name, status, position, participation_count, created_at, updated_at
-                        ) VALUES(?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            user["user_id"],
-                            user["display_name"],
-                            status,
-                            position,
-                            user.get("participation_count", 0),
-                            user.get("created_at", timestamp),
-                            timestamp,
-                        ),
-                    )
-
+                    conn.execute("""
+                        INSERT INTO participants(user_id, display_name, declared_player_name, status, position, participation_count, created_at, updated_at)
+                        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (user["user_id"], user["display_name"], user.get("declared_player_name"), status, position, user.get("participation_count", 0), user.get("created_at", timestamp), timestamp))
             conn.execute("DELETE FROM operation_logs")
             for message in state.get("logs", [])[-30:]:
-                conn.execute(
-                    "INSERT INTO operation_logs(message, created_at) VALUES(?, ?)",
-                    (message, timestamp),
-                )
+                conn.execute("INSERT INTO operation_logs(message, created_at) VALUES(?, ?)", (message, timestamp))
 
     def reset_state(self) -> dict:
         self.set_state(deepcopy(self._initial_state))

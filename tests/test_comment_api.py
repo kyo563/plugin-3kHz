@@ -68,7 +68,7 @@ def test_invalid_payload_is_rejected_by_schema_validation():
         ReceivedComment(**bad)
 
 
-def test_receive_comment_does_not_change_current_or_waiting_and_overlay_is_minimal():
+def test_receive_comment_reflects_queue_and_overlay_is_minimal():
     before = api_state()
 
     receive_external_comment(_build_comment(external_message_id="state-1"))
@@ -76,9 +76,10 @@ def test_receive_comment_does_not_change_current_or_waiting_and_overlay_is_minim
     after = api_state()
     overlay = api_overlay_state()
 
-    assert len(after["current"]) == len(before["current"])
-    assert len(after["waiting"]) == len(before["waiting"])
-    assert set(overlay.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count"}
+    before_total = len(before["current"]) + len(before["waiting"])
+    after_total = len(after["current"]) + len(after["waiting"])
+    assert after_total == before_total + 1
+    assert set(overlay.keys()) == {"is_open", "show_declared_player_name_on_overlay", "now_view", "next_view", "queue_count", "queue_group_count"}
     assert "logs" not in overlay
     for section in ("now_view", "next_view"):
         for user in overlay[section]:
@@ -148,3 +149,13 @@ def test_receive_and_manual_endpoint_return_declared_player_name():
     manual_result = receive_manual_comment(ReceivedComment(**manual_payload)).model_dump()
     assert manual_result["command"] == "join"
     assert manual_result["declared_player_name"] == "たなかたろう"
+
+
+def test_receive_cancel_removes_same_user():
+    join = _payload(external_message_id="join-1"); join["message"]="参加希望"
+    cancel = _payload(external_message_id="cancel-1"); cancel["message"]="参加辞退"
+    receive_external_comment(ReceivedComment(**join))
+    before = api_state()
+    receive_external_comment(ReceivedComment(**cancel))
+    after = api_state()
+    assert len(after["current"]) + len(after["waiting"]) == len(before["current"]) + len(before["waiting"]) - 1
