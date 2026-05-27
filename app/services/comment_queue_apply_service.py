@@ -25,7 +25,7 @@ class CommentQueueApplyService:
 
         def _apply(state: dict) -> None:
             if result.command == "join":
-                self._queue_service.add_user(
+                self._queue_service.join_or_requeue_user_by_id(
                     state,
                     {
                         "user_id": user_id,

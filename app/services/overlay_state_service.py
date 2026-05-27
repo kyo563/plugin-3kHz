@@ -18,7 +18,6 @@ class OverlayStateService:
         show_declared = view_state.get("show_declared_player_name_on_overlay", False)
         return {
             "is_open": view_state["is_open"],
-            "show_declared_player_name_on_overlay": show_declared,
             "now_view": [self._to_overlay_user(user, show_declared) for user in view_state["now_view"]],
             "next_view": [self._to_overlay_user(user, show_declared) for user in view_state["next_view"]],
             "queue_count": view_state["queue_count"],

@@ -234,7 +234,12 @@ MVP完成までは、以下の順序で進めます。
    - `ManualTestProvider` は開発・検証・デモ入力を受け、`source=manual` に補正する
    - `CommentReceiveService` は `externalMessageId` の重複除外（インメモリ、再起動非保持）を行う
    - レスポンスは `status` / `duplicate` / `command` を返す
-   - 受信段階では待機列へ反映しない（判定結果はQueueService未接続）
+   - join / cancel は待機列へ反映される
+- 同一ユーザーが再度 join した場合、既存位置を削除して waiting 最後尾へ並び直す
+- 再join時、declared_player_name が指定されていれば更新する
+- 再join時、declared_player_name が指定されていなければ既存値を維持する
+- 再join時、participation_count は維持する
+- 受付停止中は新規joinも再joinも受け付けない（順番変更しない）
 
 
 6. コメント正規化・コマンド判定（実装済み）
@@ -244,7 +249,8 @@ MVP完成までは、以下の順序で進めます。
    - cancelは `参加辞退` または `参加を辞退` を含む場合のみ
    - joinとcancelが同時に含まれる場合は cancel を優先
    - joinコメントで `参加希望 名前 <申告名>` を含む場合、`declared_player_name` をレスポンスへ返す
-   - `declared_player_name` は受信APIレスポンスのみ（このPRでは待機列/管理画面/OBSへ未反映）
+   - `declared_player_name` は待機列に反映され、OBS表示は設定値に応じて `display_name` を整形して返す
+- `/api/overlay-state` は `show_declared_player_name_on_overlay` を返さない
    - コメント本文・正規化本文・`externalMessageId`・`userKey` 生値は保存しない
    - `declared_player_name` の実値もログ保存しない
 6. 待機列本ロジック
