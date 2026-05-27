@@ -4,6 +4,7 @@ from typing import Callable
 from app.schemas.comment import CommentReceiveResult, ReceivedComment
 from app.services.command_detector import CommandDetector
 from app.services.comment_normalizer import CommentNormalizer
+from app.services.declared_player_name_parser import DeclaredPlayerNameParser
 
 
 class CommentReceiveService:
@@ -14,19 +15,32 @@ class CommentReceiveService:
         self._recent_id_set: set[str] = set()
         self._normalizer = CommentNormalizer()
         self._detector = CommandDetector()
+        self._declared_player_name_parser = DeclaredPlayerNameParser()
 
     def receive(self, comment: ReceivedComment) -> CommentReceiveResult:
         duplicate = self._is_duplicate(comment.external_message_id)
 
         if duplicate:
             self._log_writer(f"重複コメントを除外: source={comment.source}, display_name={comment.display_name}")
-            return CommentReceiveResult(status="accepted", duplicate=True, command="ignore")
+            return CommentReceiveResult(status="accepted", duplicate=True, command="ignore", declared_player_name=None)
 
         self._remember_message_id(comment.external_message_id)
         normalized_message = self._normalizer.normalize(comment.message)
         command = self._detector.detect(normalized_message)
-        self._log_writer(f"コメント受信: source={comment.source}, display_name={comment.display_name}, command={command}")
-        return CommentReceiveResult(status="accepted", duplicate=False, command=command)
+        declared_player_name = None
+        if command == "join":
+            declared_player_name = self._declared_player_name_parser.parse(normalized_message)
+
+        declared_player_name_flag = "yes" if declared_player_name else "no"
+        self._log_writer(
+            f"コメント受信: source={comment.source}, display_name={comment.display_name}, command={command}, declared_player_name={declared_player_name_flag}"
+        )
+        return CommentReceiveResult(
+            status="accepted",
+            duplicate=False,
+            command=command,
+            declared_player_name=declared_player_name,
+        )
 
     def _is_duplicate(self, external_message_id: str | None) -> bool:
         if not external_message_id:

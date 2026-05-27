@@ -23,3 +23,4 @@ class CommentReceiveResult(BaseModel):
     status: str
     duplicate: bool
     command: str
+    declared_player_name: str | None = None
