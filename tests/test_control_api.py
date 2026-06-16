@@ -8,6 +8,16 @@ os.environ["WAITING_LIST_DB_PATH"] = str(Path(__file__).resolve().parent / "tmp_
 from app import mock_state
 from app.routes.control_api import (
     ReorderWaitingPayload,
+    api_add,
+    api_cancel,
+    api_control_move_next,
+    api_control_reset,
+    api_control_toggle_open,
+    api_control_toggle_priority,
+    api_move_next,
+    api_reset,
+    api_toggle_open,
+    api_toggle_priority,
     UpdateDeclaredPlayerNamePayload,
     UserIdPayload,
     api_move_to_waiting_tail,
@@ -21,6 +31,45 @@ from app.routes.overlay_api import api_overlay_state
 def setup_function():
     mock_state.reset_state()
 
+
+
+def test_control_operation_endpoints_return_state():
+    for operation in (
+        api_control_toggle_open,
+        api_control_toggle_priority,
+        api_control_move_next,
+        api_control_reset,
+    ):
+        mock_state.reset_state()
+        state = operation()
+        assert "current" in state and "waiting" in state
+
+
+def test_control_move_next_increments_current_participation_counts():
+    before = mock_state._persistence_service.get_state()
+    current_ids = [u["user_id"] for u in before["current"]]
+
+    api_control_move_next()
+
+    after = mock_state._persistence_service.get_state()
+    for user_id in current_ids:
+        assert after["participation_counts"][user_id] == 1
+
+
+def test_control_reset_clears_participation_counts():
+    api_control_move_next()
+    assert mock_state._persistence_service.get_state()["participation_counts"]
+
+    state = api_control_reset()
+
+    assert state["participation_counts"] == {}
+
+
+def test_mock_operation_endpoints_still_return_state():
+    for operation in (api_toggle_open, api_toggle_priority, api_move_next, api_add, api_cancel, api_reset):
+        mock_state.reset_state()
+        state = operation()
+        assert "current" in state and "waiting" in state
 
 def test_control_manual_operations_return_state():
     s1 = api_reorder_waiting(ReorderWaitingPayload(ordered_user_ids=["u4", "u3"]))

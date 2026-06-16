@@ -11,19 +11,21 @@
         <h1>待機列整理アプリ / 管理画面</h1>
 
         <div class="status">
-            <span id="conn">接続状態: Mock Provider connected</span>
+            <span id="conn">接続状態: 接続待ち</span>
             <span id="open"></span>
             <span id="priority"></span>
             <span>40秒状態変更ロック: 有効</span>
         </div>
 
         <div class="actions">
-            <button data-api="/api/mock/toggle-open">受付開始 / 受付終了</button>
-            <button data-api="/api/mock/toggle-priority">低消化回数優先モード ON/OFF</button>
-            <button data-api="/api/mock/move-next">次の対戦に移る（参加回数+1）</button>
+            <h2>実運用操作</h2>
+            <button data-api="/api/control/toggle-open">受付開始 / 受付終了</button>
+            <button data-api="/api/control/toggle-priority">低消化回数優先モード ON/OFF</button>
+            <button data-api="/api/control/move-next">次の対戦に移る（参加回数+1）</button>
+            <button data-api="/api/control/reset">リセット</button>
+            <h2>開発用テスト操作</h2>
             <button data-api="/api/mock/add">テスト参加者を追加</button>
             <button data-api="/api/mock/cancel">テスト取消</button>
-            <button data-api="/api/mock/reset">リセット</button>
         </div>
 
         <div class="grid">

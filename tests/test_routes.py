@@ -7,8 +7,10 @@ os.environ["WAITING_LIST_DB_PATH"] = str(Path(__file__).resolve().parent / "tmp_
 
 from app import mock_state
 from app.main import app
-from app.routes.control_api import api_state
-from app.routes.overlay_api import api_overlay_state
+from app.routes.comment_api import router as comment_api_router
+from app.routes.control_api import api_state, router as control_api_router
+from app.routes.overlay_api import api_overlay_state, router as overlay_api_router
+from app.routes.pages import router as pages_router
 
 
 def setup_function():
@@ -36,7 +38,8 @@ def test_api_overlay_state_returns_minimal_overlay_payload():
 
 
 def test_route_urls_are_unchanged():
-    paths = {route.path for route in app.router.routes}
+    routers = (pages_router, control_api_router, comment_api_router, overlay_api_router)
+    paths = {route.path for router in routers for route in router.routes}
 
     assert "/" in paths
     assert "/control" in paths
@@ -44,6 +47,10 @@ def test_route_urls_are_unchanged():
     assert "/settings" in paths
     assert "/api/state" in paths
     assert "/api/overlay-state" in paths
+    assert "/api/control/toggle-open" in paths
+    assert "/api/control/toggle-priority" in paths
+    assert "/api/control/move-next" in paths
+    assert "/api/control/reset" in paths
     assert "/api/mock/add" in paths
     assert "/api/mock/cancel" in paths
     assert "/api/mock/move-next" in paths

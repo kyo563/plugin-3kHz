@@ -49,7 +49,7 @@ function renderLogs(logs) {
     renderList("#logs", [...logs].reverse().map((text) => ({ display_name: text })), { draggable: false });
 }
 
-async function fetchState(){ try{ const r=await fetch('/api/state'); if(!r.ok) throw new Error(`HTTP ${r.status}`); setConnectionError('Mock Provider connected'); return await r.json(); }catch(e){console.error(e); setConnectionError('状態取得に失敗しました'); return null;}}
+async function fetchState(){ try{ const r=await fetch('/api/state'); if(!r.ok) throw new Error(`HTTP ${r.status}`); setConnectionError('管理APIに接続済み'); return await r.json(); }catch(e){console.error(e); setConnectionError('状態取得に失敗しました'); return null;}}
 
 function renderState(state){
     latestState = state;
