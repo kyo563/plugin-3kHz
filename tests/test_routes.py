@@ -135,3 +135,20 @@ def test_settings_static_files_describe_mvp_settings_without_mock_controls():
     for text in ["読込中", "ON", "OFF", "取得失敗"]:
         assert text in settings_js
     assert "catch" in settings_js
+
+
+def test_settings_js_separates_reload_from_toggle_action():
+    root = Path(__file__).resolve().parents[1]
+    settings_js = (root / "static" / "settings.js").read_text(encoding="utf-8")
+
+    assert "let currentAction = 'refresh'" in settings_js
+    assert "currentAction = action" in settings_js
+    assert "'toggle'" in settings_js
+    assert "if (currentAction === 'refresh')" in settings_js
+    assert "await refresh();\n    return;" in settings_js
+    assert "再読み込み', false, 'refresh'" in settings_js
+    assert "再試行', false, 'toggle'" in settings_js
+    assert "/api/settings/toggle-overlay-player-name" in settings_js
+    assert settings_js.index("if (currentAction === 'refresh')") < settings_js.index("/api/settings/toggle-overlay-player-name")
+    for text in ["読込中", "ON", "OFF", "取得失敗", "再読み込み"]:
+        assert text in settings_js
