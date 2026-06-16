@@ -1,3 +1,53 @@
-<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Settings</title><link rel="stylesheet" href="/static/settings.css"></head><body><main><h1>設定画面（モック）</h1>
-<div class="item"><label>OBSに申告プレイヤーネームを表示</label><button id="toggle-overlay-player-name">切り替え</button><span id="overlay-player-name-status">読込中...</span></div>
-</main><script src="/static/settings.js"></script></body></html>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>待機列整理アプリ / 設定</title>
+  <link rel="stylesheet" href="/static/settings.css">
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <p class="eyebrow">待機列整理アプリ</p>
+      <h1>設定画面</h1>
+      <p class="lead">現行MVPで使う設定の確認と、一部表示設定の切り替えを行います。</p>
+    </header>
+
+    <section class="panel actionable" aria-labelledby="overlay-settings-title">
+      <div>
+        <p class="section-label">操作可能</p>
+        <h2 id="overlay-settings-title">OBS表示設定</h2>
+        <p class="description">OBSに申告プレイヤーネームを表示するかを切り替えます。</p>
+      </div>
+      <div class="setting-row">
+        <div>
+          <p class="setting-name">OBSに申告プレイヤーネームを表示</p>
+          <p class="setting-note">例: YouTube名（申告名）</p>
+        </div>
+        <div class="setting-control">
+          <span id="overlay-player-name-status" class="status loading">読込中</span>
+          <button id="toggle-overlay-player-name" type="button" disabled>読込中</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel fixed" aria-labelledby="fixed-settings-title">
+      <p class="section-label">確認専用</p>
+      <h2 id="fixed-settings-title">現行MVPでは固定の仕様</h2>
+      <p class="description">以下は現行MVPでは固定です。入力欄や判定方式変更UIは提供しません。</p>
+      <dl class="fixed-list">
+        <div><dt>参加希望トリガー</dt><dd>参加希望</dd></div>
+        <div><dt>参加辞退トリガー</dt><dd>参加辞退 / 参加を辞退</dd></div>
+        <div><dt>join除外語</dt><dd>参加希望者 / 参加希望順</dd></div>
+        <div><dt>グループ人数</dt><dd>3人固定</dd></div>
+        <div><dt>40秒状態変更ロック</dt><dd>有効</dd></div>
+        <div><dt>参加回数管理</dt><dd>move_next時に現在対戦中グループへ +1</dd></div>
+        <div><dt>/control</dt><dd>実運用操作画面</dd></div>
+        <div><dt>/overlay</dt><dd>OBS表示専用</dd></div>
+      </dl>
+    </section>
+  </main>
+  <script src="/static/settings.js"></script>
+</body>
+</html>

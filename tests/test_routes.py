@@ -114,3 +114,24 @@ def test_overlay_static_files_keep_safe_display_behavior():
     assert "min-width: 0" in overlay_css
     assert "<button" not in overlay_html.lower()
     assert "<input" not in overlay_html.lower()
+
+
+def test_settings_static_files_describe_mvp_settings_without_mock_controls():
+    root = Path(__file__).resolve().parents[1]
+    settings_html = (root / "static" / "settings.html").read_text(encoding="utf-8")
+    settings_js = (root / "static" / "settings.js").read_text(encoding="utf-8")
+
+    assert "設定画面（モック）" not in settings_html
+    assert "設定画面" in settings_html
+    for text in ["参加希望", "参加辞退", "参加を辞退", "参加希望者", "参加希望順"]:
+        assert text in settings_html
+    assert "現行MVPでは固定" in settings_html
+    assert "<input" not in settings_html.lower()
+    assert "<select" not in settings_html.lower()
+
+    assert "/api/settings/toggle-overlay-player-name" in settings_js
+    assert "/api/state" in settings_js
+    assert "show_declared_player_name_on_overlay" in settings_js
+    for text in ["読込中", "ON", "OFF", "取得失敗"]:
+        assert text in settings_js
+    assert "catch" in settings_js
