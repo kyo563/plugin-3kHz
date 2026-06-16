@@ -18,10 +18,11 @@
 
 ## 3. 主要画面・経路
 
-- `/control`: 管理画面
+- `/control`: 実運用の配信者操作画面
 - `/overlay`: OBS表示画面
 - `/settings`: 設定画面
-- `/api/*`: 操作用API
+- `/api/control/*`: `/control` の実運用操作API
+- `/api/mock/*`: 開発・テスト用API（後方互換と既存テスト維持のため削除しない）
 - `/ws`: 状態同期用WebSocket（または同等経路）
 
 ## 4. コンポーネント責務
@@ -204,7 +205,8 @@ MVP対象外（将来検討）:
   - user_id 単位で管理
   - declared_player_name は判定に使わない
   - userKey生値は保存しない
-  - cooldown_seconds を使用- 参加回数管理
+  - cooldown_seconds を使用
+- 参加回数管理
   - move_next 時に current 参加者の参加回数を +1
   - user_id 単位で `participation_counts` に保存
   - 再起動後も復元

@@ -52,6 +52,30 @@ def api_update_declared_player_name(payload: UpdateDeclaredPlayerNamePayload):
     return mock_state.build_view_state()
 
 
+@router.post("/api/control/toggle-open")
+def api_control_toggle_open():
+    mock_state.toggle_open()
+    return mock_state.build_view_state()
+
+
+@router.post("/api/control/toggle-priority")
+def api_control_toggle_priority():
+    mock_state.toggle_priority()
+    return mock_state.build_view_state()
+
+
+@router.post("/api/control/move-next")
+def api_control_move_next():
+    mock_state.move_next()
+    return mock_state.build_view_state()
+
+
+@router.post("/api/control/reset")
+def api_control_reset():
+    mock_state.reset_state()
+    return mock_state.build_view_state()
+
+
 @router.post("/api/mock/add")
 def api_add():
     mock_state.add_mock_user()

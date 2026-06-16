@@ -232,7 +232,18 @@ def test_move_next_skips_placeholder_without_user_id_and_normalizes_negative_cou
     assert [u["user_id"] for u in state["current"]] == ["u2"]
 
 
-def test_control_html_has_new_move_next_wording():
+def test_control_html_has_production_api_buttons_and_test_section():
     html = Path("static/control.html").read_text(encoding="utf-8")
+    js = Path("static/control.js").read_text(encoding="utf-8")
+
+    assert "/api/control/toggle-open" in html
+    assert "/api/control/toggle-priority" in html
+    assert "/api/control/move-next" in html
+    assert "/api/control/reset" in html
     assert "次の対戦に移る（参加回数+1）" in html
     assert "次へ進める" not in html
+    assert "開発用テスト操作" in html
+    assert "テスト参加者を追加" in html
+    assert "テスト取消" in html
+    assert "Mock Provider connected" not in html
+    assert "Mock Provider connected" not in js
