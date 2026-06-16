@@ -7,6 +7,9 @@ function drawUsers(selector, users) {
     users.forEach((user) => {
         const li = document.createElement("li");
         li.className = "name";
+        if (user.is_placeholder) {
+            li.classList.add("placeholder");
+        }
         li.textContent = user.display_name;
         el.appendChild(li);
     });
@@ -26,9 +29,10 @@ async function fetchOverlayState() {
 }
 
 function renderOverlay(state) {
-    q("#open").textContent = `受付状態: ${state.is_open ? "受付中" : "受付終了"}`;
-    q("#wcount").textContent = `QUEUE人数: ${state.queue_count}人`;
-    q("#gcount").textContent = `あと${state.queue_group_count}グループ`;
+    const open = q("#open");
+    open.textContent = state.is_open ? "受付中" : "受付終了";
+    open.className = state.is_open ? "status-open" : "status-closed";
+
     q("#queue-summary").textContent = `あと${state.queue_group_count}グループ / ${state.queue_count}人`;
 
     drawUsers("#now", state.now_view);

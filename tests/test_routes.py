@@ -75,3 +75,42 @@ def test_overlay_state_hides_internal_fields_and_formats_display_name():
     mock_state.toggle_overlay_player_name()
     on = api_overlay_state()
     assert on["now_view"][0]["display_name"] == "Aさん（たなかたろう）"
+
+
+def test_overlay_state_payload_keeps_placeholder_and_hides_internal_fields():
+    data = api_overlay_state()
+
+    assert set(data.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count"}
+    for forbidden in [
+        "user_id",
+        "declared_player_name",
+        "participation_count",
+        "participation_counts",
+        "logs",
+        "current",
+        "waiting",
+        "priority_mode",
+        "cooldown_seconds",
+        "show_declared_player_name_on_overlay",
+        "user_action_locks",
+    ]:
+        assert forbidden not in data
+
+    placeholder = data["now_view"][-1]
+    assert placeholder == {"display_name": mock_state.OPEN_SLOT_LABEL, "is_placeholder": True}
+
+
+def test_overlay_static_files_keep_safe_display_behavior():
+    root = Path(__file__).resolve().parents[1]
+    overlay_html = (root / "static" / "overlay.html").read_text(encoding="utf-8")
+    overlay_css = (root / "static" / "overlay.css").read_text(encoding="utf-8")
+    overlay_js = (root / "static" / "overlay.js").read_text(encoding="utf-8")
+
+    assert 'classList.add("placeholder")' in overlay_js
+    assert "status-open" in overlay_js
+    assert "status-closed" in overlay_js
+    assert "text-overflow: ellipsis" in overlay_css
+    assert ".name.placeholder" in overlay_css
+    assert "min-width: 0" in overlay_css
+    assert "<button" not in overlay_html.lower()
+    assert "<input" not in overlay_html.lower()

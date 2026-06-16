@@ -8,25 +8,22 @@
 </head>
 <body>
     <div class="panel">
-        <h1>待機列整理アプリ</h1>
-        <div id="open"></div>
+        <header class="panel-header">
+            <h1>待機列整理アプリ</h1>
+            <div id="open" class="status-open"></div>
+        </header>
 
-        <div class="meta">
-            <span id="wcount"></span>
-            <span id="gcount"></span>
-        </div>
-
-        <section>
+        <section class="section section-now">
             <h2>NOW</h2>
-            <ul id="now"></ul>
+            <ul id="now" class="user-list"></ul>
         </section>
 
-        <section>
+        <section class="section section-next">
             <h2>NEXT</h2>
-            <ul id="next"></ul>
+            <ul id="next" class="user-list"></ul>
         </section>
 
-        <section>
+        <section class="section section-queue">
             <h2>QUEUE</h2>
             <div id="queue-summary"></div>
         </section>
