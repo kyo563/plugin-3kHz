@@ -8,7 +8,7 @@ from app.routes.control_api import router as control_api_router
 from app.routes.overlay_api import router as overlay_api_router
 from app.routes.pages import router as pages_router
 
-app = FastAPI(title="待機列整理アプリ Mock")
+app = FastAPI(title="待機列整理アプリ")
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 

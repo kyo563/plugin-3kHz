@@ -17,6 +17,11 @@ def setup_function():
     mock_state.reset_state()
 
 
+def test_app_title_no_longer_uses_mock_label():
+    assert app.title == "待機列整理アプリ"
+    assert "Mock" not in app.title
+
+
 def test_api_state_returns_control_view_state():
     data = api_state()
 
