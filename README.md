@@ -21,6 +21,7 @@ YouTubeライブの参加希望コメントを整理し、配信者が参加型�
 | `README.md` | リポジトリ全体の概要・現行方針・参照先 |
 | `仕様書/待機列整理アプリ_仕様書_v0.1.md` | 仕様の正本 |
 | `DEVELOPMENT_SPEC.md` | 現行ローカルWebアプリ版の開発仕様 |
+| `PRE_LIVE_TEST_CHECKLIST.md` | 実配信前にMVPの主要導線を確認するチェックリスト |
 | `extension/README.md` | 旧Chrome拡張版の参考資料 |
 | `extension/` 配下のコード | 旧実装の参考資料（現行本流ではない） |
 
@@ -40,6 +41,7 @@ YouTubeライブの参加希望コメントを整理し、配信者が参加型�
 
 - 正本仕様: `仕様書/待機列整理アプリ_仕様書_v0.1.md`
 - 開発仕様: `DEVELOPMENT_SPEC.md`
+- 実配信前テスト: `PRE_LIVE_TEST_CHECKLIST.md`
 - 旧資料: `extension/README.md`
 
 
