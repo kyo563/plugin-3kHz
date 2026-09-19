@@ -22,3 +22,16 @@ def test_description_save_restart_backup_and_reset(tmp_path):
         assert c.get('/api/settings/description').json()['text'] == text
         assert c.post('/api/settings/description',json={'text':''}).json() == {'text':''}
         assert 'description_text' not in c.get('/api/overlay-state').json()
+
+
+def test_legacy_default_updates_but_custom_text_is_preserved(tmp_path):
+    from app.schemas.description import LEGACY_DEFAULT_DESCRIPTION
+
+    path = str(tmp_path / 'legacy.db')
+    services = ApplicationServices(db_path=path, desktop=True)
+    services.persistence_service.mutate_state(lambda s: s.update(description_text=LEGACY_DEFAULT_DESCRIPTION))
+    restarted = ApplicationServices(db_path=path, desktop=True)
+    assert restarted.persistence_service.get_state()['description_text'] == DEFAULT_DESCRIPTION
+    custom = LEGACY_DEFAULT_DESCRIPTION + '\n独自の案内'
+    restarted.persistence_service.mutate_state(lambda s: s.update(description_text=custom))
+    assert ApplicationServices(db_path=path, desktop=True).persistence_service.get_state()['description_text'] == custom

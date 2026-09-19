@@ -1,5 +1,5 @@
 from __future__ import annotations
-from app.schemas.description import DEFAULT_DESCRIPTION
+from app.schemas.description import DEFAULT_DESCRIPTION, LEGACY_DEFAULT_DESCRIPTION
 
 import json
 import os
@@ -163,7 +163,8 @@ class SQLitePersistenceService:
         return {
             "name_overrides": json.loads(app_state["name_overrides"]) if "name_overrides" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name")},
             "overlay_settings": OverlaySettings.model_validate(json.loads(app_state.get("overlay_settings", "{}"))).model_dump(),
-            "description_text": app_state.get("description_text", DEFAULT_DESCRIPTION),
+            "description_text": (DEFAULT_DESCRIPTION if app_state.get("description_text") == LEGACY_DEFAULT_DESCRIPTION
+                                 else app_state.get("description_text", DEFAULT_DESCRIPTION)),
             "comment_names": json.loads(app_state["comment_names"]) if "comment_names" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name") and u["declared_player_name"] != (u.get("youtube_nickname") or u.get("display_name"))},
             "participation_history": json.loads(app_state.get("participation_history", "[]")),
             "total_match_count": int(app_state.get("total_match_count", "0")),
