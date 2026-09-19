@@ -63,7 +63,7 @@ def test_receive_history_join_duplicate_cancel_and_stop(tmp_path):
         assert chat.snapshot()['commands']==1
         resume.set()
         while phase < 3: await asyncio.sleep(.001)
-        assert services.build_view_state()['current']==[]
+        assert services.build_view_state()['current']==current
         assert chat.snapshot()['commands']==2
         await chat.stop()
         assert chat.task is None

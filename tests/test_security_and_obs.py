@@ -120,7 +120,7 @@ def test_closed_locked_rejoin_preserves_queue_and_lock(client):
     data = payload(); data["externalMessageId"] = "again"
     client.post("/api/comments/receive", json=data, headers=admin(client))
     after = client.get("/api/state", headers=admin(client)).json()
-    assert after["logs"][-1] == "受付終了中の参加希望"
+    assert "NOW参加中" in after["logs"][-1]
     assert after["user_action_locks"] == before["user_action_locks"]
     assert [(u["user_id"],u["display_name"]) for u in after["current"]] == [(u["user_id"],u["display_name"]) for u in before["current"]]
 

@@ -27,6 +27,10 @@ class CommentQueueApplyService:
         user_id = self._user_identity_service.build_comment_user_id(comment.source, comment.user_key)
 
         def _apply(state: dict) -> None:
+            if result.command in {"join", "cancel"} and any(u.get("user_id") == user_id for u in state["current"]):
+                state.setdefault("logs", []).append(f"{comment.display_name} はNOW参加中のため参加・辞退コメントを無視しました。変更は管理画面から行ってください")
+                state["logs"] = state["logs"][-30:]
+                return
             if result.command == "join" and not state["is_open"]:
                 state.setdefault("logs", []).append("受付終了中の参加希望")
                 state["logs"] = state["logs"][-30:]

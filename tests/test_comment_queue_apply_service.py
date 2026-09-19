@@ -54,7 +54,7 @@ def test_join_then_immediate_cancel_is_ignored_by_lock():
     assert len(st["current"]) + len(st["waiting"]) == 1
 
 
-def test_lock_expires_then_cancel_can_apply():
+def test_now_cancel_is_ignored_even_after_lock_expires():
     p = PersistenceService(initial_state=_state())
     clock = MutableNow(datetime(2026, 1, 1, tzinfo=timezone.utc))
     s = _service(p, clock)
@@ -63,7 +63,8 @@ def test_lock_expires_then_cancel_can_apply():
     clock.now = datetime(2026, 1, 1, 0, 0, 41, tzinfo=timezone.utc)
     s.apply(c, _result("cancel"))
     st = p.get_state()
-    assert len(st["current"]) + len(st["waiting"]) == 0
+    assert len(st["current"]) == 1
+    assert st["waiting"] == []
 
 
 def test_lock_blocks_declared_name_update_for_rejoin():
