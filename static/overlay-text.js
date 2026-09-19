@@ -31,6 +31,7 @@ function renderOverlayText(container, template, state, appearance) {
         const line = document.createElement('div'); line.className = 'custom-line';
         for(const part of parts) {
             const span = document.createElement('span'); span.textContent = part.text;
+            span.style.color = 'var(--text-color, #ffffff)';
             span.style.fontFamily = `var(--font-${part.font})`; span.className = part.className;
             line.appendChild(span);
         }

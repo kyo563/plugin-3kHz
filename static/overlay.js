@@ -22,6 +22,7 @@ function renderOverlay(state) {
     const appearance = state.appearance || {};
     window.AppFonts.apply(appearance.fonts);
     const panel = q('.panel');
+    panel.style.setProperty('--text-color', /^#[0-9a-fA-F]{6}$/.test(appearance.text_color || '') ? appearance.text_color : '#ffffff');
     panel.dataset.layout = appearance.layout || "vertical";
     const output = q('#custom-output');
     output.hidden = false;

@@ -25,7 +25,7 @@ def test_summary_includes_next_excludes_now_and_placeholders(client,waiting):
 
 def test_settings_update_etag_backup_restart_and_legacy_backup(client,tmp_path):
     before=client.get('/api/overlay-state')
-    settings=OverlaySettings(width=320,height=450,font_size=24,open_label='募集中',closed_label='締切',now_label='参加中',next_label='次の方',queue_label='').model_dump()
+    settings=OverlaySettings(text_color="#19aBeF",width=320,height=450,font_size=24,open_label='募集中',closed_label='締切',now_label='参加中',next_label='次の方',queue_label='').model_dump()
     assert client.post('/api/settings/overlay',json=settings).status_code==200
     after=client.get('/api/overlay-state',headers={'If-None-Match':before.headers['etag']})
     assert after.status_code==200 and after.json()['appearance']==settings
@@ -40,7 +40,7 @@ def test_settings_update_etag_backup_restart_and_legacy_backup(client,tmp_path):
         assert client.post('/api/control/restore',json={'backup':source,'expected_revision':revision}).status_code==200
     assert client.get('/api/settings/overlay').json()==settings
 
-@pytest.mark.parametrize('change',[{'width':159},{'height':199},{'font_size':97},{'width':True},{'width':'480'},{'open_label':'a'*41},{'css':'background:red'}])
+@pytest.mark.parametrize('change',[{'text_color':'red'},{'text_color':'#fff'},{'text_color':'#ffffff;background:red'},{'width':159},{'height':199},{'font_size':97},{'width':True},{'width':'480'},{'open_label':'a'*41},{'css':'background:red'}])
 def test_invalid_settings_do_not_mutate_state(client,change):
     before=client.get('/api/state').json()
     assert client.post('/api/settings/overlay',json={**OverlaySettings().model_dump(),**change}).status_code==422
