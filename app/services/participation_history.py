@@ -23,7 +23,7 @@ def record_match(state):
     session["matches"] += 1
     for user in users:
         uid = user["user_id"]
-        name = user.get("declared_player_name") or user.get("youtube_nickname") or user["display_name"]
+        name = user.get("youtube_handle") or user["display_name"]
         if uid not in by_id:
             row = {"user_id": uid, "display_name": name, "first_match": session["matches"], "count": 0}
             session["users"].append(row)

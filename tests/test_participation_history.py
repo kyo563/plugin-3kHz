@@ -64,3 +64,23 @@ def test_empty_now_and_cancelled_participant_not_recorded(tmp_path):
  s.persistence_service.manual_mutate(lambda st:s.queue_service.remove_user_by_id(st,'a'))
  s.move_next()
  assert s.persistence_service.get_state()['participation_history']==[]
+
+
+def test_alias_changes_keep_one_account_and_accumulated_count(tmp_path):
+ from app.schemas.comment import ReceivedComment
+ s=ApplicationServices(db_path=str(tmp_path/'db'),desktop=True)
+ s.persistence_service.mutate_state(lambda st:st.update(cooldown_seconds=0))
+ def join(mid,alias):
+  s.receive_comment(ReceivedComment(source='youtube',userKey='same-channel',displayName='Original',youtubeHandle='@account',youtubeNickname='Original',receivedAt='2026-09-20T00:00:00Z',externalMessageId=mid,message='参加希望 『'+alias+'』'))
+ join('one','AliasA')
+ uid=s.build_view_state()['current'][0]['user_id']
+ s.persistence_service.manual_mutate(lambda st:s.queue_service.update_declared_player_name(st,uid,'StreamerAlias'))
+ s.move_next()
+ join('two','AliasB')
+ s.move_next()
+ state=s.persistence_service.get_state()
+ assert state['participation_counts'][uid]==2
+ rows=state['participation_history'][0]['users']
+ assert len(rows)==1
+ assert rows[0]['display_name']=='@account'
+ assert rows[0]['count']==2

@@ -11,8 +11,7 @@ function setConnectionError(message) { q("#conn").textContent = `接続状態: $
 
 function formatDisplayName(user, withCount) {
     const name = user.youtube_handle || user.display_name || "";
-    const declared = user.declared_player_name || user.youtube_nickname;
-    const merged = (!user.is_placeholder && declared) ? (declared === name ? name : `${declared}（${name}）`) : name;
+    const merged = name;
     if (withCount && !user.is_placeholder && user.participation_count !== undefined) {
         return `${merged} [参加: ${user.participation_count}回]`;
     }
