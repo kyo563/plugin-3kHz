@@ -45,21 +45,17 @@ def main():
     if python_license.exists():
         shutil.copyfile(python_license, notices / "Python-LICENSE.txt")
     (application / "THIRD_PARTY_NOTICES.json").write_text(json.dumps(packages, ensure_ascii=False, indent=2), encoding="utf-8")
-    for filename in ("README.md", "README.txt", "はじめに.md"):
-        shutil.copyfile(ROOT / "docs" / "USER_GUIDE.md", application / filename)
-    (application / "docs").mkdir(exist_ok=True)
-    shutil.copyfile(ROOT / "docs" / "EXTERNAL_INPUT.md", application / "docs" / "EXTERNAL_INPUT.md")
-    source_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    (application / "BUILD_INFO.json").write_text(json.dumps({"application":"参加型整列プラグイン", "version":args.version, "source_commit":source_commit, "platform":"windows-x64", "prerelease":"-" in args.version}, ensure_ascii=False, indent=2), encoding="utf-8")
-    shutil.copyfile(ROOT / "docs" / "RELEASE_NOTES.md", application / "RELEASE_NOTES.md")
-    shutil.copyfile(ROOT / "docs" / "DISTRIBUTION_STATUS.md", application / "動作環境と対応範囲.md")
+    shutil.copyfile(ROOT / "docs" / "DOWNLOAD_README.txt", application / "README.txt")
     output = ROOT / "dist" / "release"
     output.mkdir(exist_ok=True)
     archive = output / f"Sankagata-Seiretsu-Plugin-{args.version}-windows-x64.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
         for source in sorted(application.rglob("*")):
-            if source.is_file():
-                bundle.write(source, Path("参加型整列プラグイン") / source.relative_to(application))
+            relative = source.relative_to(application)
+            allowed = (relative.parts[0] in {"_internal", "THIRD_PARTY_LICENSES"}
+                       or str(relative) in {"参加型整列プラグイン.exe", "README.txt", "THIRD_PARTY_NOTICES.json"})
+            if source.is_file() and allowed:
+                bundle.write(source, Path("参加型整列プラグイン") / relative)
     artifacts = [archive]
     installer = output / f"参加型整列プラグイン-{args.version}-windows-x64-setup.exe"
     if installer.exists(): artifacts.append(installer)
