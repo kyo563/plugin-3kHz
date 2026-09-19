@@ -150,6 +150,7 @@ def main() -> int:
                     verify_window if args.smoke_report else None,
                     gui="edgechromium", debug=False, private_mode=False,
                     storage_path=str(cache),
+                    icon=str(Path(__file__).resolve().parents[1] / "static" / "app-icon.ico"),
                 )
             safe_path(folder / "runtime.json").unlink(missing_ok=True)
             if args.smoke_report:

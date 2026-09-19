@@ -2,7 +2,7 @@
 
 Windows用の参加型配信向け待機列管理アプリです。1グループ3人で、現在の参加者・次の参加者・待機人数をOBSに表示します。
 
-**このパッケージは 0.1.0-preview.21（検証版）です。手動での参加者管理は利用できます。YouTubeコメントを自動取得する機能・特定チャット製品との接続・コメントBotは含まれていません。** 外部アプリからコメントを受け取るAPIはありますが、連携用アダプターを別途用意する必要があります。
+**このパッケージは 0.1.0-preview.22（検証版）です。手動での参加者管理は利用できます。YouTubeコメントを自動取得する機能・特定チャット製品との接続・コメントBotは含まれていません。** 外部アプリからコメントを受け取るAPIはありますが、連携用アダプターを別途用意する必要があります。
 
 ## 1. 動作環境
 
@@ -29,7 +29,7 @@ https://developer.microsoft.com/microsoft-edge/webview2/
 チェックサム確認例（PowerShell）：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\Sankagata-Seiretsu-Plugin-0.1.0-preview.21-windows-x64.zip
+Get-FileHash -Algorithm SHA256 .\Sankagata-Seiretsu-Plugin-0.1.0-preview.22-windows-x64.zip
 ```
 
 起動済みのときに別バージョンのexeを開いても、既存アプリが表示されます。更新時は先に古いアプリを終了してください。

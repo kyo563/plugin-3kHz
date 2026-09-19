@@ -19,7 +19,7 @@ Windows 11 x64 / Python 3.12 x64で以下を実行します。
 node --test tests/control_ui.test.cjs tests/overlay_text.test.cjs
 ./.venv/Scripts/python.exe scripts/smoke_http.py
 ./build-windows.ps1
-./.venv/Scripts/python.exe scripts/package_release.py --version 0.1.0-preview.21
+./.venv/Scripts/python.exe scripts/package_release.py --version 0.1.0-preview.22
 ```
 
 `dist/参加型整列プラグイン/参加型整列プラグイン.exe` と `_internal` を含むフォルダー全体が実行物です。ZIPとSHA256SUMS.txtはdist/releaseに生成します。ビルドとパッケージ処理は公開を行いません。

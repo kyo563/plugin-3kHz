@@ -29,7 +29,7 @@ FastAPI + SQLite + pywebview（Windows WebView2）で構成しています。旧
 node --test tests/control_ui.test.cjs tests/overlay_text.test.cjs
 ./.venv/Scripts/python.exe scripts/smoke_http.py
 ./build-windows.ps1
-./.venv/Scripts/python.exe scripts/package_release.py --version 0.1.0-preview.21
+./.venv/Scripts/python.exe scripts/package_release.py --version 0.1.0-preview.22
 ```
 
 詳細は [開発仕様](DEVELOPMENT_SPEC.md)、[開発ルール](AGENTS.md)、[配布前の確認事項](docs/DISTRIBUTION_STATUS.md) を参照してください。
