@@ -68,6 +68,16 @@ function participantItem(user, { draggable = false, listType = "", position = nu
             if(name !== null) await post('/api/control/update-declared-player-name', {user_id:user.user_id,declared_player_name:name});
         });
         li.appendChild(edit);
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.textContent = '削除'; remove.className = 'remove-participant';
+        remove.setAttribute('aria-label', `${formatDisplayName(user, false)}を参加者一覧から削除`);
+        remove.addEventListener('click', async event => {
+            event.stopPropagation();
+            if (mutationPending) return;
+            if (!window.confirm(`${formatDisplayName(user, false)} を参加者一覧から削除しますか？参加回数と記録済みの対戦履歴は残ります。`)) return;
+            await post('/api/control/remove-user', {user_id:user.user_id});
+        });
+        li.appendChild(remove);
     }
     return li;
 }
