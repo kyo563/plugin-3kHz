@@ -45,7 +45,6 @@
         <div class="actions">
 
             <button id="toggle-reception" class="primary-action" data-api="/api/control/toggle-open" disabled>受付状態を確認中</button>
-            <button class="primary-action" data-api="/api/control/move-next">次の対戦へ</button>
             <button id="undo" data-api="/api/control/undo" disabled>直前の操作を戻す</button>
             <button id="exit-app" type="button" hidden>アプリを終了</button>
             <div id="development-actions" hidden>
@@ -60,6 +59,10 @@
             <section>
                 <h2>NOW</h2>
                 <ul id="now"></ul>
+                <div class="match-progress">
+                    <button id="move-next" type="button" data-api="/api/control/move-next" aria-describedby="move-next-note">次の対戦へ</button>
+                    <p id="move-next-note">現在の参加者の回数を＋1して、次の3人へ交代します。</p>
+                </div>
             </section>
             <section>
                 <h2>待機中の参加者 <span id="waiting-count"></span></h2>
