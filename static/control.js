@@ -2,6 +2,7 @@ const q = (selector) => document.querySelector(selector);
 q("#overlay-url").textContent = `${window.location.origin}/overlay`;
 
 let latestState = null;
+let draggingParticipant = false;
 let contextTarget = null;
 let mutationPending = false;
 let refreshSequence = 0;
@@ -11,17 +12,24 @@ function setConnectionError(message) { q("#conn").textContent = `接続状態: $
 function formatDisplayName(user, withCount) {
     const name = user.youtube_handle || user.display_name || "";
     const declared = user.declared_player_name || user.youtube_nickname;
-    const merged = (!user.is_placeholder && declared) ? `${name}（${declared}）` : name;
+    const merged = (!user.is_placeholder && declared) ? (declared === name ? name : `${declared}（${name}）`) : name;
     if (withCount && !user.is_placeholder && user.participation_count !== undefined) {
         return `${merged} [参加: ${user.participation_count}回]`;
     }
     return merged;
 }
 
-function participantItem(user, { draggable = false, listType = "" } = {}) {
+function participantItem(user, { draggable = false, listType = "", position = null } = {}) {
     const li = document.createElement("li");
     const label = document.createElement('span');
     label.className = 'participant-label'; label.textContent = formatDisplayName(user, false); label.title = label.textContent;
+    if (position !== null) {
+        const order = document.createElement('span');
+        order.className = 'participant-order';
+        order.textContent = `${position + 1}${position < 3 ? ' 次' : ''}`;
+        order.title = position < 3 ? '次の対戦の参加者（NEXT）' : '待機順';
+        li.appendChild(order);
+    }
     li.appendChild(label);
     if (user.user_id && !user.is_placeholder && user.participation_count !== undefined) {
         const count = document.createElement('span'); count.className='participant-count';
@@ -32,14 +40,22 @@ function participantItem(user, { draggable = false, listType = "" } = {}) {
     if (draggable && !user.is_placeholder && user.user_id) {
         li.draggable = true;
         li.dataset.listType = listType;
-        li.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", user.user_id));
+        li.addEventListener("dragstart", (e) => {
+            if (mutationPending) { e.preventDefault(); return; }
+            draggingParticipant = true;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData("text/plain", user.user_id);
+        });
+        li.addEventListener("dragend", () => { draggingParticipant = false; });
         li.addEventListener("dragover", (e) => e.preventDefault());
         li.addEventListener("drop", async (e) => {
             e.preventDefault();
+            draggingParticipant = false;
             const dragId = e.dataTransfer.getData("text/plain");
             const dropId = user.user_id;
             if (!dragId || !dropId || dragId === dropId) return;
-            await reorderWaitingWithDrag(dragId, dropId);
+            const rect = li.getBoundingClientRect();
+            await reorderWaitingWithDrag(dragId, dropId, e.clientY >= rect.top + rect.height / 2);
         });
     }
 
@@ -48,7 +64,7 @@ function participantItem(user, { draggable = false, listType = "" } = {}) {
         const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = '編集'; edit.setAttribute('aria-label','名前を編集'); edit.title='名前を編集';
         edit.addEventListener('click', async event => {
             event.stopPropagation();
-            const name = window.prompt('申告名を入力（空欄でYouTubeの表示名に戻す）', user.declared_player_name || user.youtube_nickname || '');
+            const name = window.prompt('表示用の名前を入力（32文字まで／空欄で元の名前に戻す）', user.declared_player_name || user.youtube_nickname || '');
             if(name !== null) await post('/api/control/update-declared-player-name', {user_id:user.user_id,declared_player_name:name});
         });
         li.appendChild(edit);
@@ -60,7 +76,7 @@ function renderList(selector, users, opts = {}) {
     const el = q(selector); const signature = JSON.stringify(users);
     if (el.dataset.signature === signature) return;
     el.dataset.signature = signature; el.innerHTML = "";
-    users.forEach((user) => el.appendChild(participantItem(user, opts)));
+    users.forEach((user, index) => el.appendChild(participantItem(user, {...opts, position: opts.listType === "waiting" ? index : null})));
 }
 
 function renderLogs(logs) {
@@ -83,15 +99,15 @@ function renderState(state){
     q('#toggle-priority').textContent = state.priority_mode ? '✓ 初回参加優先モード：ON（クリックでOFF）' : '初回参加優先モード：OFF（クリックでON）';
     q('#priority').textContent=`初回参加優先モード: ${state.priority_mode ? 'ON':'OFF'}`;
     renderList('#now',state.now_view,{ draggable: false });
-    renderList('#next',state.next_view,{ draggable: true, listType: "waiting" });
-    renderList('#queue',state.queue_view,{ draggable: true, listType: "waiting" });
+    q("#waiting-count").textContent = `${state.waiting.length}人`;
+    renderList('#waiting',state.waiting,{ draggable: true, listType: "waiting" });
     renderLogs(state.logs);
 }
 
 async function refresh(){
     const sequence = ++refreshSequence;
     const s = await fetchState();
-    if (s && sequence === refreshSequence) renderState(s);
+    if (s && sequence === refreshSequence && !draggingParticipant) renderState(s);
 }
 async function poll(){ if(!document.hidden) await refresh(); setTimeout(poll, 2000); }
 
@@ -120,14 +136,16 @@ async function post(api, payload){
     }
 }
 
-async function reorderWaitingWithDrag(dragId, dropId) {
+async function reorderWaitingWithDrag(dragId, dropId, after = false) {
     if (!latestState) return;
     const waiting = [...latestState.waiting];
     const from = waiting.findIndex((u) => u.user_id === dragId);
     const to = waiting.findIndex((u) => u.user_id === dropId);
     if (from < 0 || to < 0) return;
     const [moved] = waiting.splice(from, 1);
-    waiting.splice(to, 0, moved);
+    const target = waiting.findIndex((u) => u.user_id === dropId);
+    if (target < 0) return;
+    waiting.splice(target + (after ? 1 : 0), 0, moved);
     await post('/api/control/reorder-waiting', { ordered_user_ids: waiting.map((u) => u.user_id) });
 }
 

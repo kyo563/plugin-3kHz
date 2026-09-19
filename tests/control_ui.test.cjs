@@ -6,17 +6,17 @@ const state = revision => ({revision, undo_available:true, is_open:true, priorit
     current:[], waiting:[], now_view:[], next_view:[], queue_view:[], logs:[]});
 function harness(fetcher) {
     const elements = new Map(), handlers = {};
-    let modal = false;
+    let modal = false, created = 0;
     const element = key => {
         if (!elements.has(key)) elements.set(key, {textContent:'', value:'', dataset:{}, style:{},
-            attributes:{},setAttribute(name,value){this.attributes[name]=value;},disabled:false, checked:false, hidden:false, addEventListener(){}, append(){},
+            children:[],appendChild(child){this.children.push(child);},attributes:{},setAttribute(name,value){this.attributes[name]=value;},disabled:false, checked:false, hidden:false, addEventListener(){}, append(){},
             replaceChildren(){}, closest(){return {open:false};}, focus(){}, files:[]});
         return elements.get(key);
     };
     const sandbox = {console:{error(){}}, AbortSignal, setTimeout(){}, URL,
         document:{hidden:false, hasFocus:()=>true,
             querySelector:s => s === 'dialog[open]' ? (modal ? {} : null) : element(s),
-            querySelectorAll:()=>[], createElement:()=>element('created'),
+            querySelectorAll:()=>[], createElement:()=>element('created-'+(++created)),
             addEventListener:(name, fn)=>handlers[name]=fn},
         window:{location:{origin:'http://127.0.0.1'},confirm:()=>true},
         fetch:(url, options) => url === '/api/capabilities' ? Promise.resolve({ok:true,json:async()=>({development:false})}) : fetcher(url, options)};
@@ -137,4 +137,31 @@ test('total matches is rendered as rounds and follows undo state',()=>{
  assert.equal(h.element('#total-matches').textContent,'総対戦回数：12回');
  h.sandbox.renderState({...state(2),total_match_count:11});
  assert.equal(h.element('#total-matches').textContent,'総対戦回数：11回');
+});
+
+
+test('waiting list includes everyone across NEXT boundary and keeps edited names', ()=>{
+    const h=harness(()=>Promise.resolve(reply(state(1))));
+    const waiting=Array.from({length:7},(_,i)=>({user_id:`u${i}`,display_name:`Account${i}`,declared_player_name:i===0?'Edited':null,participation_count:0}));
+    h.sandbox.renderState({...state(1),waiting});
+    assert.equal(h.element('#waiting').children.length,7);
+    assert.equal(h.element('#waiting-count').textContent,'7人');
+    assert.equal(h.element('#waiting').children[0].children[0].textContent,'1 次');
+    assert.equal(h.element('#waiting').children[3].children[0].textContent,'4');
+    assert.equal(h.element('#waiting').children[0].children[1].textContent,'Edited（Account0）');
+});
+
+test('drag reorder supports first and last positions across the NEXT boundary', async()=>{
+    const bodies=[];
+    const h=harness((url,options)=>{
+        if(options?.method==='POST') bodies.push(JSON.parse(options.body));
+        return Promise.resolve(reply(state(2)));
+    });
+    const waiting=Array.from({length:7},(_,i)=>({user_id:`u${i}`,display_name:`Account${i}`}));
+    h.sandbox.renderState({...state(1),waiting});
+    await h.sandbox.reorderWaitingWithDrag('u0','u6',true);
+    assert.deepEqual(bodies[0].ordered_user_ids,['u1','u2','u3','u4','u5','u6','u0']);
+    h.sandbox.renderState({...state(3),waiting});
+    await h.sandbox.reorderWaitingWithDrag('u6','u0',false);
+    assert.deepEqual(bodies[1].ordered_user_ids,['u6','u0','u1','u2','u3','u4','u5']);
 });

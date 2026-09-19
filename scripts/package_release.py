@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", default="1.1.0")
+    parser.add_argument("--version", default="1.1.1")
     parser.add_argument("--application-path", type=Path, default=ROOT / "dist" / "参加型整列プラグイン")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+[.][0-9]+[.][0-9]+(?:-[a-zA-Z0-9.]+)?", args.version):
