@@ -142,7 +142,7 @@ async function poll(){ if(!document.hidden) await refresh(); setTimeout(poll, 20
 
 async function post(api, payload){
     if (mutationPending) return false;
-    if (api === '/api/control/reset' && !window.confirm('待機列・参加回数・総対戦回数・対戦履歴・設定を初期状態に戻します。元には戻せません。実行しますか？')) return;
+    if (api === '/api/control/reset' && !window.confirm('待機列・今回の回数・総対戦回数・対戦履歴・設定を初期状態に戻します。累計参加回数と概要欄の文章は残ります。元には戻せません。実行しますか？')) return;
     mutationPending = true;
     ++refreshSequence;
     document.querySelectorAll('button[data-api]').forEach(button => { button.disabled = true; });

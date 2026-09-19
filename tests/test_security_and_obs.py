@@ -136,7 +136,7 @@ def test_legacy_counts_reconcile_without_loss(tmp_path):
     restored = ApplicationServices(db_path=str(tmp_path / "old.sqlite3"), desktop=True)
     assert restored.build_view_state()["participation_counts"]["old"] == 8
     restored.reset_state()
-    assert restored.build_view_state()["participation_counts"] == {}
+    assert restored.build_view_state()["participation_counts"] == {"old": 8}
 
 
 def test_port_api_saves_for_restart(tmp_path):

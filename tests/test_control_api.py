@@ -56,13 +56,14 @@ def test_control_move_next_increments_current_participation_counts():
         assert after["participation_counts"][user_id] == before["participation_counts"][user_id] + 1
 
 
-def test_control_reset_restores_sample_counts_in_legacy_web_mode():
+def test_control_reset_preserves_cumulative_counts_in_legacy_web_mode():
     api_control_move_next()
     assert mock_state._persistence_service.get_state()["participation_counts"]
 
+    before = dict(mock_state._persistence_service.get_state()["participation_counts"])
     state = api_control_reset()
 
-    assert state["participation_counts"] == {u["user_id"]: u["participation_count"] for u in mock_state.INITIAL_STATE["current"] + mock_state.INITIAL_STATE["waiting"]}
+    assert state["participation_counts"] == before
 
 
 def test_mock_operation_endpoints_still_return_state():

@@ -234,7 +234,11 @@ class SQLitePersistenceService:
     def reset_state(self) -> dict:
         with self._lock:
             state = deepcopy(self._initial_state)
-            state['description_text'] = self.get_state()['description_text']
+            previous = self.get_state()
+            state['description_text'] = previous['description_text']
+            state['participation_counts'] = deepcopy(previous['participation_counts'])
+            for user in state['current'] + state['waiting']:
+                user['participation_count'] = state['participation_counts'].setdefault(user['user_id'], user.get('participation_count', 0))
             self.set_state(state)
             return self.get_state()
 
