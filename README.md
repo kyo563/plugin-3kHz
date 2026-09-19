@@ -8,7 +8,7 @@ Windows用の参加型配信向け待機列管理アプリです。視聴者3人
 
 Windows 11 x64向けの未署名の正式版です。Chrome・Python・OBS追加プラグインは利用者には不要です。Microsoft Edge WebView2 Runtimeを使用します。
 
-**まずは [導入・利用ガイド](docs/USER_GUIDE.md) をお読みください。配布ZIPには同じガイドをREADME.md・README.txtとして収録しています。**
+**まずは [導入・利用ガイド](docs/USER_GUIDE.md) をお読みください。配布ZIPには初めて使う方向けのガイドをREADME.txtとして収録しています。**
 
 ## できること
 
