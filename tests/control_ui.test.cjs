@@ -140,7 +140,7 @@ test('total matches is rendered as rounds and follows undo state',()=>{
 });
 
 
-test('waiting list includes everyone and uses account names despite aliases', ()=>{
+test('waiting list includes everyone and shows account name before alias', ()=>{
     const h=harness(()=>Promise.resolve(reply(state(1))));
     const waiting=Array.from({length:7},(_,i)=>({user_id:`u${i}`,display_name:`Account${i}`,declared_player_name:i===0?'Edited':null,participation_count:0}));
     h.sandbox.renderState({...state(1),waiting});
@@ -148,7 +148,7 @@ test('waiting list includes everyone and uses account names despite aliases', ()
     assert.equal(h.element('#waiting-count').textContent,'7人');
     assert.equal(h.element('#waiting').children[0].children[0].textContent,'1 次');
     assert.equal(h.element('#waiting').children[3].children[0].textContent,'4');
-    assert.equal(h.element('#waiting').children[0].children[1].textContent,'Account0');
+    assert.equal(h.element('#waiting').children[0].children[1].textContent,'Account0（Edited）');
 });
 
 test('drag reorder supports first and last positions across the NEXT boundary', async()=>{
