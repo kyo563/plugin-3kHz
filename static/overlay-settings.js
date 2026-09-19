@@ -40,9 +40,7 @@
     function preview() {
         if (!loaded || !form.checkValidity()) return;
         const settings = values();
-        for (const option of document.getElementById('overlay-layout').options) {
-            option.textContent = `${option.value === 'vertical' ? '縦向き' : '横向き'}（OBS：${settings.width} × ${settings.height} px）`;
-        }
+        document.getElementById('apply-layout-size').disabled = false;
         document.getElementById('vertical-editor').hidden = settings.layout !== 'vertical';
         document.getElementById('horizontal-editor').hidden = settings.layout !== 'horizontal';
         const scale = Math.min(1, (shell.parentElement.clientWidth - 24) / settings.width, 600 / settings.height);
@@ -70,6 +68,14 @@
         } catch (_) { message.textContent = '読み込めません。「保存済み設定を読み込む」で再試行してください。'; }
         finally { save.disabled = !loaded; resetButton.disabled = !loaded || resetting; }
     }
+    document.getElementById('apply-layout-size').addEventListener('click', () => {
+        if (!loaded) return;
+        const horizontal = form.elements.namedItem('layout').value === 'horizontal';
+        form.elements.namedItem('width').value = horizontal ? 1200 : 480;
+        form.elements.namedItem('height').value = horizontal ? 240 : 600;
+        preview();
+        message.textContent = '推奨サイズを入力しました（未保存）。保存後、OBSブラウザソースの幅・高さも合わせてください。';
+    });
     document.getElementById('overlay-layout').addEventListener('change', () => {
         preview();
     });

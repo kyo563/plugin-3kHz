@@ -20,13 +20,15 @@
       <h2 id="layout-title">OBSの文字・サイズ</h2>
       <form id="overlay-layout-form">
         <fieldset class="name-modes"><legend>OBSに表示する名前（1つ選択）</legend>
-          <label><input type="radio" name="name_mode" value="youtube" checked> YouTubeアカウント名のみ（@ハンドル）</label>
+          <label><input type="radio" name="name_mode" value="youtube" checked> @ハンドルネームのみ</label>
           <label><input type="radio" name="name_mode" value="declared"> 申告名のみ</label>
-          <label><input type="radio" name="name_mode" value="youtube_declared"> YouTubeアカウント名 / 申告名</label>
-          <label><input type="radio" name="name_mode" value="declared_youtube"> 申告名 / YouTubeアカウント名</label>
+          <label><input type="radio" name="name_mode" value="youtube_declared"> @ハンドルネーム / 申告名</label>
+          <label><input type="radio" name="name_mode" value="declared_youtube"> 申告名 / @ハンドルネーム</label>
         </fieldset>
-        <label>配置レイアウト <select name="layout" id="overlay-layout"><option value="vertical">縦向き（OBS：480 × 600 px）</option><option value="horizontal">横向き（OBS：480 × 600 px）</option></select></label>
-        <p>OBSの「ソース」一覧で対象のブラウザソースを右クリック →「プロパティ」→「幅」「高さ」を、上の選択肢に表示されたサイズに合わせてください。縦・横とも共通のサイズです。</p>
+        <label>配置レイアウト <select name="layout" id="overlay-layout"><option value="vertical">縦向き（推奨：480 × 600 px）</option><option value="horizontal">横向き（推奨：1200 × 240 px）</option></select></label>
+        <p>OBSの「ソース」一覧で対象のブラウザソースを右クリック →「プロパティ」→「幅」「高さ」を、下に表示される現在の幅・高さに合わせてください。</p>
+        <button id="apply-layout-size" type="button" disabled>このレイアウトの推奨サイズを適用</button>
+        <p>標準文字サイズ28pxの目安：縦480×600px、横1200×240px。適用後は「保存してOBSに反映」を押し、OBS側も同じ幅・高さにしてください。文字数・行数・フォントに合わせて調整できます。</p>
         <div id="preset-editor">
           <div id="vertical-editor"><label>縦向きの行編集<textarea name="vertical_text" rows="16" maxlength="4000" spellcheck="false" wrap="off"></textarea></label></div>
           <div id="horizontal-editor" hidden>
