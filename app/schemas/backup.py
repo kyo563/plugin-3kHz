@@ -1,3 +1,4 @@
+from app.schemas.avatar import AvatarUrl
 """Portable state only: no paths, credentials, runtime settings or executable data."""
 from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -18,6 +19,7 @@ class Participant(StrictModel):
     declared_player_name: str | None = Field(default=None, max_length=200)
     youtube_handle: str | None = Field(default=None, max_length=200)
     youtube_nickname: str | None = Field(default=None, max_length=200)
+    avatar_url: AvatarUrl = None
     participation_count: Count
 
 class HistoryUser(StrictModel):

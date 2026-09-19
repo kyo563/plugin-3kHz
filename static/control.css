@@ -54,3 +54,6 @@ dialog::backdrop { background:#0009; } dialog li { margin:8px 0; } dialog button
 #history-session { max-width:100%; }
 
 .remove-participant { background:transparent; color:#fca5a5; border-color:#915454; }
+
+.participant-avatar { position:relative; display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; flex:0 0 28px; border-radius:50%; background:#e2e8f0; color:#64748b; overflow:hidden; }
+.participant-avatar img { position:absolute; inset:0; width:28px; height:28px; object-fit:cover; border-radius:50%; }

@@ -114,7 +114,7 @@ class LocalSecurityMiddleware:
         async def secure_send(message):
             if message["type"] == "http.response.start":
                 extra = [(b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer"),
-                    (b"content-security-policy", b"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'")]
+                    (b"content-security-policy", b"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'self'; connect-src 'self'; img-src 'self' data: https://*.ggpht.com https://ggpht.com https://*.googleusercontent.com https://googleusercontent.com; object-src 'none'; base-uri 'none'")]
                 if path != "/api/overlay-state":
                     extra.append((b"cache-control", b"no-store"))
                 message = {**message, "headers": list(message.get("headers", [])) + extra}

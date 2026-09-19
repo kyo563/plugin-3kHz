@@ -166,6 +166,7 @@ class YouTubeChat:
             comment = ReceivedComment(source="youtube", externalMessageId=item["id"],
                 receivedAt=snippet["publishedAt"], displayName=author["displayName"],
                 youtubeNickname=author["displayName"], userKey=author["channelId"],
+                avatarUrl=author.get("profileImageUrl"),
                 message=snippet["textMessageDetails"]["messageText"])
         except (KeyError, TypeError, ValidationError):
             return

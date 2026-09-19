@@ -30,6 +30,25 @@ function participantItem(user, { draggable = false, listType = "", position = nu
         order.title = position < 3 ? '次の対戦の参加者（NEXT）' : '待機順';
         li.appendChild(order);
     }
+    if (listType === 'waiting' && user.user_id && !user.is_placeholder) {
+        const avatar = document.createElement('span');
+        avatar.className = 'participant-avatar'; avatar.textContent = '●';
+        avatar.setAttribute('aria-hidden', 'true');
+        if (user.avatar_url) {
+            try {
+                const url = new URL(user.avatar_url);
+                if (url.protocol === 'https:' && /(^|\.)(ggpht\.com|googleusercontent\.com)$/.test(url.hostname) && !url.username && !url.password && (!url.port || url.port === '443')) {
+                    const img = document.createElement('img');
+                    img.alt = ''; img.width = 28; img.height = 28;
+                    img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer'; img.draggable = false;
+                    img.addEventListener('error', () => { img.hidden = true; });
+                    img.src = url.href;
+                    avatar.appendChild(img);
+                }
+            } catch (_) { /* Missing or invalid images keep the placeholder. */ }
+        }
+        li.appendChild(avatar);
+    }
     li.appendChild(label);
     if (user.user_id && !user.is_placeholder && user.participation_count !== undefined) {
         const count = document.createElement('span'); count.className='participant-count';

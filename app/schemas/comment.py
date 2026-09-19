@@ -1,3 +1,4 @@
+from app.schemas.avatar import AvatarUrl
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -16,6 +17,7 @@ class ReceivedComment(BaseModel):
     display_name: str = Field(alias="displayName", min_length=1, max_length=200)
     youtube_handle: str | None = Field(default=None, alias="youtubeHandle", pattern=r"^@[^\s]{1,199}$", max_length=200)
     youtube_nickname: str | None = Field(default=None, alias="youtubeNickname", min_length=1, max_length=200)
+    avatar_url: AvatarUrl = Field(default=None, alias="avatarUrl")
     user_key: str = Field(alias="userKey", min_length=1, max_length=512)
     message: str = Field(max_length=4096)
     badges: CommentBadges = CommentBadges()

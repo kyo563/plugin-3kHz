@@ -148,7 +148,7 @@ test('waiting list includes everyone and shows account name before alias', ()=>{
     assert.equal(h.element('#waiting-count').textContent,'7人');
     assert.equal(h.element('#waiting').children[0].children[0].textContent,'1 次');
     assert.equal(h.element('#waiting').children[3].children[0].textContent,'4');
-    assert.equal(h.element('#waiting').children[0].children[1].textContent,'Account0（Edited）');
+    assert.equal(h.element('#waiting').children[0].children[2].textContent,'Account0（Edited）');
 });
 
 test('drag reorder supports first and last positions across the NEXT boundary', async()=>{
@@ -164,4 +164,18 @@ test('drag reorder supports first and last positions across the NEXT boundary', 
     h.sandbox.renderState({...state(3),waiting});
     await h.sandbox.reorderWaitingWithDrag('u6','u0',false);
     assert.deepEqual(bodies[1].ordered_user_ids,['u6','u0','u1','u2','u3','u4','u5']);
+});
+
+
+test('waiting avatars are lazy, private and reject foreign URLs', () => {
+    const h = harness(async()=>reply(state(1)));
+    const user = {user_id:'u1',display_name:'Alice',avatar_url:'https://yt3.ggpht.com/example=s32'};
+    const row = h.sandbox.participantItem(user,{listType:'waiting'});
+    const avatar = row.children.find(c=>c.className==='participant-avatar');
+    const img = avatar.children[0];
+    assert.equal(img.src,user.avatar_url);
+    assert.equal(img.loading,'lazy');
+    assert.equal(img.referrerPolicy,'no-referrer');
+    const bad = h.sandbox.participantItem({...user,avatar_url:'https://localhost/private'},{listType:'waiting'});
+    assert.equal(bad.children.find(c=>c.className==='participant-avatar').children.length,0);
 });

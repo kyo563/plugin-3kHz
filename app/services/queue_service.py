@@ -107,7 +107,7 @@ class QueueService:
             "display_name": user.get("display_name", existing_user.get("display_name", "")),
             "participation_count": merged_count,
         }
-        for field in ('youtube_handle', 'youtube_nickname'):
+        for field in ('youtube_handle', 'youtube_nickname', 'avatar_url'):
             if user.get(field): merged_user[field] = user[field]
         if user.get('user_id') in state.get('name_overrides', {}):
             declared_player_name = state['name_overrides'][user['user_id']]
