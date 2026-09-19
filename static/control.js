@@ -74,7 +74,7 @@ function participantItem(user, { draggable = false, listType = "", position = nu
         remove.addEventListener('click', async event => {
             event.stopPropagation();
             if (mutationPending) return;
-            if (!window.confirm(`${formatDisplayName(user, false)} を参加者一覧から削除しますか？参加回数と記録済みの対戦履歴は残ります。`)) return;
+            if (!window.confirm(`${formatDisplayName(user, false)} を参加者一覧から削除しますか？空いたNOW枠には待機先頭から補充します。参加回数と記録済みの対戦履歴は残ります。`)) return;
             await post('/api/control/remove-user', {user_id:user.user_id});
         });
         li.appendChild(remove);

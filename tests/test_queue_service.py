@@ -128,7 +128,7 @@ def test_remove_user_by_id_removes_from_current_and_waiting_and_is_safe_when_mis
     state["waiting"] = [_user("u2", "B")]
 
     service.remove_user_by_id(state, "u1")
-    assert [u["user_id"] for u in state["current"]] == []
+    assert [u["user_id"] for u in state["current"]] == ["u2"]
 
     service.remove_user_by_id(state, "u2")
     assert [u["user_id"] for u in state["waiting"]] == []

@@ -144,12 +144,19 @@ class QueueService:
         state["waiting"] = reordered
         self._log(state, "待機列を手動で並び替えました")
 
+    def _refill_current(self, state: dict) -> None:
+        while len(state["current"]) < self.group_size and state["waiting"]:
+            user = state["waiting"].pop(0)
+            state["current"].append(user)
+            self._log(state, f"{user['display_name']} を待機先頭からNOWへ補充しました")
+
     def remove_user_by_id(self, state: dict, user_id: str) -> None:
         removed = self._find_and_remove_user(state, user_id)
         if removed is None:
             self._log(state, "手動削除: 対象が見つかりません")
             return
         self._log(state, f"{removed.get('display_name', '')} を手動で削除しました")
+        self._refill_current(state)
 
     def move_user_to_waiting_tail(self, state: dict, user_id: str) -> None:
         user = self._find_and_remove_user(state, user_id)
@@ -184,6 +191,7 @@ class QueueService:
         if state["waiting"]:
             removed = state["waiting"].pop(0)
             self._log(state, f"{removed['display_name']} を取消しました")
+            self._refill_current(state)
             return
         self._log(state, "取消対象がいません")
 
@@ -194,6 +202,7 @@ class QueueService:
                 if user.get("user_id") == user_id:
                     removed = users.pop(index)
                     self._log(state, f"{removed['display_name']} を取消しました")
+                    self._refill_current(state)
                     return True
         self._log(state, "取消対象がいません")
         return False
