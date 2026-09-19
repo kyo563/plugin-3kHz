@@ -17,7 +17,7 @@ from desktop.ownership import OwnershipCatalog, safe_path, atomic_json
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="参加型整列プラグイン 1.1.1")
+    parser = argparse.ArgumentParser(description="参加型整列プラグイン 1.1.2")
     parser.add_argument("--port", type=int)
     parser.add_argument("--prepare-uninstall", action="store_true")
     parser.add_argument("--adopt-existing-data", action="store_true")
@@ -75,7 +75,7 @@ def main() -> int:
                 if args.port is not None:
                     config.save_port(port)
                 window = webview.create_window(
-                    "参加型整列プラグイン 1.1.1", server.url + "/control#key=" + keys.admin,
+                    "参加型整列プラグイン 1.1.2", server.url + "/control#key=" + keys.admin,
                     width=440, height=800, min_size=(320, 480),
                     confirm_close=False,
                 )
