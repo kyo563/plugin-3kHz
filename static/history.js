@@ -1,20 +1,20 @@
 (() => {
  const q=s=>document.querySelector(s), panel=q('#history-panel'), select=q('#history-session'), summary=q('#history-summary'), copy=q('#history-copy');
- let sessions=[], text='', busy=false;
+ let sessions=[], cumulative={}, text='', busy=false;
  function render() {
   const session=sessions.find(s=>s.id===select.value);
   q('#history-list').replaceChildren();
   copy.disabled=!session || !session.users.length;
   if(!session){summary.textContent='まだ対戦履歴はありません。';text='';return;}
   summary.textContent=`ユニーク参加者 ${session.users.length}人 ／ ${session.matches}対戦`;
-  const lines=session.users.map((u,i)=>`${i+1}. ${u.display_name}（${u.count}回）`);
+  const lines=session.users.map((u,i)=>`${i+1}. ${u.display_name}（この配信${u.count}回／累計${cumulative[u.user_id] ?? u.count}回）`);
   session.users.forEach((u,i)=>{const li=document.createElement('li');li.textContent=lines[i];q('#history-list').appendChild(li);});
   text=[session.label,summary.textContent,...lines].join('\n');
  }
  async function load(latest=false){
   try{
    const r=await fetch('/api/control/history',{signal:AbortSignal.timeout(5000)});if(!r.ok)throw new Error();
-   const selected=select.value;sessions=(await r.json()).sessions;select.replaceChildren();
+   const selected=select.value;const data=await r.json();sessions=data.sessions;cumulative=data.cumulative_counts || {};select.replaceChildren();
    [...sessions].reverse().forEach(s=>select.add(new Option(`${s.label} / ${new Date(s.started_at).toLocaleString()}`,s.id)));
    if(!latest && sessions.some(s=>s.id===selected))select.value=selected;
    render();

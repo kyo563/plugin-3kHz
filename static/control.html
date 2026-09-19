@@ -82,7 +82,7 @@
             <ol id="history-list"></ol>
             <label>新しい配信の名前<input id="history-label" maxlength="100" placeholder="例：9月20日の配信"></label>
             <button id="history-start" type="button">新しい配信の履歴を開始</button>
-            <p>以前の履歴は残ります。待機列・累計参加回数・表示設定は変わりません。配信URLの変更では自動で区切りません。全リセットでは履歴も削除されます。</p>
+            <p>今回の回数を0から数え始めます。以前の履歴・待機列・累計参加回数・表示設定は残ります。配信URLの変更では自動で区切りません。全リセットでは履歴も削除されます。</p>
         </details>
         <details class="operator-tools">
             <summary>参加者の追加・検索</summary>
@@ -91,6 +91,7 @@
                 <label>参加者ID（再参加時のみ任意） <input id="add-id" maxlength="256" autocomplete="off"></label>
                 <button type="submit">参加者を追加</button>
             </form>
+            <p>今回：現在の配信で対戦を終えた回数。累計：過去の配信を含む回数です。「次の対戦へ」で加算し、参加登録・辞退・自動補充では加算しません。履歴の累計は一覧取得時点の値です。</p>
             <p>初回は名前だけで追加できます。同じ名前の方は別人として扱います。再参加に備えて検索結果のIDを控えておくと、同じIDで回数を引き継げます。</p>
             <label>参加者検索 <input id="participant-search" type="search" placeholder="表示名・申告名・ID" autocomplete="off"></label>
             <ul id="search-results" aria-live="polite"></ul>
@@ -132,7 +133,7 @@
         <li><button type="button" data-action="move-tail">待機列の最後尾へ移動</button></li>
         <li><button type="button" data-action="remove">削除</button></li>
         <li><button type="button" data-action="edit-name">申告名を編集</button></li>
-        <li><button type="button" data-action="correct-count">参加回数を補正</button></li>
+        <li><button type="button" data-action="correct-count">累計参加回数を補正</button></li>
         <li><button type="button" data-action="clear-name">申告名を削除</button></li>
     </ul>
 
@@ -158,9 +159,9 @@
     </dialog>
     <dialog id="count-dialog" aria-labelledby="count-title">
         <form id="count-form">
-            <h2 id="count-title">参加回数の補正</h2>
+            <h2 id="count-title">累計参加回数の補正</h2>
             <p id="count-target"></p>
-            <label>参加回数 <input id="count-value" type="number" min="0" max="2147483647" step="1" required></label>
+            <label>累計参加回数 <input id="count-value" type="number" min="0" max="2147483647" step="1" required></label>
             <button type="submit">補正する</button>
             <button type="button" id="count-cancel">キャンセル</button>
         </form>

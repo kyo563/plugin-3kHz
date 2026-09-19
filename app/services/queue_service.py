@@ -260,6 +260,10 @@ class QueueService:
 
     def build_view_state(self, state: dict) -> dict:
         snapshot = deepcopy({k: v for k, v in state.items() if k not in {"participation_history", "comment_names"}})
+        sessions = state.get("participation_history", [])
+        session = sessions[-1] if sessions else {"matches": 0, "users": []}
+        snapshot["session_participation_counts"] = {u["user_id"]: u["count"] for u in session["users"]}
+        snapshot["session_match_count"] = session["matches"]
         current = list(snapshot["current"])
         waiting = snapshot["waiting"]
 

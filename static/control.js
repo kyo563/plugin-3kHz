@@ -14,7 +14,7 @@ function formatDisplayName(user, withCount) {
     const declared = user.declared_player_name || user.youtube_nickname;
     const merged = !user.is_placeholder && declared && declared !== name ? `${name}（${declared}）` : name;
     if (withCount && !user.is_placeholder && user.participation_count !== undefined) {
-        return `${merged} [参加: ${user.participation_count}回]`;
+        return `${merged} [今回${latestState?.session_participation_counts?.[user.user_id] ?? 0}回／累計${user.participation_count}回]`;
     }
     return merged;
 }
@@ -52,7 +52,7 @@ function participantItem(user, { draggable = false, listType = "", position = nu
     li.appendChild(label);
     if (user.user_id && !user.is_placeholder && user.participation_count !== undefined) {
         const count = document.createElement('span'); count.className='participant-count';
-        count.textContent = `${user.participation_count}回`; count.title='参加回数'; li.appendChild(count);
+        count.textContent = `今回${latestState?.session_participation_counts?.[user.user_id] ?? 0}回／累計${user.participation_count}回`; count.title='今回：現在の配信の対戦済み回数。累計：過去の配信を含む対戦済み回数'; li.appendChild(count);
     }
     li.dataset.userId = user.user_id || "";
     li.dataset.placeholder = user.is_placeholder ? "1" : "0";
@@ -102,7 +102,7 @@ function participantItem(user, { draggable = false, listType = "", position = nu
 }
 
 function renderList(selector, users, opts = {}) {
-    const el = q(selector); const signature = JSON.stringify(users);
+    const el = q(selector); const signature = JSON.stringify([users, latestState?.session_participation_counts]);
     if (el.dataset.signature === signature) return;
     el.dataset.signature = signature; el.innerHTML = "";
     users.forEach((user, index) => el.appendChild(participantItem(user, {...opts, position: opts.listType === "waiting" ? index : null})));

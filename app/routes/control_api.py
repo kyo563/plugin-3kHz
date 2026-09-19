@@ -222,7 +222,8 @@ class HistoryStartPayload(BaseModel):
 
 @router.get("/api/control/history")
 def participation_history(request: Request):
-    return {"sessions": get_services(request).persistence_service.get_state().get("participation_history", [])}
+    state = get_services(request).persistence_service.get_state()
+    return {"sessions": state.get("participation_history", []), "cumulative_counts": state.get("participation_counts", {})}
 
 @router.post("/api/control/history/start")
 def start_history(payload: HistoryStartPayload, request: Request):

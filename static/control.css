@@ -57,3 +57,5 @@ dialog::backdrop { background:#0009; } dialog li { margin:8px 0; } dialog button
 
 .participant-avatar { position:relative; display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; flex:0 0 28px; border-radius:50%; background:#e2e8f0; color:#64748b; overflow:hidden; }
 .participant-avatar img { position:absolute; inset:0; width:28px; height:28px; object-fit:cover; border-radius:50%; }
+
+.participant-count { white-space:normal; max-width:9em; line-height:1.35; }

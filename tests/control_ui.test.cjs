@@ -179,3 +179,14 @@ test('waiting avatars are lazy, private and reject foreign URLs', () => {
     const bad = h.sandbox.participantItem({...user,avatar_url:'https://localhost/private'},{listType:'waiting'});
     assert.equal(bad.children.find(c=>c.className==='participant-avatar').children.length,0);
 });
+
+
+test('participant counts show current stream separately and refresh at a new stream', () => {
+    const h=harness(async()=>reply(state(1)));
+    const user={user_id:'alice',display_name:'Alice',participation_count:7};
+    h.sandbox.renderState({...state(1),current:[user],now_view:[user],session_participation_counts:{alice:2}});
+    const row=h.element('#now').children.at(-1);
+    assert.equal(row.children.find(c=>c.className==='participant-count').textContent,'今回2回／累計7回');
+    h.sandbox.renderState({...state(2),current:[user],now_view:[user],session_participation_counts:{}});
+    assert.equal(h.element('#now').children.at(-1).children.find(c=>c.className==='participant-count').textContent,'今回0回／累計7回');
+});
