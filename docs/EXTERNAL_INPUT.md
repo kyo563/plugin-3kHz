@@ -15,7 +15,7 @@
 - badges: owner/moderator/memberの真偽値、省略可。初期版OBSには表示しない。
 - 本文全体はUTF-8で64 KiB以下。
 
-成功は200で `status=accepted`。重複は `duplicate=true, command=ignore`。acceptedは待機列変更の保証ではなく、受付終了・40秒ロックなら変更されない。401はキー、403はOrigin、413はサイズ、422は内容を確認する。
+成功は200で `status=accepted`。重複は `duplicate=true, command=ignore`。acceptedは待機列変更の保証ではなく、受付終了・設定した秒数のロック（初期値40秒）なら変更されない。401はキー、403はOrigin、413はサイズ、422は内容を確認する。
 
 外部サイトからのブラウザ送信は許可しない。ローカルアダプターはOriginヘッダーを付けず、HTTPクライアントで送信する。受信キーでは管理状態の読取・リセット・終了はできない。
 本文・userKey生値・メッセージID・キーはSQLite/診断ログに保存しない。IDなし入力を推測で重複排除しない。製品選定後に再送・欠落・順序・再接続を検証する。

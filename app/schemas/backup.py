@@ -47,7 +47,7 @@ class BackupState(StrictModel):
     name_overrides: dict[UserId, Name] = Field(default_factory=dict, max_length=20000)
     is_open: bool
     priority_mode: bool
-    cooldown_seconds: Literal[40]
+    cooldown_seconds: int = Field(default=40, strict=True, ge=0, le=3600)
     show_declared_player_name_on_overlay: bool
     current: list[Participant] = Field(max_length=3)
     waiting: list[Participant] = Field(max_length=10000)

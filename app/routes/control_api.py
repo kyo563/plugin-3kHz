@@ -233,3 +233,18 @@ def start_history(payload: HistoryStartPayload, request: Request):
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return participation_history(request)
+
+
+class CooldownSettings(BaseModel):
+    cooldown_seconds: int = Field(strict=True, ge=0, le=3600)
+
+@router.get("/api/settings/comments")
+def comment_settings(request: Request):
+    return {"cooldown_seconds": get_services(request).persistence_service.get_state()["cooldown_seconds"]}
+
+@router.post("/api/settings/comments")
+def save_comment_settings(payload: CooldownSettings, request: Request):
+    from app.services.state_change_cooldown_service import StateChangeCooldownService
+    service = StateChangeCooldownService()
+    get_services(request).persistence_service.mutate_state(lambda state: service.configure(state, payload.cooldown_seconds))
+    return payload.model_dump()

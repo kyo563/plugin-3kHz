@@ -62,3 +62,24 @@ class StateChangeCooldownService:
 
         expires_at = self._now() + timedelta(seconds=cooldown_seconds)
         state.setdefault("user_action_locks", {})[user_id] = expires_at.isoformat()
+
+
+    def configure(self, state: dict, seconds: int) -> None:
+        previous = self._cooldown_seconds(state)
+        self.clear_expired(state)
+        locks = state.setdefault("user_action_locks", {})
+        if seconds == 0:
+            locks.clear()
+        else:
+            # Preserve the original change time for active locks; never resurrect
+            # expired locks when increasing the configured duration.
+            for user_id, value in list(locks.items()):
+                expiry = datetime.fromisoformat(value)
+                if expiry.tzinfo is None:
+                    expiry = expiry.replace(tzinfo=timezone.utc)
+                adjusted = expiry + timedelta(seconds=seconds - previous)
+                if adjusted <= self._now():
+                    locks.pop(user_id, None)
+                else:
+                    locks[user_id] = adjusted.isoformat()
+        state["cooldown_seconds"] = seconds

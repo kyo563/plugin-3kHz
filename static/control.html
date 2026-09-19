@@ -36,7 +36,7 @@
             <details><summary>APIキーの準備・使い方</summary>
                 <p>Google CloudでYouTube Data API v3を有効にし、認証情報からAPIキーを作成します。APIの制限はYouTube Data API v3を指定してください。ブラウザ参照元の制限付きキーは使用できません。</p>
                 <p>キーはこのアプリの接続中だけ保持し、ファイルやバックアップには保存しません。停止後・再起動後は入力し直します。公開ライブ配信向けです。</p>
-                <p>接続前のコメントは読み飛ばします。参加後40秒間は辞退などの連続操作が制限されます。受信件数は待機列への追加人数とは異なります。APIの利用上限に達した場合は受信を停止します。</p>
+                <p>接続前のコメントは読み飛ばします。参加後は設定した秒数の間、辞退などの連続操作が制限されます。受信件数は待機列への追加人数とは異なります。APIの利用上限に達した場合は受信を停止します。</p>
                 <p>公式APIでハンドルを取得できない場合は、YouTubeの表示名を使います。コメントの投稿は行いません。</p>
                 <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener noreferrer">Google CloudでAPIを準備</a>
             </details>
@@ -99,7 +99,7 @@
             <summary>その他（設定・バックアップ）</summary>
             <p><a href="/settings">表示設定</a> · <a href="/obs-setup">OBSの接続案内</a></p>
             <p>OBS表示URL: <code id="overlay-url"></code></p>
-            <p>次の対戦へ進めると、現在のNOWの参加回数が1増えます。コメントによる状態変更には40秒のロックがあります。</p>
+            <p>次の対戦へ進めると、現在のNOWの参加回数が1増えます。コメントによる状態変更の制限時間は「設定」で変更できます（初期値40秒）。</p>
             <button id="toggle-priority" data-api="/api/control/toggle-priority" aria-pressed="false">初回参加優先モード：確認中</button><p>ONでは参加回数が少ない方を優先してNEXTに入れます（従来と同じ動作）。</p>
             <button data-api="/api/control/reset">待機列・回数をリセット</button>
             <details id="description-tools" open>

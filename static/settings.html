@@ -94,6 +94,17 @@
       <p>チェック模様は透過確認用です。OBSには表示されません。大きなサイズは縮小してプレビューします。</p>
     </section>
 
+    <section class="panel" aria-labelledby="comment-settings-title">
+      <h2 id="comment-settings-title">コメントの連続操作制限</h2>
+      <form id="comment-settings-form">
+        <label>制限時間（秒）<input id="cooldown-seconds" type="number" min="0" max="3600" step="1" value="40" required disabled></label>
+        <p>参加・辞退が反映された後、同じ人の次の参加希望・参加辞退を無視する時間です。初期値40秒。7秒・20秒など、0～3600秒で設定できます。0秒は制限なしです。</p>
+        <p>保存すると、現在制限中の人にも元の操作時刻を基準に適用します。制限終了後の参加希望は、従来どおり待機列の最後尾へ移動します。</p>
+        <button id="save-comment-settings" type="submit" disabled>制限時間を保存</button>
+        <button id="reload-comment-settings" type="button">保存済みの時間を読み込む</button>
+        <p id="comment-settings-result" role="status"></p>
+      </form>
+    </section>
     <section class="panel fixed" aria-labelledby="fixed-settings-title">
       <p class="section-label">確認専用</p>
       <h2 id="fixed-settings-title">現行MVPでは固定の仕様</h2>
@@ -103,7 +114,6 @@
         <div><dt>参加辞退トリガー</dt><dd>参加辞退 / 参加を辞退</dd></div>
         <div><dt>join除外語</dt><dd>参加希望者 / 参加希望順</dd></div>
         <div><dt>グループ人数</dt><dd>3人固定</dd></div>
-        <div><dt>40秒状態変更ロック</dt><dd>有効</dd></div>
         <div><dt>参加回数管理</dt><dd>move_next時に現在対戦中グループへ +1</dd></div>
         <div><dt>/control</dt><dd>実運用操作画面</dd></div>
         <div><dt>/overlay</dt><dd>OBS表示専用</dd></div>
@@ -111,7 +121,7 @@
     </section>
     <section class="panel" aria-labelledby="reset-settings-title">
       <h2 id="reset-settings-title">設定のリセット</h2>
-      <p>この画面の表示設定（名前の表示方式・配置・文言・サイズ・自由編集・フォント指定）を初期値に戻して保存します。待機列・参加回数・総対戦回数・参加者名・追加済みフォントは残ります。</p>
+      <p>この画面の表示設定（名前の表示方式・配置・文言・サイズ・自由編集・フォント指定）を初期値に戻して保存します。待機列・参加回数・総対戦回数・参加者名・追加済みフォント・コメントの制限時間は残ります。</p>
       <button id="reset-settings" type="button" disabled>設定をリセットする</button>
       <p id="reset-settings-result" role="status"></p>
     </section>
@@ -126,5 +136,6 @@
   <script src="/static/auth.js"></script>
 
     <script src="/static/overlay-settings.js"></script>
+    <script src="/static/comment-settings.js"></script>
 </body>
 </html>
