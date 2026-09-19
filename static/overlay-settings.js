@@ -40,8 +40,9 @@
     function preview() {
         if (!loaded || !form.checkValidity()) return;
         const settings = values();
-        document.getElementById('custom-editor').hidden = settings.layout !== 'custom';
-        document.getElementById('preset-editor').hidden = settings.layout === 'custom';
+        for (const option of document.getElementById('overlay-layout').options) {
+            option.textContent = `${option.value === 'vertical' ? '縦向き' : '横向き'}（OBS：${settings.width} × ${settings.height} px）`;
+        }
         document.getElementById('vertical-editor').hidden = settings.layout !== 'vertical';
         document.getElementById('horizontal-editor').hidden = settings.layout !== 'horizontal';
         const scale = Math.min(1, (shell.parentElement.clientWidth - 24) / settings.width, 600 / settings.height);
@@ -58,6 +59,7 @@
             const r = await fetch('/api/settings/overlay', {signal:AbortSignal.timeout(5000)});
             if (!r.ok) throw new Error();
             const settings = await r.json();
+            if (settings.layout === 'custom') { settings.layout = 'vertical'; settings.vertical_text = settings.custom_text; }
             try { const fonts = await fetch('/api/fonts', {signal:AbortSignal.timeout(5000)}); if(fonts.ok) library = await fonts.json(); } catch (_) {}
             populateFonts(settings.fonts);
             for (const [key,value] of Object.entries(settings)) if(key !== 'fonts' && key !== 'name_mode') form.elements.namedItem(key).value = value;
@@ -102,6 +104,7 @@
             const r = await fetch('/api/settings/overlay', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name_mode:'youtube'}), signal:AbortSignal.timeout(5000)});
             if (!r.ok) throw new Error();
             const settings = await r.json();
+            if (settings.layout === 'custom') { settings.layout = 'vertical'; settings.vertical_text = settings.custom_text; }
             populateFonts(settings.fonts);
             for (const [key, value] of Object.entries(settings)) if (key !== 'fonts') form.elements.namedItem(key).value = value;
             loaded = true; preview();

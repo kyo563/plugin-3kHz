@@ -14,12 +14,10 @@
       <p class="eyebrow">参加型整列プラグイン</p>
       <h1>設定画面</h1>
       <p><a href="/control">管理画面に戻る</a> · <a href="/obs-setup">OBSに追加する</a></p>
-      <p class="lead">現行MVPで使う設定の確認と、一部表示設定の切り替えを行います。</p>
     </header>
 
     <section class="panel" aria-labelledby="layout-title">
       <h2 id="layout-title">OBSの文字・サイズ</h2>
-      <p>文字以外は透過します。見出しは空欄にすると非表示です。</p>
       <form id="overlay-layout-form">
         <fieldset class="name-modes"><legend>OBSに表示する名前（1つ選択）</legend>
           <label><input type="radio" name="name_mode" value="youtube" checked> YouTubeアカウント名のみ（@ハンドル）</label>
@@ -27,11 +25,9 @@
           <label><input type="radio" name="name_mode" value="youtube_declared"> YouTubeアカウント名 / 申告名</label>
           <label><input type="radio" name="name_mode" value="declared_youtube"> 申告名 / YouTubeアカウント名</label>
         </fieldset>
-        <p>「参加希望 『名前』」で申告名を指定できます。指定がなければYouTubeの表示名を使います。配信者の手動指定がある場合はそちらを優先します。管理画面で参加者の「名前を編集」から変更できます。未取得のハンドル・申告名は取得済みの名前で補います。同じ名前は重ねて表示しません。</p>
-        <label>配置セット <select name="layout" id="overlay-layout"><option value="vertical">縦向き</option><option value="horizontal">横向き</option><option value="custom">自由編集（改行・空行を調整）</option></select></label>
-        <p>縦横の切り替えは文字の並びだけを変更します。幅・高さは共通で維持し、OBS側のサイズ変更は不要です。保存するとOBSへ反映します。</p>
+        <label>配置レイアウト <select name="layout" id="overlay-layout"><option value="vertical">縦向き（OBS：480 × 600 px）</option><option value="horizontal">横向き（OBS：480 × 600 px）</option></select></label>
+        <p>OBSの「ソース」一覧で対象のブラウザソースを右クリック →「プロパティ」→「幅」「高さ」を、上の選択肢に表示されたサイズに合わせてください。縦・横とも共通のサイズです。</p>
         <div id="preset-editor">
-          <p>Enterで改行・空行を追加し、Backspaceで削除できます。見出しの行を削除するとOBSでも消えます。空白も詰めたい場合は改行ごと削除してください。変更後は「保存してOBSに反映」を押します。縦と横の編集内容は別々に保存します。参加者名は [NOW1] などの自動更新欄を使ってください。</p>
           <div id="vertical-editor"><label>縦向きの行編集<textarea name="vertical_text" rows="16" maxlength="4000" spellcheck="false" wrap="off"></textarea></label></div>
           <div id="horizontal-editor" hidden>
             <p>横向きは最大4列です。列を空欄にするとその列を詰めます。同じ行数にすると高さが揃います。</p>
@@ -42,14 +38,7 @@
           </div>
           <p>自動更新欄：[受付] [NOW見出し] [NEXT見出し] [QUEUE見出し] [NOW1]～[NOW3] [NEXT1]～[NEXT3] [待機人数] [待機グループ] [待機人数のみ]</p>
         </div>
-        <div id="custom-editor" hidden>
-          <label for="custom-text">表示内容・改行の編集</label>
-          <p>Enterで改行や空行を追加、Backspaceで削除できます。文字を入力して見出しを変えたり、空白で位置を調整したりできます。</p>
-          <textarea id="custom-text" name="custom_text" rows="16" maxlength="4000" spellcheck="false" wrap="off"></textarea>
-          <p>[受付]・[NOW見出し]・[NEXT見出し]・[QUEUE見出し]・[待機人数] は現在の設定と状態に置き換わります。[NOW1]～[NOW3] と [NEXT1]～[NEXT3] は参加者名の自動更新欄です。</p>
-          <p>自動更新欄は名前を直接書き換えず、行ごと移動してください。編集後は下のプレビューを確認し「保存してOBSに反映」を押します。保存内容は次回も維持します。</p>
-          <p>自由編集では文字サイズ・空行をそのまま使います。下が切れる場合は縦幅を広げるか、文字サイズ・空行を減らしてください。</p>
-        </div>
+        <input type="hidden" name="custom_text">
         <div class="layout-fields">
           <label>受付中の文言 <input name="open_label" maxlength="40"></label>
           <label>受付終了の文言 <input name="closed_label" maxlength="40"></label>
@@ -85,9 +74,9 @@
         <button id="reload-overlay-layout" type="button">保存済み設定を読み込む</button>
         <p id="layout-result" role="status">設定を読み込んでいます…</p>
       </form>
-      <p>保存するとOBSに自動反映されます。幅・高さは縦横共通です。一度OBS側と合わせた後、配置セットの切り替えだけならOBS側の変更は不要です。</p>
+      <p>保存するとOBSに自動反映されます。幅・高さは縦横共通です。一度OBS側と合わせた後、配置レイアウトの切り替えだけならOBS側の変更は不要です。</p>
       <p id="obs-dimensions"></p>
-      <p>縦・横配置では、高さが小さい場合に文字サイズを自動縮小します。自由編集では指定サイズを維持します。長い名前は末尾を「…」で省略します。</p>
+      <p>縦・横配置では、高さが小さい場合に文字サイズを自動縮小します。長い名前は末尾を「…」で省略します。</p>
       <p>待機人数はNOWを除き、NEXTを含む合計です。グループ数は3人単位で切り上げます。</p>
       <h3>プレビュー（サンプル・待機列は変更しません）</h3>
       <div id="layout-preview-shell"><iframe id="layout-preview" title="文字と透過のプレビュー" src="/overlay?sample=1&amp;preview=1"></iframe></div>

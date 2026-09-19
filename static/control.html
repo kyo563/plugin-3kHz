@@ -59,7 +59,7 @@
             <section>
                 <h2>NOW</h2>
                 <ul id="now"></ul>
-                <p>NOWの参加者はコメントで辞退・並び直しできません。交代は「次の対戦へ」、途中退出は管理画面の「削除」で操作してください。</p>
+                <p>このスロットの参加者はコメントで辞退ができません</p>
                 <div class="match-progress">
                     <button id="move-next" type="button" data-api="/api/control/move-next" aria-describedby="move-next-note">次の対戦へ</button>
                     <p id="move-next-note">現在の参加者の回数を＋1して、次の3人へ交代します。</p>
@@ -67,14 +67,13 @@
             </section>
             <section>
                 <h2>待機中の参加者 <span id="waiting-count"></span></h2>
-                <p>上から参加順です。先頭3人がNEXTです。行をドラッグして順番を変更、ユーザー名（申告名）を表示します。「編集」は申告名を変更し、「削除」は一覧から外します。</p>
                 <ul id="waiting" aria-label="待機中の全参加者"></ul>
             </section>
         </div>
 
         <details id="history-panel" class="operator-tools">
             <summary>対戦した参加者の履歴</summary>
-            <p>「次の対戦へ」を押した時点でNOWを記録します。最後の対戦後も押してください。同じ対戦の3人はNOWの並び順です。</p>
+            <p>対局した参加者の履歴です</p>
             <label>配信の履歴<select id="history-session"></select></label>
             <button id="history-refresh" type="button">一覧を更新</button>
             <button id="history-copy" type="button" disabled>一覧をコピー</button>
@@ -82,7 +81,7 @@
             <ol id="history-list"></ol>
             <label>新しい配信の名前<input id="history-label" maxlength="100" placeholder="例：9月20日の配信"></label>
             <button id="history-start" type="button">新しい配信の履歴を開始</button>
-            <p>今回の回数を0から数え始めます。以前の履歴・待機列・累計参加回数・表示設定は残ります。配信URLの変更では自動で区切りません。全リセットでは履歴も削除されます。</p>
+            <p>参加回数を0回から数え直します</p>
         </details>
         <details class="operator-tools">
             <summary>参加者の追加・検索</summary>
@@ -91,8 +90,6 @@
                 <label>参加者ID（再参加時のみ任意） <input id="add-id" maxlength="256" autocomplete="off"></label>
                 <button type="submit">参加者を追加</button>
             </form>
-            <p>今回：現在の配信で対戦を終えた回数。累計：過去の配信を含む回数です。「次の対戦へ」で加算し、参加登録・辞退・自動補充では加算しません。履歴の累計は一覧取得時点の値です。</p>
-            <p>初回は名前だけで追加できます。同じ名前の方は別人として扱います。再参加に備えて検索結果のIDを控えておくと、同じIDで回数を引き継げます。</p>
             <label>参加者検索 <input id="participant-search" type="search" placeholder="表示名・申告名・ID" autocomplete="off"></label>
             <ul id="search-results" aria-live="polite"></ul>
             <p>参加者を右クリックすると回数補正などを選べます。検索結果はキーボードでも操作できます。</p>
