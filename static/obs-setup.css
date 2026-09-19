@@ -1,0 +1,9 @@
+.copy-row { display:flex; flex-wrap:wrap; gap:12px; } input { padding:10px; max-width:100%; } #obs-url,#receive-url { flex:1; min-width:240px; } button,select { padding:10px 16px; cursor:pointer; } .preview-shell { margin-top:16px; width:100%; max-width:480px; height:900px; overflow:auto; background:repeating-conic-gradient(#c8ccd2 0% 25%,#f5f5f5 0% 50%) 0/24px 24px; } iframe { display:block; width:480px; height:900px; border:0; } details { margin:18px 0; } li { margin:10px 0; } dialog { max-width:460px; border-radius:12px; } dialog input { display:block; margin:16px 0; }
+
+.preview-shell { max-width:100%; overflow:hidden; } #preview { transform-origin:top left; }
+.preview-panel { border:2px solid #7fa8ff; }
+.preview-kind { font-weight:800; padding:12px; background:#253d64; border-radius:6px; }
+.preview-panel[data-mode="live"] { border-color:#5bddad; }
+.preview-panel[data-mode="live"] .preview-kind { background:#174d3f; }
+.preview-panel[data-mode="off"] { border-color:#87909b; }
+.preview-panel[data-mode="off"] .preview-kind { background:#3c4652; }

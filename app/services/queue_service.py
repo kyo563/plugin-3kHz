@@ -6,6 +6,10 @@ GROUP_SIZE = 3
 OPEN_SLOT_LABEL = "参加者募集中"
 
 
+class ParticipationCountLimitError(ValueError):
+    pass
+
+
 class QueueService:
     def __init__(self, group_size: int = GROUP_SIZE, open_slot_label: str = OPEN_SLOT_LABEL):
         self.group_size = group_size
@@ -34,6 +38,8 @@ class QueueService:
             self._log(state, "受付終了中の参加希望")
             return False
 
+        if user.get("user_id") in state.get("name_overrides", {}):
+            user["declared_player_name"] = state["name_overrides"][user["user_id"]]
         if len(state["current"]) < self.group_size:
             state["current"].append(user)
             self._log(state, f"{user['display_name']} をNOWへ補充しました")
@@ -58,7 +64,7 @@ class QueueService:
                 state["waiting"] = new_next + [demoted] + state["waiting"][self.group_size :]
                 self._log(
                     state,
-                    f"低消化優先: {user['display_name']} をNEXTへ、"
+                    f"初回参加優先: {user['display_name']} をNEXTへ、"
                     f"{demoted['display_name']} をQUEUE先頭へ",
                 )
                 return True
@@ -68,6 +74,9 @@ class QueueService:
         return True
 
     def join_or_requeue_user_by_id(self, state: dict, user: dict) -> bool:
+        if not state["is_open"]:
+            self._log(state, "受付終了中の参加希望")
+            return False
         existing_user = None
         for section in ("current", "waiting"):
             users = state[section]
@@ -80,11 +89,6 @@ class QueueService:
 
         if existing_user is None:
             return self.add_user(state, user)
-
-        if not state["is_open"]:
-            state[section].insert(index, existing_user)
-            self._log(state, "受付終了中の再参加希望")
-            return False
 
         declared_player_name = user.get("declared_player_name")
         existing_count = existing_user.get("participation_count", 0)
@@ -103,6 +107,10 @@ class QueueService:
             "display_name": user.get("display_name", existing_user.get("display_name", "")),
             "participation_count": merged_count,
         }
+        for field in ('youtube_handle', 'youtube_nickname'):
+            if user.get(field): merged_user[field] = user[field]
+        if user.get('user_id') in state.get('name_overrides', {}):
+            declared_player_name = state['name_overrides'][user['user_id']]
         if declared_player_name:
             merged_user["declared_player_name"] = declared_player_name
             self._log(state, f"{merged_user['display_name']} の申告名を更新して最後尾へ移動しました")
@@ -159,6 +167,13 @@ class QueueService:
         for section in ("current", "waiting"):
             for user in state[section]:
                 if user.get("user_id") == user_id:
+                    overrides = state.setdefault("name_overrides", {})
+                    if new_value:
+                        if user_id not in overrides and len(overrides) >= 20000:
+                            raise ValueError("申告名の保存上限です")
+                        overrides[user_id] = new_value
+                    else:
+                        overrides.pop(user_id, None)
                     user["declared_player_name"] = new_value
                     self._log(state, "申告名を更新しました")
                     return
@@ -184,6 +199,10 @@ class QueueService:
         return False
 
     def move_next(self, state: dict) -> None:
+        completed = any(user.get("user_id") and not user.get("is_placeholder") for user in state["current"])
+        total = state.get("total_match_count", 0)
+        if completed and total >= 2147483647:
+            raise ParticipationCountLimitError("総対戦回数が上限です。バックアップ後に全リセットしてください。")
         raw_counts = state.get("participation_counts")
         counts = raw_counts if isinstance(raw_counts, dict) else {}
         state["participation_counts"] = counts
@@ -199,15 +218,19 @@ class QueueService:
                 base = 0
             if base < 0:
                 base = 0
-            counts[user_id] = base + 1
             try:
                 current_count = int(user.get("participation_count", 0))
             except (TypeError, ValueError):
                 current_count = 0
             if current_count < 0:
                 current_count = 0
-            user["participation_count"] = max(current_count, counts[user_id])
+            if max(base, current_count) >= 2147483647:
+                raise ParticipationCountLimitError("参加回数が上限です。回数を補正してから次の対戦に進んでください。")
+            counts[user_id] = max(base, current_count) + 1
+            user["participation_count"] = counts[user_id]
 
+        if completed:
+            state["total_match_count"] = total + 1
         next_users = state["waiting"][: self.group_size]
         state["waiting"] = state["waiting"][self.group_size :]
         state["current"] = next_users
@@ -219,7 +242,7 @@ class QueueService:
 
     def toggle_priority(self, state: dict) -> None:
         state["priority_mode"] = not state["priority_mode"]
-        self._log(state, "低消化回数優先モードを切り替えました")
+        self._log(state, "初回参加優先モードを切り替えました")
 
     def build_view_state(self, state: dict) -> dict:
         snapshot = deepcopy(state)

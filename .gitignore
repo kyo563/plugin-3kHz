@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.sqlite3
+*.sqlite3-*
+build/
+dist/
+work/
+
+# Runtime credentials and ownership records must never be committed.
+access-keys.json
+ownership.json
+.waiting-list-owner
+*.waiting-list-owner
+desktop.log*
+runtime.json

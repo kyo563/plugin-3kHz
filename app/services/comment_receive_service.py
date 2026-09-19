@@ -1,4 +1,5 @@
 from collections import deque
+from threading import RLock
 from typing import Callable
 
 from app.schemas.comment import CommentReceiveResult, ReceivedComment
@@ -9,27 +10,34 @@ from app.services.declared_player_name_parser import DeclaredPlayerNameParser
 
 class CommentReceiveService:
     def __init__(self, log_writer: Callable[[str], None], max_recent_ids: int = 1000) -> None:
+        self._lock = RLock()
         self._log_writer = log_writer
         self._max_recent_ids = max_recent_ids
-        self._recent_ids: deque[str] = deque()
-        self._recent_id_set: set[str] = set()
+        self._recent_ids: deque[tuple[str, str]] = deque()
+        self._recent_id_set: set[tuple[str, str]] = set()
         self._normalizer = CommentNormalizer()
         self._detector = CommandDetector()
         self._declared_player_name_parser = DeclaredPlayerNameParser()
 
     def receive(self, comment: ReceivedComment) -> CommentReceiveResult:
-        duplicate = self._is_duplicate(comment.external_message_id)
+        with self._lock:
+            return self._receive_locked(comment)
+
+    def _receive_locked(self, comment: ReceivedComment) -> CommentReceiveResult:
+        key = (comment.source, comment.external_message_id) if comment.external_message_id else None
+        duplicate = self._is_duplicate(key)
 
         if duplicate:
             self._log_writer(f"重複コメントを除外: source={comment.source}, display_name={comment.display_name}")
             return CommentReceiveResult(status="accepted", duplicate=True, command="ignore", declared_player_name=None)
 
-        self._remember_message_id(comment.external_message_id)
+        self._remember_message_id(key)
         normalized_message = self._normalizer.normalize(comment.message)
         command = self._detector.detect(normalized_message)
         declared_player_name = None
         if command == "join":
-            declared_player_name = self._declared_player_name_parser.parse(normalized_message)
+            declared_player_name = (self._declared_player_name_parser.parse_quoted(comment.message)
+                                    or self._declared_player_name_parser.parse(normalized_message))
 
         declared_player_name_flag = "yes" if declared_player_name else "no"
         self._log_writer(
@@ -42,12 +50,12 @@ class CommentReceiveService:
             declared_player_name=declared_player_name,
         )
 
-    def _is_duplicate(self, external_message_id: str | None) -> bool:
+    def _is_duplicate(self, external_message_id: tuple[str, str] | None) -> bool:
         if not external_message_id:
             return False
         return external_message_id in self._recent_id_set
 
-    def _remember_message_id(self, external_message_id: str | None) -> None:
+    def _remember_message_id(self, external_message_id: tuple[str, str] | None) -> None:
         if not external_message_id:
             return
 

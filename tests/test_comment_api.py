@@ -80,7 +80,7 @@ def test_receive_comment_reflects_queue_and_overlay_is_minimal():
     before_total = len(before["current"]) + len(before["waiting"])
     after_total = len(after["current"]) + len(after["waiting"])
     assert after_total == before_total + 1
-    assert set(overlay.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count"}
+    assert set(overlay.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count", "total_waiting_count", "total_waiting_group_count", "appearance"}
     assert "logs" not in overlay
     for section in ("now_view", "next_view"):
         for user in overlay[section]:

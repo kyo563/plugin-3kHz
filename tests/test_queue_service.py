@@ -240,7 +240,8 @@ def test_control_html_has_production_api_buttons_and_test_section():
     assert "/api/control/toggle-priority" in html
     assert "/api/control/move-next" in html
     assert "/api/control/reset" in html
-    assert "次の対戦に移る（参加回数+1）" in html
+    assert "次の対戦へ" in html
+    assert "参加回数が1増えます" in html
     assert "次へ進める" not in html
     assert "開発用テスト操作" in html
     assert "テスト参加者を追加" in html

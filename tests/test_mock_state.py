@@ -36,6 +36,11 @@ def test_add_mock_user_does_not_change_state_when_closed():
 
     assert len(after["current"]) == len(before["current"])
     assert len(after["waiting"]) == len(before["waiting"])
+    assert mock_state._add_counter == 0
+    assert after["logs"][-1] == "受付終了中の参加希望"
+    mock_state.toggle_open()
+    mock_state.add_mock_user()
+    assert mock_state.build_view_state()["current"][-1]["user_id"] == "test1"
 
 
 def test_priority_mode_demotes_higher_participation_user_only():
@@ -69,8 +74,6 @@ def test_overlay_state_hides_sensitive_fields():
         "waiting",
         "priority_mode",
         "cooldown_seconds",
-        "total_waiting_count",
-        "total_waiting_group_count",
         "queue_view",
     }
     for key in forbidden_top_level_keys:

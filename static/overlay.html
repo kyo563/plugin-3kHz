@@ -5,30 +5,15 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Overlay</title>
     <link rel="stylesheet" href="/static/overlay.css">
+  <link rel="stylesheet" href="/static/fonts.css">
 </head>
-<body>
+<body class="is-overlay">
     <div class="panel">
-        <header class="panel-header">
-            <h1>待機列整理アプリ</h1>
-            <div id="open" class="status-open"></div>
-        </header>
-
-        <section class="section section-now">
-            <h2>NOW</h2>
-            <ul id="now" class="user-list"></ul>
-        </section>
-
-        <section class="section section-next">
-            <h2>NEXT</h2>
-            <ul id="next" class="user-list"></ul>
-        </section>
-
-        <section class="section section-queue">
-            <h2>QUEUE</h2>
-            <div id="queue-summary"></div>
-        </section>
+        <div id="custom-output"></div>
     </div>
 
-    <script src="/static/overlay.js"></script>
+    <script src="/static/fonts.js"></script>
+  <script src="/static/overlay-text.js"></script>
+  <script src="/static/overlay.js"></script>
 </body>
 </html>

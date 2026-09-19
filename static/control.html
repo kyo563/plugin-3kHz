@@ -3,59 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Control</title>
+    <title>参加型整列プラグイン / 管理</title>
     <link rel="stylesheet" href="/static/control.css">
+  <link rel="stylesheet" href="/static/fonts.css">
 </head>
 <body>
     <div class="wrap">
-        <h1>待機列整理アプリ / 管理画面</h1>
+        <h1>待機列管理</h1>
+        <nav aria-label="画面切り替え"><a href="/settings">設定</a> · <a href="/obs-setup">OBSに追加する</a></nav>
+        <p id="saved-note">自動保存・次回も続きから</p>
 
         <div class="status">
             <span id="conn">接続状態: 接続待ち</span>
             <span id="open"></span>
             <span id="priority"></span>
-            <span>40秒状態変更ロック: 有効</span>
+            <span id="total-matches" title="NOWに参加者がいる状態で次の対戦へ進めた回数。全リセットで0に戻ります。" aria-live="polite">総対戦回数：確認中</span>
+            <span id="display-connection">表示ページ: 確認中</span>
+            <button id="reconnect" type="button" hidden>再接続</button>
         </div>
 
         <div class="actions">
-            <h2>実運用操作</h2>
-            <button data-api="/api/control/toggle-open">受付開始 / 受付終了</button>
-            <button data-api="/api/control/toggle-priority">低消化回数優先モード ON/OFF</button>
-            <button data-api="/api/control/move-next">次の対戦に移る（参加回数+1）</button>
-            <button data-api="/api/control/reset">リセット</button>
+
+            <button id="toggle-reception" class="primary-action" data-api="/api/control/toggle-open" disabled>受付状態を確認中</button>
+            <button class="primary-action" data-api="/api/control/move-next">次の対戦へ</button>
+            <button id="undo" data-api="/api/control/undo" disabled>直前の操作を戻す</button>
+            <button id="exit-app" type="button" hidden>アプリを終了</button>
+            <div id="development-actions" hidden>
             <h2>開発用テスト操作</h2>
             <button data-api="/api/mock/add">テスト参加者を追加</button>
             <button data-api="/api/mock/cancel">テスト取消</button>
+            </div>
         </div>
 
+        <p id="operation-message" role="status"></p>
         <div class="grid">
             <section>
                 <h2>NOW</h2>
                 <ul id="now"></ul>
             </section>
             <section>
-                <h2>NEXT（ドラッグで並び替え可）</h2>
+                <h2 title="ドラッグで並び替えできます">NEXT</h2>
                 <ul id="next"></ul>
             </section>
             <section>
-                <h2>QUEUE（ドラッグで並び替え可）</h2>
+                <h2 title="ドラッグで並び替えできます">QUEUE</h2>
                 <ul id="queue"></ul>
             </section>
         </div>
 
-        <section>
-            <h2>操作ログ</h2>
+        <details class="operator-tools">
+            <summary>参加者の追加・検索</summary>
+            <form id="add-participant">
+                <label>表示名 <input id="add-name" required maxlength="200" autocomplete="off"></label>
+                <label>参加者ID（再参加時のみ任意） <input id="add-id" maxlength="256" autocomplete="off"></label>
+                <button type="submit">参加者を追加</button>
+            </form>
+            <p>初回は名前だけで追加できます。同じ名前の方は別人として扱います。再参加に備えて検索結果のIDを控えておくと、同じIDで回数を引き継げます。</p>
+            <label>参加者検索 <input id="participant-search" type="search" placeholder="表示名・申告名・ID" autocomplete="off"></label>
+            <ul id="search-results" aria-live="polite"></ul>
+            <p>参加者を右クリックすると回数補正などを選べます。検索結果はキーボードでも操作できます。</p>
+        </details>
+        <details class="operator-tools">
+            <summary>その他（設定・バックアップ）</summary>
+            <p><a href="/settings">表示設定</a> · <a href="/obs-setup">OBSの接続案内</a></p>
+            <p>OBS表示URL: <code id="overlay-url"></code></p>
+            <p>次の対戦へ進めると、現在のNOWの参加回数が1増えます。コメントによる状態変更には40秒のロックがあります。</p>
+            <button id="toggle-priority" data-api="/api/control/toggle-priority" aria-pressed="false">初回参加優先モード：確認中</button><p>ONでは参加回数が少ない方を優先してNEXTに入れます（従来と同じ動作）。</p>
+            <button data-api="/api/control/reset">待機列・回数をリセット</button>
+            <details id="description-tools" open>
+                <summary>概要欄コピペ用</summary>
+                <p>自由に編集して保存できます。コピーは現在の入力内容をコピーします。</p>
+                <label for="description-text">概要欄の文章</label>
+                <textarea id="description-text" rows="14" maxlength="10000" disabled></textarea>
+                <button id="description-save" type="button" disabled>文章を保存</button>
+                <button id="description-copy" type="button" disabled>文章をコピー</button>
+                <button id="description-reload" type="button">保存済みの文章を読み込む</button>
+                <p id="description-result" role="status"></p>
+            </details>
+            <h2>バックアップ・復元</h2>
+            <button id="backup-download">バックアップを保存</button>
+            <label>復元するJSON <input id="backup-file" type="file" accept=".json,application/json"></label>
+            <button id="backup-restore">内容を確認して復元</button>
+            <p>待機列・参加回数・受付設定・直近ログを保存します。認証キー・ポート・OBS設定は含みません。復元は現在のデータを上書きします。</p>
+            <label><input id="shortcuts-enabled" type="checkbox"> この管理画面のショートカットを有効にする</label>
+            <p>Alt+N: 次の対戦（確認あり） / Alt+Z: 1回戻す / Alt+F: 検索。入力中は無効です。</p>
+        </details>
+
+        <details class="operator-tools">
+            <summary>操作ログ</summary>
             <ul id="logs"></ul>
-        </section>
+        </details>
     </div>
 
     <ul id="context-menu" style="display:none;position:absolute;z-index:1000;background:#fff;border:1px solid #ccc;list-style:none;padding:4px;margin:0;">
         <li><button type="button" data-action="move-tail">待機列の最後尾へ移動</button></li>
         <li><button type="button" data-action="remove">削除</button></li>
         <li><button type="button" data-action="edit-name">申告名を編集</button></li>
+        <li><button type="button" data-action="correct-count">参加回数を補正</button></li>
         <li><button type="button" data-action="clear-name">申告名を削除</button></li>
     </ul>
 
+    <dialog id="welcome-dialog" aria-labelledby="welcome-title">
+        <h2 id="welcome-title">はじめに：OBSに待機列を表示する</h2>
+        <ol><li><button id="welcome-copy" type="button">表示URLをコピー</button></li>
+        <li>OBSのソースに「ブラウザ」を追加し、URLを貼り付けます。</li>
+        <li>幅・高さは「OBSに追加する」の案内に合わせ、OBSで表示を確認します。</li></ol>
+        <p>Chromeや追加プラグインは不要です。</p>
+        <p><a href="/obs-setup">詳しい手順と表示プレビューを見る</a></p>
+        <p id="welcome-message" role="status"></p>
+        <button class="primary-action" id="welcome-done" type="button">設定できたので始める</button>
+        <button id="welcome-later" type="button">あとで設定して始める</button>
+        <p>案内は上部の「OBSに追加する」からいつでも開けます。</p>
+    </dialog>
+    <dialog id="exit-dialog" aria-labelledby="exit-title">
+        <h2 id="exit-title">アプリを終了しますか？</h2>
+        <p>待機列は保存されています。次回も続きから使えます。</p>
+        <p>OBS表示の更新は止まります。</p>
+        <p id="exit-message" role="status"></p>
+        <button id="exit-cancel" type="button" autofocus>戻る</button>
+        <button id="exit-confirm" type="button">終了する</button>
+    </dialog>
+    <dialog id="count-dialog" aria-labelledby="count-title">
+        <form id="count-form">
+            <h2 id="count-title">参加回数の補正</h2>
+            <p id="count-target"></p>
+            <label>参加回数 <input id="count-value" type="number" min="0" max="2147483647" step="1" required></label>
+            <button type="submit">補正する</button>
+            <button type="button" id="count-cancel">キャンセル</button>
+        </form>
+    </dialog>
+    <script src="/static/fonts.js"></script>
+  <script src="/static/auth.js"></script>
     <script src="/static/control.js"></script>
+    <script src="/static/desktop-flow.js"></script>
+    <script src="/static/description.js"></script>
 </body>
 </html>

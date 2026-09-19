@@ -26,3 +26,8 @@ def overlay_page():
 @router.get("/settings")
 def settings_page():
     return FileResponse(STATIC_DIR / "settings.html")
+
+
+@router.get("/obs-setup")
+def obs_setup_page():
+    return FileResponse(STATIC_DIR / "obs-setup.html")

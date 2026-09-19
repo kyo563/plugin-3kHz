@@ -29,4 +29,10 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: pytest -q
+        run: python -m pytest -q
+
+      - name: Control UI regression tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test tests/control_ui.test.cjs tests/overlay_text.test.cjs

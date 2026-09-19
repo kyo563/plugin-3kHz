@@ -27,6 +27,10 @@ class CommentQueueApplyService:
         user_id = self._user_identity_service.build_comment_user_id(comment.source, comment.user_key)
 
         def _apply(state: dict) -> None:
+            if result.command == "join" and not state["is_open"]:
+                state.setdefault("logs", []).append("受付終了中の参加希望")
+                state["logs"] = state["logs"][-30:]
+                return
             self._cooldown_service.clear_expired(state)
 
             if result.command == "join" and self._cooldown_service.is_locked(state, user_id):
@@ -53,7 +57,11 @@ class CommentQueueApplyService:
                     {
                         "user_id": user_id,
                         "display_name": comment.display_name,
-                        "declared_player_name": result.declared_player_name,
+                        "declared_player_name": state.get("name_overrides", {}).get(user_id) or result.declared_player_name or (
+                            (comment.youtube_nickname or comment.display_name) if comment.youtube_handle or comment.source.lower() == 'youtube'
+                            else result.declared_player_name),
+                        "youtube_handle": comment.youtube_handle,
+                        "youtube_nickname": comment.youtube_nickname or (comment.display_name if comment.youtube_handle or comment.source.lower() == 'youtube' else None),
                         "participation_count": saved_participation_count,
                     },
                 )

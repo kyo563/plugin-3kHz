@@ -29,3 +29,13 @@ def test_parse_declared_name_trims_and_truncates_to_32_chars():
     parser = DeclaredPlayerNameParser()
     long_name = "a" * 33
     assert parser.parse(f"参加希望 名前 {long_name}") == "a" * 32
+
+
+def test_quoted_names():
+    parser = DeclaredPlayerNameParser()
+    assert parser.parse('参加希望 『テスト』') == 'テスト'
+    assert parser.parse_quoted('参加希望『PlayerABC』 よろしく') == 'PlayerABC'
+    assert parser.parse_quoted('参加希望 『  』') is None
+    assert parser.parse_quoted('参加希望 『未完了') is None
+    assert parser.parse_quoted('参加希望 『' + 'あ'*33 + '』') == 'あ'*32
+    assert parser.parse('参加辞退 参加希望 『テスト』') is None

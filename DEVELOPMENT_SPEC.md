@@ -1,5 +1,14 @@
 # 待機列整理アプリ 開発仕様
 
+最新実装/検証状況は [配布・検証状況](docs/DISTRIBUTION_STATUS.md)、入力契約は [EXTERNAL_INPUT.md](docs/EXTERNAL_INPUT.md)。管理APIは管理Bearerキー、受信APIは受信Bearerキーを必要とする。
+
+## Windows版の追加方針（2026-09-19）
+
+既存ローカルWeb UIをpywebviewのWebView2ウィンドウでホストする。
+FastAPI/Uvicornは同一プロセス内の専用スレッド、SQLiteはユーザー別保存先、OBSはHTTPブラウザソース。
+詳細・比較・段階計画は `docs/WINDOWS_DESKTOP.md`、未解決の仕様差分は `docs/DISTRIBUTION_STATUS.md` を参照。
+最新の基盤整理は `docs/WINDOWS_DESKTOP.md` を参照。factory/lifespan・アプリ単位サービスと開発APIの既定無効化を追加済み。外部チャット製品の互換性や完成版配布を意味しない。
+
 ## 1. この文書の位置づけ
 
 この文書は、ローカルWebアプリ版の開発仕様です。
@@ -22,8 +31,8 @@
 - `/overlay`: OBS表示画面
 - `/settings`: 実用化済みのMVP設定画面
 - `/api/control/*`: `/control` の実運用操作API
-- `/api/mock/*`: 開発・テスト用API（後方互換と既存テスト維持のため削除しない）
-- `/ws`: 状態同期用WebSocket（または同等経路）
+- `/api/mock/*`: 開発・テスト用API（明示的なdevelopment起動時のみ登録）
+- 状態同期: 2秒HTTPポーリング（`/ws` は未実装）
 
 ## 4. コンポーネント責務
 
@@ -66,8 +75,8 @@ ChatProvider
 }
 ```
 
-- `userKey` は外部取得元が一意識別子を提供する場合のみ使用
-- 一意識別子がない場合、同一ユーザー判定精度は低下しうる
+- `userKey` は必須。取得元内で一意かつ安定した識別子を指定する
+- 安定識別子がない製品は未対応。表示名による代用・推測は行わない
 - `externalMessageId` は重複処理用の一時データ
 - `message` は判定後に長期保存しない
 
@@ -93,7 +102,7 @@ ChatProvider
 - duplicate時レスポンスは `{"status": "accepted", "duplicate": true}` を維持する
 - `message` は判定用の一時利用のみ
 - `externalMessageId` は重複除外用の一時利用のみ
-- `userKey` は将来の同一ユーザー判定用だが、生値を長期保存しない
+- `source + userKey` から内部IDを生成して同一ユーザーを判定する。生値を長期保存しない
 - `badges` は判定補助用であり、MVPでは長期保存しない
 - コメント本文 / `externalMessageId` / `userKey` 生値はSQLiteへ長期保存しない
 
@@ -201,7 +210,7 @@ MVP対象外（将来検討）:
 - 外部チャット取得アプリケーションとの具体連携方式
 - 外部由来の一意ユーザー識別子の取得可否
 - 外部由来データの保存範囲
-- 参加回数を配信をまたいで保持するか、同一配信内に限定するか
+- 参加回数は配信をまたいで保持する。運用上初期化する場合は全リセットを明示実行する
 
 ## 12. 開発ロードマップ
 
@@ -239,6 +248,10 @@ MVP対象外（将来検討）:
 
 ### 12.2 次の実装候補
 
-- 参加回数の配信またぎ恒久管理は将来検討
+- 参加回数はSQLiteで配信をまたいで保持し、全リセットで初期化する
 - 実配信前テスト
 - 配布準備
+
+
+## OBS表示の現行仕様（2026-09-19、以前の表示記述より優先）
+OBSは文字のみ透過表示。タイトルなし。受付/各見出し文言・横幅・縦幅・文字サイズをSQLiteへ保存する。待機表示は「nグループ/n人待機中」で、NOWを除きNEXTを含む全waitingが対象。3人単位で切り上げる。詳細はdocs/USER_GUIDE.md。

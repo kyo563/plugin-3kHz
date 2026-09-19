@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OBSに追加する — 参加型整列プラグイン</title><link rel="stylesheet" href="/static/settings.css"><link rel="stylesheet" href="/static/obs-setup.css">  <link rel="stylesheet" href="/static/fonts.css">
+</head>
+<body><main><header><p><a href="/control">管理画面へ戻る</a> · <a href="/settings">設定</a></p><h1>OBSに追加する</h1>
+<button id="start-managing" type="button" hidden>管理画面で始める</button><p id="start-result" role="status"></p>
+<p>初回だけ設定すれば、次回からアプリを起動して同じソースを使えます。</p></header>
+<section class="panel"><h2>1. 表示URLをコピー</h2><div class="copy-row"><input id="obs-url" readonly aria-label="OBSブラウザソースURL"><button id="copy-url">コピー</button></div><p id="copy-result" role="status"></p>
+<h2>2. OBSで「ブラウザ」を追加</h2><ol><li>OBSの「ソース」の＋から「ブラウザ」を選びます。</li><li>名前を「待機列」にして追加します。</li><li>「ローカルファイル」をOFFにして、上のURLを貼り付けます。</li><li>幅 <strong id="recommended-width">480</strong>、高さ <strong id="recommended-height">600</strong> に設定します。</li><li>画面に表示されたら、位置と大きさを調整します。</li></ol>
+<p>ChromeやOBSプラグインの追加は不要です。背景は透過します。</p><details><summary>表示負荷を抑える設定</summary><p>動きのない表示なので、必要に応じてカスタムフレームレートを10 FPS程度に下げて確認してください。「表示されていないときにソースをシャットダウン」をONにすると、非表示中のページを終了できます。再表示時には読み込みが発生します。</p></details>
+<h2>3. 表示を確認</h2><p id="access-status" role="status">アプリの状態を確認しています…</p><p>アクセス検出はOBSでの見え方の保証ではありません。最後にOBSのプレビューで確認してください。</p></section>
+<section class="panel preview-panel" id="preview-panel" data-mode="sample"><h2>アプリ内プレビュー</h2><p id="preview-kind" class="preview-kind" role="status">サンプル表示：架空の参加者・固定データ</p><p id="preview-explanation">表示テスト用です。実際の参加者や待機列とは連動しません。</p><p>チェック模様は透過部分です。サンプル表示は実際の待機列を変更しません。</p>
+<label>表示内容 <select id="preview-mode"><option value="sample">サンプル（長い名前・不足枠）</option><option value="live">現在の待機列</option><option value="off">プレビューを閉じる</option></select></label>
+<div class="preview-shell"><iframe id="preview" title="OBS表示プレビュー" src="/overlay?sample=1&amp;preview=1"></iframe></div></section>
+<section class="panel"><h2>接続先の設定</h2><p>通常は変更不要です。他のアプリとポートが重なる場合だけ変更します。</p>
+<form id="port-form"><label>次回起動時のポート <input id="port" type="number" min="1024" max="65535" required></label><button id="save-port" disabled>保存</button></form><p id="port-result" role="status"></p>
+<p>変更後はアプリを再起動し、OBSのURLもコピーし直してください。</p></section>
+<section class="panel"><h2>他の画面で管理・外部コメント連携</h2><p>管理用URLはEdgeやOBSカスタムドックに利用できます。操作権限を含むため他の人に共有しないでください。</p><button id="copy-control">管理用URLをコピー</button>
+<details><summary>外部コメント受信の設定</summary><p>接続先の製品はまだ指定されていません。対応アダプターは受信URLへJSONを送り、Authorization: Bearer &lt;受信キー&gt; を指定します。受信キーに管理操作権限はありません。</p><input id="receive-url" readonly aria-label="コメント受信URL"><button id="copy-ingest">受信キーをコピー</button></details><p id="connection-result" role="status"></p></section>
+<section class="panel"><h2>終了・削除するとき</h2><p>アプリを終了すると、OBSへの更新が止まります。配信終了後にアプリを閉じてください。</p><p>アンインストール前にOBSの「待機列」ソースや追加した管理ドックを削除してください。OBSの設定はアプリ側から変更しません。共有WebView2やEdge本体も削除しません。</p></section>
+</main><script src="/static/fonts.js"></script>
+  <script src="/static/auth.js"></script><script src="/static/obs-setup.js"></script></body></html>

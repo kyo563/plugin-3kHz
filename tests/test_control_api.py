@@ -53,16 +53,16 @@ def test_control_move_next_increments_current_participation_counts():
 
     after = mock_state._persistence_service.get_state()
     for user_id in current_ids:
-        assert after["participation_counts"][user_id] == 1
+        assert after["participation_counts"][user_id] == before["participation_counts"][user_id] + 1
 
 
-def test_control_reset_clears_participation_counts():
+def test_control_reset_restores_sample_counts_in_legacy_web_mode():
     api_control_move_next()
     assert mock_state._persistence_service.get_state()["participation_counts"]
 
     state = api_control_reset()
 
-    assert state["participation_counts"] == {}
+    assert state["participation_counts"] == {u["user_id"]: u["participation_count"] for u in mock_state.INITIAL_STATE["current"] + mock_state.INITIAL_STATE["waiting"]}
 
 
 def test_mock_operation_endpoints_still_return_state():
@@ -98,7 +98,7 @@ def test_overlay_state_stays_minimal_after_manual_operations():
     api_update_declared_player_name(UpdateDeclaredPlayerNamePayload(user_id="u1", declared_player_name="たなか"))
     overlay = api_overlay_state()
 
-    assert set(overlay.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count"}
+    assert set(overlay.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count", "total_waiting_count", "total_waiting_group_count", "appearance"}
     assert "logs" not in overlay
     for section in ("now_view", "next_view"):
         for user in overlay[section]:

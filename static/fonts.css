@@ -1,0 +1,10 @@
+body:not(.is-overlay), body:not(.is-overlay) * { font-family: var(--font-ui-body, "Yu Gothic", "Meiryo", sans-serif) !important; }
+body:not(.is-overlay) :is(h1,h2,h3,h4), body:not(.is-overlay) :is(h1,h2,h3,h4) * { font-family: var(--font-ui-heading, "Yu Gothic", "Meiryo", sans-serif) !important; }
+body:not(.is-overlay) :is(button,input,select,textarea), body:not(.is-overlay) button * { font-family: var(--font-ui-controls, "Yu Gothic", "Meiryo", sans-serif) !important; }
+.is-overlay #open { font-family: var(--font-status); }
+.is-overlay #now-label { font-family: var(--font-now-heading); }
+.is-overlay #next-label { font-family: var(--font-next-heading); }
+.is-overlay #queue-label { font-family: var(--font-queue-heading); }
+.is-overlay #now .name { font-family: var(--font-now-names); }
+.is-overlay #next .name { font-family: var(--font-next-names); }
+.is-overlay #queue-summary { font-family: var(--font-summary); }

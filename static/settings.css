@@ -145,3 +145,32 @@ dd {
         justify-content: flex-start;
     }
 }
+
+.layout-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:18px 0; }
+.layout-fields label { display:flex; flex-direction:column; gap:6px; }
+.layout-fields input { font:inherit; padding:8px; width:100%; box-sizing:border-box; }
+#layout-preview-shell { max-width:100%; overflow:hidden; background:repeating-conic-gradient(#8993a1 0% 25%,#bdc5d0 0% 50%) 0/24px 24px; }
+#layout-preview { display:block; border:0; transform-origin:top left; }
+
+.layout-fields select { width:100%; padding:10px; min-width:0; }
+#font-file { max-width:100%; }
+
+.name-modes { display:grid; gap:8px; border:1px solid #72829a; border-radius:8px; margin-bottom:12px; }
+.name-modes label { padding:10px; border:2px solid transparent; border-radius:6px; cursor:pointer; }
+.name-modes label:has(input:checked) { background:#153e4e; border-color:#5adcc9; font-weight:700; }
+.name-modes input { width:auto; accent-color:#52d8ba; }
+
+#custom-text { display:block; width:100%; min-height:240px; resize:vertical; padding:12px; line-height:1.5; background:#101720; color:#fff; border:1px solid #8097b7; border-radius:6px; white-space:pre; }
+
+#reset-settings-dialog { background:#161b24; color:#f4f4f4; border:1px solid #72829a; border-radius:8px; width:min(480px,calc(100vw - 32px)); max-height:calc(100vh - 32px); overflow:auto; padding:20px; }
+#reset-settings-dialog::backdrop { background:#0009; }
+#reset-settings-dialog button { margin:6px 4px 0 0; }
+
+#preset-editor textarea { display:block; width:100%; padding:10px; line-height:1.5; resize:vertical; white-space:pre; }
+
+.save-hint { margin:24px 0 8px; color:#ffe2a0; font-weight:700; }
+#save-overlay-layout { display:block; width:100%; min-height:52px; padding:14px 18px; margin:0 0 12px; background:#ffcc66; color:#17202b; border:2px solid #ffe2a0; border-radius:10px; font-size:1.1rem; font-weight:800; }
+#save-overlay-layout:hover:not(:disabled) { background:#ffdc94; }
+#save-overlay-layout:focus-visible { outline:3px solid #fff; outline-offset:3px; }
+#save-overlay-layout:disabled { background:#746647; color:#eee5d3; border-color:#a2916e; opacity:1; }
+#layout-result { margin-top:12px; padding:10px 12px; border-left:4px solid #ffcc66; background:#121a25; overflow-wrap:anywhere; }

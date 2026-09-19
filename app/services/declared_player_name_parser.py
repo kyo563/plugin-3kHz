@@ -1,9 +1,18 @@
+import re
+
 class DeclaredPlayerNameParser:
     JOIN_TRIGGER = "参加希望"
     JOIN_EXCLUDES = ("参加希望者", "参加希望順")
     CANCEL_TRIGGERS = ("参加辞退", "参加を辞退")
     KEYWORD = "名前"
     MAX_NAME_LENGTH = 32
+
+    def parse_quoted(self, message: str) -> str | None:
+        match = re.search(r"参加希望\s*『([^『』]*)』", message)
+        if not match:
+            return None
+        name = " ".join(match.group(1).split())
+        return name[:self.MAX_NAME_LENGTH] or None
 
     def parse(self, normalized_message: str) -> str | None:
         if any(trigger in normalized_message for trigger in self.CANCEL_TRIGGERS):
@@ -12,6 +21,9 @@ class DeclaredPlayerNameParser:
             return None
         if self.JOIN_TRIGGER not in normalized_message:
             return None
+        quoted = self.parse_quoted(normalized_message)
+        if quoted:
+            return quoted
         if self.KEYWORD not in normalized_message:
             return None
 

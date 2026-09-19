@@ -53,7 +53,7 @@ def test_sqlite_persists_and_restores_state(tmp_path):
     assert restored["priority_mode"] is False
     assert len(restored["waiting"]) == 4
     assert restored["logs"] == ["one", "two"]
-    assert restored["participation_counts"] == {"comment:u1": 1, "comment:w1": 0}
+    assert restored["participation_counts"] == {"comment:u1": 1, "comment:w1": 0, "u1": 1, "w1": 0, "w2": 0, "w3": 0, "w4": 0}
 
 
 def test_reset_state_restores_initial_and_db(tmp_path):

@@ -3,33 +3,93 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>待機列整理アプリ / 設定</title>
+  <title>参加型整列プラグイン / 設定</title>
   <link rel="stylesheet" href="/static/settings.css">
+  <link rel="stylesheet" href="/static/fonts.css">
 </head>
 <body>
   <main>
     <header class="page-header">
-      <p class="eyebrow">待機列整理アプリ</p>
+      <p class="eyebrow">参加型整列プラグイン</p>
       <h1>設定画面</h1>
+      <p><a href="/control">管理画面に戻る</a> · <a href="/obs-setup">OBSに追加する</a></p>
       <p class="lead">現行MVPで使う設定の確認と、一部表示設定の切り替えを行います。</p>
     </header>
 
-    <section class="panel actionable" aria-labelledby="overlay-settings-title">
-      <div>
-        <p class="section-label">操作可能</p>
-        <h2 id="overlay-settings-title">OBS表示設定</h2>
-        <p class="description">OBSに申告プレイヤーネームを表示するかを切り替えます。</p>
-      </div>
-      <div class="setting-row">
-        <div>
-          <p class="setting-name">OBSに申告プレイヤーネームを表示</p>
-          <p class="setting-note">例: YouTube名（申告名）</p>
+    <section class="panel" aria-labelledby="layout-title">
+      <h2 id="layout-title">OBSの文字・サイズ</h2>
+      <p>文字以外は透過します。見出しは空欄にすると非表示です。</p>
+      <form id="overlay-layout-form">
+        <fieldset class="name-modes"><legend>OBSに表示する名前（1つ選択）</legend>
+          <label><input type="radio" name="name_mode" value="youtube" checked> YouTubeアカウント名のみ（@ハンドル）</label>
+          <label><input type="radio" name="name_mode" value="declared"> 申告名のみ</label>
+          <label><input type="radio" name="name_mode" value="youtube_declared"> YouTubeアカウント名 / 申告名</label>
+          <label><input type="radio" name="name_mode" value="declared_youtube"> 申告名 / YouTubeアカウント名</label>
+        </fieldset>
+        <p>「参加希望 『名前』」で申告名を指定できます。指定がなければYouTubeの表示名を使います。配信者の手動指定がある場合はそちらを優先します。管理画面で参加者の「名前を編集」から変更できます。未取得のハンドル・申告名は取得済みの名前で補います。同じ名前は重ねて表示しません。</p>
+        <label>配置セット <select name="layout" id="overlay-layout"><option value="vertical">縦向き</option><option value="horizontal">横向き</option><option value="custom">自由編集（改行・空行を調整）</option></select></label>
+        <p>縦横の切り替えは文字の並びだけを変更します。幅・高さは共通で維持し、OBS側のサイズ変更は不要です。保存するとOBSへ反映します。</p>
+        <div id="preset-editor">
+          <p>Enterで改行・空行を追加し、Backspaceで削除できます。見出しの行を削除するとOBSでも消えます。空白も詰めたい場合は改行ごと削除してください。変更後は「保存してOBSに反映」を押します。縦と横の編集内容は別々に保存します。参加者名は [NOW1] などの自動更新欄を使ってください。</p>
+          <div id="vertical-editor"><label>縦向きの行編集<textarea name="vertical_text" rows="16" maxlength="4000" spellcheck="false" wrap="off"></textarea></label></div>
+          <div id="horizontal-editor" hidden>
+            <p>横向きは最大4列です。列を空欄にするとその列を詰めます。同じ行数にすると高さが揃います。</p>
+            <label>受付列<textarea name="horizontal_status_text" rows="5" maxlength="4000" spellcheck="false" wrap="off"></textarea></label>
+            <label>NOW列<textarea name="horizontal_now_text" rows="5" maxlength="4000" spellcheck="false" wrap="off"></textarea></label>
+            <label>NEXT列<textarea name="horizontal_next_text" rows="5" maxlength="4000" spellcheck="false" wrap="off"></textarea></label>
+            <label>QUEUE列<textarea name="horizontal_queue_text" rows="5" maxlength="4000" spellcheck="false" wrap="off"></textarea></label>
+          </div>
+          <p>自動更新欄：[受付] [NOW見出し] [NEXT見出し] [QUEUE見出し] [NOW1]～[NOW3] [NEXT1]～[NEXT3] [待機人数] [待機グループ] [待機人数のみ]</p>
         </div>
-        <div class="setting-control">
-          <span id="overlay-player-name-status" class="status loading">読込中</span>
-          <button id="toggle-overlay-player-name" type="button" disabled>読込中</button>
+        <div id="custom-editor" hidden>
+          <label for="custom-text">表示内容・改行の編集</label>
+          <p>Enterで改行や空行を追加、Backspaceで削除できます。文字を入力して見出しを変えたり、空白で位置を調整したりできます。</p>
+          <textarea id="custom-text" name="custom_text" rows="16" maxlength="4000" spellcheck="false" wrap="off"></textarea>
+          <p>[受付]・[NOW見出し]・[NEXT見出し]・[QUEUE見出し]・[待機人数] は現在の設定と状態に置き換わります。[NOW1]～[NOW3] と [NEXT1]～[NEXT3] は参加者名の自動更新欄です。</p>
+          <p>自動更新欄は名前を直接書き換えず、行ごと移動してください。編集後は下のプレビューを確認し「保存してOBSに反映」を押します。保存内容は次回も維持します。</p>
+          <p>自由編集では文字サイズ・空行をそのまま使います。下が切れる場合は縦幅を広げるか、文字サイズ・空行を減らしてください。</p>
         </div>
-      </div>
+        <div class="layout-fields">
+          <label>受付中の文言 <input name="open_label" maxlength="40"></label>
+          <label>受付終了の文言 <input name="closed_label" maxlength="40"></label>
+          <label>NOWの見出し <input name="now_label" maxlength="40"></label>
+          <label>NEXTの見出し <input name="next_label" maxlength="40"></label>
+          <label>QUEUEの見出し <input name="queue_label" maxlength="40"></label>
+          <label>横幅（px） <input name="width" type="number" min="160" max="3840" required></label>
+          <label>縦幅（px） <input name="height" type="number" min="200" max="2160" required></label>
+          <label>文字サイズ（px） <input name="font_size" type="number" min="12" max="96" required></label>
+        </div>
+        <h3>フォント（一括・個別）</h3>
+        <p>一括設定は管理画面とOBS表示に適用します。個別指定がある項目はそちらを優先します。</p>
+        <div class="layout-fields">
+          <label>一括フォント（管理画面・OBS表示）<select name="font_all"></select></label>
+          <label>管理画面：本文<select name="font_ui_body"></select></label>
+          <label>管理画面：見出し<select name="font_ui_heading"></select></label>
+          <label>管理画面：ボタン・入力欄<select name="font_ui_controls"></select></label>
+          <label>OBS：受付中／受付終了<select name="font_status"></select></label>
+          <label>OBS：NOW見出し<select name="font_now_heading"></select></label>
+          <label>OBS：NEXT見出し<select name="font_next_heading"></select></label>
+          <label>OBS：QUEUE見出し<select name="font_queue_heading"></select></label>
+          <label>OBS：NOW参加者名<select name="font_now_names"></select></label>
+          <label>OBS：NEXT参加者名<select name="font_next_names"></select></label>
+          <label>OBS：待機人数<select name="font_summary"></select></label>
+        </div>
+        <button id="reset-font-overrides" type="button">個別指定を解除して一括設定に揃える</button>
+        <p><label>PCからフォントを追加 <input id="font-file" type="file" accept=".ttf,.otf,.woff,.woff2"></label></p>
+        <p id="font-import-result" role="status">TTF・OTF・WOFF・WOFF2（1個32 MiB、合計64 MiB・20個まで）。追加後、上の選択欄で指定してください。</p>
+        <p>元ファイルは変更せずアプリ内にコピーします。フォントファイル本体はJSONバックアップに含まれません。別PCへ復元した場合は同じファイルを再登録してください。未登録・非対応文字は標準フォントで表示します。</p>
+        <p class="save-hint">編集しただけではOBSに反映されません。下のボタンで保存してください。</p>
+        <button id="save-overlay-layout" type="submit" disabled>保存してOBSに反映</button>
+        <button id="reload-overlay-layout" type="button">保存済み設定を読み込む</button>
+        <p id="layout-result" role="status">設定を読み込んでいます…</p>
+      </form>
+      <p>保存するとOBSに自動反映されます。幅・高さは縦横共通です。一度OBS側と合わせた後、配置セットの切り替えだけならOBS側の変更は不要です。</p>
+      <p id="obs-dimensions"></p>
+      <p>縦・横配置では、高さが小さい場合に文字サイズを自動縮小します。自由編集では指定サイズを維持します。長い名前は末尾を「…」で省略します。</p>
+      <p>待機人数はNOWを除き、NEXTを含む合計です。グループ数は3人単位で切り上げます。</p>
+      <h3>プレビュー（サンプル・待機列は変更しません）</h3>
+      <div id="layout-preview-shell"><iframe id="layout-preview" title="文字と透過のプレビュー" src="/overlay?sample=1&amp;preview=1"></iframe></div>
+      <p>チェック模様は透過確認用です。OBSには表示されません。大きなサイズは縮小してプレビューします。</p>
     </section>
 
     <section class="panel fixed" aria-labelledby="fixed-settings-title">
@@ -47,7 +107,22 @@
         <div><dt>/overlay</dt><dd>OBS表示専用</dd></div>
       </dl>
     </section>
+    <section class="panel" aria-labelledby="reset-settings-title">
+      <h2 id="reset-settings-title">設定のリセット</h2>
+      <p>この画面の表示設定（名前の表示方式・配置・文言・サイズ・自由編集・フォント指定）を初期値に戻して保存します。待機列・参加回数・総対戦回数・参加者名・追加済みフォントは残ります。</p>
+      <button id="reset-settings" type="button" disabled>設定をリセットする</button>
+      <p id="reset-settings-result" role="status"></p>
+    </section>
+    <dialog id="reset-settings-dialog" aria-labelledby="reset-confirm-title" aria-describedby="reset-confirm-description">
+      <h2 id="reset-confirm-title">設定をリセットしますか？</h2>
+      <p id="reset-confirm-description">表示設定を初期値に戻し、未保存の編集も破棄します。OBS表示にも反映されます。待機列や対戦回数は消えません。</p>
+      <button id="confirm-reset-settings" type="button">本当にリセットする</button>
+      <button id="cancel-reset-settings" type="button" autofocus>キャンセル</button>
+    </dialog>
   </main>
-  <script src="/static/settings.js"></script>
+  <script src="/static/fonts.js"></script>
+  <script src="/static/auth.js"></script>
+
+    <script src="/static/overlay-settings.js"></script>
 </body>
 </html>

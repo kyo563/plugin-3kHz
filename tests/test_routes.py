@@ -8,7 +8,7 @@ os.environ["WAITING_LIST_DB_PATH"] = str(Path(__file__).resolve().parent / "tmp_
 from app import mock_state
 from app.main import app
 from app.routes.comment_api import router as comment_api_router
-from app.routes.control_api import api_state, router as control_api_router
+from app.routes.control_api import api_state, router as control_api_router, development_router
 from app.routes.overlay_api import api_overlay_state, router as overlay_api_router
 from app.routes.pages import router as pages_router
 
@@ -33,7 +33,7 @@ def test_api_state_returns_control_view_state():
 def test_api_overlay_state_returns_minimal_overlay_payload():
     data = api_overlay_state()
 
-    assert set(data.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count"}
+    assert set(data.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count", "total_waiting_count", "total_waiting_group_count", "appearance"}
 
     assert "logs" not in data
     for section in ("now_view", "next_view"):
@@ -43,7 +43,7 @@ def test_api_overlay_state_returns_minimal_overlay_payload():
 
 
 def test_route_urls_are_unchanged():
-    routers = (pages_router, control_api_router, comment_api_router, overlay_api_router)
+    routers = (pages_router, control_api_router, comment_api_router, overlay_api_router, development_router)
     paths = {route.path for router in routers for route in router.routes}
 
     assert "/" in paths
@@ -85,7 +85,7 @@ def test_overlay_state_hides_internal_fields_and_formats_display_name():
 def test_overlay_state_payload_keeps_placeholder_and_hides_internal_fields():
     data = api_overlay_state()
 
-    assert set(data.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count"}
+    assert set(data.keys()) == {"is_open", "now_view", "next_view", "queue_count", "queue_group_count", "total_waiting_count", "total_waiting_group_count", "appearance"}
     for forbidden in [
         "user_id",
         "declared_player_name",
@@ -111,9 +111,11 @@ def test_overlay_static_files_keep_safe_display_behavior():
     overlay_css = (root / "static" / "overlay.css").read_text(encoding="utf-8")
     overlay_js = (root / "static" / "overlay.js").read_text(encoding="utf-8")
 
-    assert 'classList.add("placeholder")' in overlay_js
-    assert "status-open" in overlay_js
-    assert "status-closed" in overlay_js
+    overlay_text = (root / "static" / "overlay-text.js").read_text(encoding="utf-8")
+    assert "is_placeholder ? 'placeholder'" in overlay_text
+    assert "span.textContent = part.text" in overlay_text
+    assert "status-open" in overlay_text
+    assert "status-closed" in overlay_text
     assert "text-overflow: ellipsis" in overlay_css
     assert ".name.placeholder" in overlay_css
     assert "min-width: 0" in overlay_css
@@ -131,8 +133,9 @@ def test_settings_static_files_describe_mvp_settings_without_mock_controls():
     for text in ["参加希望", "参加辞退", "参加を辞退", "参加希望者", "参加希望順"]:
         assert text in settings_html
     assert "現行MVPでは固定" in settings_html
-    assert "<input" not in settings_html.lower()
-    assert "<select" not in settings_html.lower()
+    assert 'name="font_size"' in settings_html
+    assert 'name="width"' in settings_html
+    assert 'name="font_all"' in settings_html
 
     assert "/api/settings/toggle-overlay-player-name" in settings_js
     assert "/api/state" in settings_js

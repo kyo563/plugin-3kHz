@@ -1,0 +1,46 @@
+name: Windows checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements-windows.lock.txt
+      - name: Set up pinned environment
+        shell: pwsh
+        run: ./setup-desktop.ps1 -Python python
+      - name: Run tests
+        shell: pwsh
+        run: ./.venv/Scripts/python.exe -m pytest -q
+      - name: Check real HTTP lifecycle
+        shell: pwsh
+        run: ./.venv/Scripts/python.exe scripts/smoke_http.py
+      - name: Build Windows executable
+        shell: pwsh
+        run: ./build-windows.ps1
+      - name: Package local verification ZIP and notices
+        shell: pwsh
+        run: ./.venv/Scripts/python.exe scripts/package_release.py
+
+      - name: Control UI regression tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test tests/control_ui.test.cjs tests/overlay_text.test.cjs
