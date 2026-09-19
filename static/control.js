@@ -98,7 +98,7 @@ async function fetchState(){ try{ const r=await fetch('/api/state', {signal:Abor
 function renderState(state){
     latestState = state;
     q("#total-matches").textContent = `総対戦回数：${state.total_match_count ?? 0}回`;
-    q('#toggle-reception').textContent = state.is_open ? '受付を終了' : '受付を開始';
+    q('#toggle-reception').textContent = state.is_open ? '受付中止' : '受付を開始';
     q('#toggle-reception').disabled = mutationPending;
     q("#undo").disabled = mutationPending || !state.undo_available;
     renderSearch();
