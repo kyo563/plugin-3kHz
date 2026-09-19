@@ -164,6 +164,7 @@ class SQLitePersistenceService:
             "name_overrides": json.loads(app_state["name_overrides"]) if "name_overrides" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name")},
             "overlay_settings": OverlaySettings.model_validate(json.loads(app_state.get("overlay_settings", "{}"))).model_dump(),
             "description_text": app_state.get("description_text", DEFAULT_DESCRIPTION),
+            "comment_names": json.loads(app_state["comment_names"]) if "comment_names" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name") and u["declared_player_name"] != (u.get("youtube_nickname") or u.get("display_name"))},
             "participation_history": json.loads(app_state.get("participation_history", "[]")),
             "total_match_count": int(app_state.get("total_match_count", "0")),
             "is_open": app_state.get("is_open", "1") == "1",
@@ -187,6 +188,7 @@ class SQLitePersistenceService:
                 conn.execute("DELETE FROM app_state")
                 conn.executemany("INSERT INTO app_state(key, value) VALUES(?, ?)", [
                 ("revision", str(next_revision)),
+                ("comment_names", json.dumps(state.get("comment_names", {}), ensure_ascii=False)),
                 ("participation_history", json.dumps(state.get("participation_history", []), ensure_ascii=False)),
                 ("description_text", state.get("description_text", DEFAULT_DESCRIPTION)),
                 ("total_match_count", str(state.get("total_match_count", 0))),

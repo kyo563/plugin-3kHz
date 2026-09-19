@@ -250,7 +250,7 @@ class QueueService:
         self._log(state, "初回参加優先モードを切り替えました")
 
     def build_view_state(self, state: dict) -> dict:
-        snapshot = deepcopy({k: v for k, v in state.items() if k != "participation_history"})
+        snapshot = deepcopy({k: v for k, v in state.items() if k not in {"participation_history", "comment_names"}})
         current = list(snapshot["current"])
         waiting = snapshot["waiting"]
 

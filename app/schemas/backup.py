@@ -40,6 +40,7 @@ class HistorySession(StrictModel):
         return self
 
 class BackupState(StrictModel):
+    comment_names: dict[UserId, Name] = Field(default_factory=dict, max_length=20000)
     participation_history: list[HistorySession] = Field(default_factory=list, max_length=100)
     description_text: str = Field(default=DEFAULT_DESCRIPTION, max_length=10000)
     total_match_count: Count = 0

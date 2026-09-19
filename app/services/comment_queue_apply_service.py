@@ -56,12 +56,28 @@ class CommentQueueApplyService:
                     saved_participation_count = 0
                 if saved_participation_count < 0:
                     saved_participation_count = 0
+                from app.services.declared_player_name_parser import DeclaredPlayerNameParser
+                quoted = DeclaredPlayerNameParser().parse_quoted(comment.message)
+                saved_names = state.setdefault("comment_names", {})
+                # Retain already-declared names from older versions when distinguishable
+                # from the automatic YouTube nickname.
+                existing = next((u for u in state["current"] + state["waiting"] if u.get("user_id") == user_id), None)
+                prior = existing.get("declared_player_name") if existing else None
+                if prior and prior != (existing.get("youtube_nickname") or existing.get("display_name")) and user_id not in saved_names:
+                    if len(saved_names) < 20000:
+                        saved_names[user_id] = prior
+                if quoted and user_id not in saved_names:
+                    if len(saved_names) >= 20000:
+                        state.setdefault("logs", []).append("コメント指定名の保存上限です。管理画面から追加してください")
+                        state["logs"] = state["logs"][-30:]
+                        return
+                    saved_names[user_id] = quoted
                 changed = self._queue_service.join_or_requeue_user_by_id(
                     state,
                     {
                         "user_id": user_id,
                         "display_name": comment.display_name,
-                        "declared_player_name": state.get("name_overrides", {}).get(user_id) or result.declared_player_name or (
+                        "declared_player_name": state.get("name_overrides", {}).get(user_id) or saved_names.get(user_id) or result.declared_player_name or (
                             (comment.youtube_nickname or comment.display_name) if comment.youtube_handle or comment.source.lower() == 'youtube'
                             else result.declared_player_name),
                         "youtube_handle": comment.youtube_handle,
