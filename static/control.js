@@ -122,11 +122,10 @@ function renderState(state){
     q("#undo").disabled = mutationPending || !state.undo_available;
     renderSearch();
     q('#open').textContent=`受付状態: ${state.is_open ? '受付中':'受付終了'}`;
-    q('#priority').className = state.priority_mode ? 'priority-on' : 'priority-off';
     q('#toggle-priority').className = state.priority_mode ? 'priority-on' : 'priority-off';
     q('#toggle-priority').setAttribute('aria-pressed', String(state.priority_mode));
     q('#toggle-priority').textContent = state.priority_mode ? '✓ 初回参加優先モード：ON（クリックでOFF）' : '初回参加優先モード：OFF（クリックでON）';
-    q('#priority').textContent=`初回参加優先モード: ${state.priority_mode ? 'ON':'OFF'}`;
+    q('#toggle-priority').disabled = mutationPending;
     renderList('#now',state.now_view,{ draggable: false });
     q("#waiting-count").textContent = `${state.waiting.length}人`;
     renderList('#waiting',state.waiting,{ draggable: true, listType: "waiting" });

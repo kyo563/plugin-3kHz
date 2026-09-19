@@ -124,10 +124,10 @@ test('priority mode exposes ON and OFF visually and to assistive technology',()=
  h.sandbox.renderState(state(1));
  assert.match(h.element('#toggle-priority').textContent,/初回参加優先モード：ON/);
  assert.equal(h.element('#toggle-priority').attributes['aria-pressed'],'true');
- assert.equal(h.element('#priority').className,'priority-on');
+ assert.equal(h.element('#toggle-priority').className,'priority-on');
  h.sandbox.renderState({...state(2),priority_mode:false});
  assert.equal(h.element('#toggle-priority').attributes['aria-pressed'],'false');
- assert.equal(h.element('#priority').className,'priority-off');
+ assert.equal(h.element('#toggle-priority').className,'priority-off');
 });
 
 
@@ -189,4 +189,13 @@ test('participant counts show current stream separately and refresh at a new str
     assert.equal(row.children.find(c=>c.className==='participant-count').textContent,'今回2回／累計7回');
     h.sandbox.renderState({...state(2),current:[user],now_view:[user],session_participation_counts:{}});
     assert.equal(h.element('#now').children.at(-1).children.find(c=>c.className==='participant-count').textContent,'今回0回／累計7回');
+});
+
+
+test('priority toggle appears once in the top status block below reception', () => {
+    const html=fs.readFileSync('static/control.html','utf8');
+    assert.equal((html.match(/id="toggle-priority"/g)||[]).length,1);
+    const status=html.slice(html.indexOf('<div class="status">'),html.indexOf('<details id="youtube-panel"'));
+    assert.ok(status.indexOf('id="toggle-priority"') > status.indexOf('id="open"'));
+    assert.match(status,/<button[^>]+id="toggle-priority"[^>]+data-api="\/api\/control\/toggle-priority"/);
 });

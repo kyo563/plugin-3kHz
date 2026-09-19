@@ -17,7 +17,7 @@
         <div class="status">
             <span id="conn">接続状態: 接続待ち</span>
             <span id="open"></span>
-            <span id="priority"></span>
+            <button id="toggle-priority" type="button" data-api="/api/control/toggle-priority" aria-pressed="false" title="クリックしてON／OFFを切り替え" disabled>初回参加優先モード：確認中</button>
             <span id="total-matches" title="NOWに参加者がいる状態で次の対戦へ進めた回数。全リセットで0に戻ります。" aria-live="polite">総対戦回数：確認中</span>
             <span id="display-connection">表示ページ: 確認中</span>
             <button id="reconnect" type="button" hidden>再接続</button>
@@ -99,7 +99,6 @@
             <p><a href="/settings">表示設定</a> · <a href="/obs-setup">OBSの接続案内</a></p>
             <p>OBS表示URL: <code id="overlay-url"></code></p>
             <p>次の対戦へ進めると、現在のNOWの参加回数が1増えます。コメントによる状態変更の制限時間は「設定」で変更できます（初期値40秒）。</p>
-            <button id="toggle-priority" data-api="/api/control/toggle-priority" aria-pressed="false">初回参加優先モード：確認中</button><p>ONでは参加回数が少ない方を優先してNEXTに入れます（従来と同じ動作）。</p>
             <button data-api="/api/control/reset">全リセット（累計参加回数は保持）</button>
             <details id="description-tools" open>
                 <summary>概要欄コピペ用</summary>
