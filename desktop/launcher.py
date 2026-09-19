@@ -17,7 +17,7 @@ from desktop.ownership import OwnershipCatalog, safe_path, atomic_json
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="参加型整列プラグイン 1.0.0")
+    parser = argparse.ArgumentParser(description="参加型整列プラグイン 1.1.0")
     parser.add_argument("--port", type=int)
     parser.add_argument("--prepare-uninstall", action="store_true")
     parser.add_argument("--adopt-existing-data", action="store_true")
@@ -75,7 +75,7 @@ def main() -> int:
                 if args.port is not None:
                     config.save_port(port)
                 window = webview.create_window(
-                    "参加型整列プラグイン 1.0.0", server.url + "/control#key=" + keys.admin,
+                    "参加型整列プラグイン 1.1.0", server.url + "/control#key=" + keys.admin,
                     width=440, height=800, min_size=(320, 480),
                     confirm_close=False,
                 )
@@ -129,6 +129,9 @@ def main() -> int:
                                 result.update(ok=True, title=window.evaluate_js("document.title"), url=server.url)
                                 result["operator_tools_loaded"] = window.evaluate_js("!!document.querySelector('#backup-restore') && !!document.querySelector('#add-participant') && !!document.querySelector('#undo')")
                                 result["development_hidden"] = window.evaluate_js("document.querySelector('#development-actions').hidden")
+                                result["youtube_controls_loaded"] = window.evaluate_js("!!document.querySelector('#youtube-url') && !!document.querySelector('#youtube-key') && !!document.querySelector('#youtube-connect')")
+                                if not result["youtube_controls_loaded"]:
+                                    raise RuntimeError("YouTubeコメント受信画面を読み込めませんでした")
                                 window.load_url(server.url + "/obs-setup")
                                 for _ in range(100):
                                     if window.evaluate_js("document.querySelector('#access-status')?.textContent?.startsWith('アプリ起動済み')"):

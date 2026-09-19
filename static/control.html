@@ -23,6 +23,25 @@
             <button id="reconnect" type="button" hidden>再接続</button>
         </div>
 
+        <details id="youtube-panel" class="operator-tools" open>
+            <summary>YouTubeコメント受信</summary>
+            <p id="youtube-status" role="status">未接続</p>
+            <form id="youtube-form">
+                <label>配信URL<input id="youtube-url" type="url" placeholder="https://www.youtube.com/watch?v=…" required maxlength="2048" style="width:100%;box-sizing:border-box"></label>
+                <label>APIキー<input id="youtube-key" type="password" autocomplete="off" required maxlength="200" style="width:100%;box-sizing:border-box"></label>
+                <button id="youtube-connect" type="submit">コメント受信を開始</button>
+                <button id="youtube-stop" type="button">受信を停止</button>
+            </form>
+            <p>「受信中」を確認してから「参加希望」をコメントしてください。受付終了中は追加されません。反映には約10秒以上かかります。</p>
+            <details><summary>APIキーの準備・使い方</summary>
+                <p>Google CloudでYouTube Data API v3を有効にし、認証情報からAPIキーを作成します。APIの制限はYouTube Data API v3を指定してください。ブラウザ参照元の制限付きキーは使用できません。</p>
+                <p>キーはこのアプリの接続中だけ保持し、ファイルやバックアップには保存しません。停止後・再起動後は入力し直します。公開ライブ配信向けです。</p>
+                <p>接続前のコメントは読み飛ばします。参加後40秒間は辞退などの連続操作が制限されます。受信件数は待機列への追加人数とは異なります。APIの利用上限に達した場合は受信を停止します。</p>
+                <p>公式APIでハンドルを取得できない場合は、YouTubeの表示名を使います。コメントの投稿は行いません。</p>
+                <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener noreferrer">Google CloudでAPIを準備</a>
+            </details>
+        </details>
+
         <div class="actions">
 
             <button id="toggle-reception" class="primary-action" data-api="/api/control/toggle-open" disabled>受付状態を確認中</button>
@@ -138,5 +157,6 @@
     <script src="/static/control.js"></script>
     <script src="/static/desktop-flow.js"></script>
     <script src="/static/description.js"></script>
+    <script src="/static/youtube.js"></script>
 </body>
 </html>

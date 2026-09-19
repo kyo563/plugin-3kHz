@@ -16,6 +16,8 @@ from app.routes.control_api import router as control_api_router, development_rou
 from app.routes.overlay_api import router as overlay_api_router
 from app.routes.pages import router as pages_router
 from app.routes.font_api import router as font_router
+from app.routes.youtube_api import router as youtube_router
+from app.services.youtube_chat import YouTubeChat
 from app.services.application_services import ApplicationServices
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -35,9 +37,11 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
         application.state.services = services if services is not None else ApplicationServices(
             db_path=selected_db, desktop=selected_desktop
         )
+        application.state.youtube = YouTubeChat(application.state.services)
         try:
             yield
         finally:
+            await application.state.youtube.stop()
             # SQLite connections close after each operation; release service/cache references.
             del application.state.services
 
@@ -54,6 +58,7 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
     application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     application.include_router(pages_router)
     application.include_router(font_router)
+    application.include_router(youtube_router)
     application.include_router(control_api_router)
     application.include_router(comment_api_router)
     application.include_router(overlay_api_router)
