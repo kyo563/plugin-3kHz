@@ -4,7 +4,7 @@
 
 - Windows 11 x64向けのZIP配布。Microsoft Edge WebView2 Runtimeを使用します。
 - Chrome・Python・OBS追加プラグインは利用者には不要です。
-- 手動管理とOBS表示に対応。外部コメント入力APIはありますが、YouTubeコメント自動取得や特定製品アダプター、Botは同梱していません。
+- 手動管理とOBS表示に対応。外部コメント入力APIはありますが、YouTubeコメント自動取得や特定製品アダプターは同梱していません。
 - コード署名とWindowsインストーラーは含まれていません。
 - 自動テスト・実HTTP確認・Windows exe起動終了は実施しています。
 - OBS/Edge長時間併用・クリーンPC・全表示倍率・特定チャット製品接続の受入試験は未実施です。

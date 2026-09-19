@@ -37,4 +37,4 @@ node --test tests/control_ui.test.cjs tests/overlay_text.test.cjs
 ## 配布状況
 
 GitHubへは未署名ZIPの正式版を配布します。インストーラー定義はinstaller/WaitingListApp.issにありますが、ビルド・受入試験は未完了です。インストーラーの共通AppId/内部保存名を変更して既存データの所有関係を切らないでください。
-Botは保留中。配信サイトAPIへ直接接続する機能はありません。
+配信サイトAPIへ直接接続する機能はありません。
