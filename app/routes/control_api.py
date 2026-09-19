@@ -248,3 +248,16 @@ def save_comment_settings(payload: CooldownSettings, request: Request):
     service = StateChangeCooldownService()
     get_services(request).persistence_service.mutate_state(lambda state: service.configure(state, payload.cooldown_seconds))
     return payload.model_dump()
+
+
+from app.schemas.command_settings import CommandSettings
+
+@router.get("/api/settings/commands")
+def command_settings(request: Request):
+    return get_services(request).persistence_service.get_state()["command_settings"]
+
+@router.post("/api/settings/commands")
+def save_command_settings(payload: CommandSettings, request: Request):
+    settings = payload.model_dump()
+    get_services(request).persistence_service.mutate_state(lambda state: state.update(command_settings=settings))
+    return settings

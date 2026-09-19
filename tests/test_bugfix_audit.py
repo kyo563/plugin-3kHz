@@ -79,8 +79,8 @@ def test_manual_reset_cannot_split_comment_receive_and_apply(client, monkeypatch
     services = client.app.state.services
     receive = services.receive_service.receive
     logged, release, reset_started, reset_finished = Event(), Event(), Event(), Event()
-    def paused(comment):
-        result = receive(comment)
+    def paused(comment, settings=None):
+        result = receive(comment, settings)
         logged.set()
         assert release.wait(5)
         return result

@@ -19,11 +19,11 @@ class CommentReceiveService:
         self._detector = CommandDetector()
         self._declared_player_name_parser = DeclaredPlayerNameParser()
 
-    def receive(self, comment: ReceivedComment) -> CommentReceiveResult:
+    def receive(self, comment: ReceivedComment, settings=None) -> CommentReceiveResult:
         with self._lock:
-            return self._receive_locked(comment)
+            return self._receive_locked(comment, settings)
 
-    def _receive_locked(self, comment: ReceivedComment) -> CommentReceiveResult:
+    def _receive_locked(self, comment: ReceivedComment, settings=None) -> CommentReceiveResult:
         key = (comment.source, comment.external_message_id) if comment.external_message_id else None
         duplicate = self._is_duplicate(key)
 
@@ -33,10 +33,10 @@ class CommentReceiveService:
 
         self._remember_message_id(key)
         normalized_message = self._normalizer.normalize(comment.message)
-        command = self._detector.detect(normalized_message)
+        command = self._detector.detect(normalized_message, settings)
         declared_player_name = None
         if command == "join":
-            declared_player_name = (self._declared_player_name_parser.parse_quoted(comment.message)
+            declared_player_name = (self._declared_player_name_parser.parse_quoted(comment.message, settings["join"] if settings else None)
                                     or self._declared_player_name_parser.parse(normalized_message))
 
         declared_player_name_flag = "yes" if declared_player_name else "no"

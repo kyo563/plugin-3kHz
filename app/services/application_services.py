@@ -89,6 +89,6 @@ class ApplicationServices:
         with self.comment_lock, self.persistence_service.serialized():
             provider = self.manual_provider if manual else self.external_provider
             received = provider.receive(comment)
-            result = self.receive_service.receive(received)
+            result = self.receive_service.receive(received, self.persistence_service.get_state()["command_settings"])
             self.apply_service.apply(received, result)
             return result

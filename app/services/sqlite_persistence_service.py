@@ -3,6 +3,8 @@ from app.schemas.description import DEFAULT_DESCRIPTION, LEGACY_DEFAULT_DESCRIPT
 
 from app.schemas.avatar import normalize_avatar_url
 
+from app.schemas.command_settings import CommandSettings
+
 import json
 import os
 import sqlite3
@@ -173,6 +175,7 @@ class SQLitePersistenceService:
             "total_match_count": int(app_state.get("total_match_count", "0")),
             "is_open": app_state.get("is_open", "1") == "1",
             "priority_mode": app_state.get("priority_mode", "1") == "1",
+            "command_settings": json.loads(app_state["command_settings"]) if "command_settings" in app_state else CommandSettings().model_dump(),
             "cooldown_seconds": int(app_state.get("cooldown_seconds", "40")),
             "show_declared_player_name_on_overlay": app_state.get("show_declared_player_name_on_overlay", "0") == "1",
             "user_action_locks": user_action_locks,
@@ -201,6 +204,7 @@ class SQLitePersistenceService:
                 ("is_open", "1" if state["is_open"] else "0"),
                 ("priority_mode", "1" if state["priority_mode"] else "0"),
                 ("cooldown_seconds", str(state["cooldown_seconds"])),
+                ("command_settings", json.dumps(state.get("command_settings", CommandSettings().model_dump()), ensure_ascii=False)),
                 ("show_declared_player_name_on_overlay", "1" if state.get("show_declared_player_name_on_overlay", False) else "0"),
                 ("user_action_locks", json.dumps(state.get("user_action_locks", {}), ensure_ascii=False)),
                 ("participation_counts", json.dumps(self._sanitize_participation_counts(state.get("participation_counts", {})), ensure_ascii=False)),

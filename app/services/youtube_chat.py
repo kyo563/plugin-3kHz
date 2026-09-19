@@ -172,7 +172,7 @@ class YouTubeChat:
             return
         self.state["received"] += 1
         self.state["last_received"] = datetime.now(timezone.utc).isoformat()
-        command = CommandDetector().detect(CommentNormalizer().normalize(comment.message))
+        command = CommandDetector().detect(CommentNormalizer().normalize(comment.message), self.services.persistence_service.get_state()["command_settings"])
         if command == "ignore":
             return
         # Resolve the real handle only for participants; stable channel ID is identity.

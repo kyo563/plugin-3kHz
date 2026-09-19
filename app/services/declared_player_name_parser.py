@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 class DeclaredPlayerNameParser:
     JOIN_TRIGGER = "参加希望"
@@ -7,8 +8,9 @@ class DeclaredPlayerNameParser:
     KEYWORD = "名前"
     MAX_NAME_LENGTH = 32
 
-    def parse_quoted(self, message: str) -> str | None:
-        match = re.search(r"参加希望\s*『([^『』]*)』", message)
+    def parse_quoted(self, message: str, triggers=None) -> str | None:
+        pattern = "(?:" + "|".join(re.escape(t) for t in (triggers or [self.JOIN_TRIGGER])) + r")\s*『([^『』]*)』"
+        match = re.search(pattern, unicodedata.normalize("NFKC", message), re.IGNORECASE)
         if not match:
             return None
         name = " ".join(match.group(1).split())

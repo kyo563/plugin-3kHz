@@ -119,9 +119,20 @@
         <div><dt>/overlay</dt><dd>OBS表示専用</dd></div>
       </dl>
     </section>
+    <section class="panel">
+      <h2>参加・辞退のコメント文言</h2>
+      <form id="command-settings-form">
+        <p>1行に1つ、各20個まで登録できます。コメントに登録文言が含まれると反応します。両方を含む場合は辞退が優先されます。</p>
+        <label>参加希望の文言<textarea id="join-commands" rows="4" maxlength="1400" required disabled></textarea></label>
+        <label>参加辞退の文言<textarea id="cancel-commands" rows="4" maxlength="1400" required disabled></textarea></label>
+        <p>例：「参加します」「!join」など。名前は登録した参加文言の直後に『名前』で指定できます。NOW参加者のコメント辞退は禁止のままです。概要欄コピペ用の文章は別途編集してください。</p>
+        <button id="save-commands" type="submit" disabled>文言を保存して反映</button>
+        <p id="commands-result" role="status"></p>
+      </form>
+    </section>
     <section class="panel" aria-labelledby="reset-settings-title">
       <h2 id="reset-settings-title">設定のリセット</h2>
-      <p>この画面の表示設定（名前の表示方式・配置・文言・サイズ・自由編集・フォント指定）を初期値に戻して保存します。待機列・参加回数・総対戦回数・参加者名・追加済みフォント・コメントの制限時間は残ります。</p>
+      <p>この画面の表示設定（名前の表示方式・配置・文言・サイズ・自由編集・フォント指定）を初期値に戻して保存します。待機列・参加回数・総対戦回数・参加者名・追加済みフォント・コメントの制限時間・参加辞退の判定文言は残ります。</p>
       <button id="reset-settings" type="button" disabled>設定をリセットする</button>
       <p id="reset-settings-result" role="status"></p>
     </section>
@@ -137,5 +148,6 @@
 
     <script src="/static/overlay-settings.js"></script>
     <script src="/static/comment-settings.js"></script>
+    <script src="/static/command-settings.js"></script>
 </body>
 </html>

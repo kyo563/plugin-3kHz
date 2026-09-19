@@ -174,3 +174,6 @@ dd {
 #save-overlay-layout:focus-visible { outline:3px solid #fff; outline-offset:3px; }
 #save-overlay-layout:disabled { background:#746647; color:#eee5d3; border-color:#a2916e; opacity:1; }
 #layout-result { margin-top:12px; padding:10px 12px; border-left:4px solid #ffcc66; background:#121a25; overflow-wrap:anywhere; }
+
+#save-commands { background:#facc15; color:#1f2937; font-weight:700; }
+#command-settings-form textarea { display:block; width:100%; box-sizing:border-box; margin:8px 0 16px; }

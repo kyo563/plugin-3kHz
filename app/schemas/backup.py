@@ -1,3 +1,4 @@
+from app.schemas.command_settings import CommandSettings
 from app.schemas.avatar import AvatarUrl
 """Portable state only: no paths, credentials, runtime settings or executable data."""
 from typing import Annotated, Literal
@@ -50,6 +51,7 @@ class BackupState(StrictModel):
     name_overrides: dict[UserId, Name] = Field(default_factory=dict, max_length=20000)
     is_open: bool
     priority_mode: bool
+    command_settings: CommandSettings = Field(default_factory=CommandSettings)
     cooldown_seconds: int = Field(default=40, strict=True, ge=0, le=3600)
     show_declared_player_name_on_overlay: bool
     current: list[Participant] = Field(max_length=3)

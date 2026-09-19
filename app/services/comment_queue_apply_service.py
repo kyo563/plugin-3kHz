@@ -57,7 +57,7 @@ class CommentQueueApplyService:
                 if saved_participation_count < 0:
                     saved_participation_count = 0
                 from app.services.declared_player_name_parser import DeclaredPlayerNameParser
-                quoted = DeclaredPlayerNameParser().parse_quoted(comment.message)
+                quoted = DeclaredPlayerNameParser().parse_quoted(comment.message, state.get("command_settings", {}).get("join"))
                 saved_names = state.setdefault("comment_names", {})
                 # Retain already-declared names from older versions when distinguishable
                 # from the automatic YouTube nickname.
