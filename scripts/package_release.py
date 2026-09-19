@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", default="0.1.0-preview.22")
+    parser.add_argument("--version", default="1.0.0")
     parser.add_argument("--application-path", type=Path, default=ROOT / "dist" / "参加型整列プラグイン")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+[.][0-9]+[.][0-9]+(?:-[a-zA-Z0-9.]+)?", args.version):
@@ -50,9 +50,9 @@ def main():
     (application / "docs").mkdir(exist_ok=True)
     shutil.copyfile(ROOT / "docs" / "EXTERNAL_INPUT.md", application / "docs" / "EXTERNAL_INPUT.md")
     source_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    (application / "BUILD_INFO.json").write_text(json.dumps({"application":"参加型整列プラグイン", "version":args.version, "source_commit":source_commit, "platform":"windows-x64", "prerelease":True}, ensure_ascii=False, indent=2), encoding="utf-8")
+    (application / "BUILD_INFO.json").write_text(json.dumps({"application":"参加型整列プラグイン", "version":args.version, "source_commit":source_commit, "platform":"windows-x64", "prerelease":"-" in args.version}, ensure_ascii=False, indent=2), encoding="utf-8")
     shutil.copyfile(ROOT / "docs" / "RELEASE_NOTES.md", application / "RELEASE_NOTES.md")
-    shutil.copyfile(ROOT / "docs" / "DISTRIBUTION_STATUS.md", application / "配布前の確認事項.md")
+    shutil.copyfile(ROOT / "docs" / "DISTRIBUTION_STATUS.md", application / "動作環境と対応範囲.md")
     output = ROOT / "dist" / "release"
     output.mkdir(exist_ok=True)
     archive = output / f"Sankagata-Seiretsu-Plugin-{args.version}-windows-x64.zip"

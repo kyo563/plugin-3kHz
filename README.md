@@ -6,7 +6,7 @@ Windows用の参加型配信向け待機列管理アプリです。視聴者3人
 
 [GitHub Releases](https://github.com/kyo563/plugin-3kHz/releases) の **Assets → Sankagata-Seiretsu-Plugin-…-windows-x64.zip** を選び、すべて展開して「参加型整列プラグイン.exe」を起動してください。「Source code」のZIPは実行用ではありません。
 
-Windows 11 x64向けの未署名検証版です。Chrome・Python・OBS追加プラグインは利用者には不要です。Microsoft Edge WebView2 Runtimeを使用します。
+Windows 11 x64向けの未署名の正式版です。Chrome・Python・OBS追加プラグインは利用者には不要です。Microsoft Edge WebView2 Runtimeを使用します。
 
 **まずは [導入・利用ガイド](docs/USER_GUIDE.md) をお読みください。配布ZIPには同じガイドをREADME.md・README.txtとして収録しています。**
 
@@ -29,7 +29,7 @@ FastAPI + SQLite + pywebview（Windows WebView2）で構成しています。旧
 node --test tests/control_ui.test.cjs tests/overlay_text.test.cjs
 ./.venv/Scripts/python.exe scripts/smoke_http.py
 ./build-windows.ps1
-./.venv/Scripts/python.exe scripts/package_release.py --version 0.1.0-preview.22
+./.venv/Scripts/python.exe scripts/package_release.py --version 1.0.0
 ```
 
 詳細は [開発仕様](DEVELOPMENT_SPEC.md)、[開発ルール](AGENTS.md)、[配布前の確認事項](docs/DISTRIBUTION_STATUS.md) を参照してください。

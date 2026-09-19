@@ -2,7 +2,7 @@
 
 Windows用の参加型配信向け待機列管理アプリです。1グループ3人で、現在の参加者・次の参加者・待機人数をOBSに表示します。
 
-**このパッケージは 0.1.0-preview.22（検証版）です。手動での参加者管理は利用できます。YouTubeコメントを自動取得する機能・特定チャット製品との接続・コメントBotは含まれていません。** 外部アプリからコメントを受け取るAPIはありますが、連携用アダプターを別途用意する必要があります。
+**このパッケージは 1.0.0（正式版）です。手動での参加者管理は利用できます。YouTubeコメントを自動取得する機能・特定チャット製品との接続・コメントBotは含まれていません。** 外部アプリからコメントを受け取るAPIはありますが、連携用アダプターを別途用意する必要があります。
 
 ## 1. 動作環境
 
@@ -19,17 +19,17 @@ https://developer.microsoft.com/microsoft-edge/webview2/
 ## 2. ダウンロード・起動
 
 1. GitHubのReleasesを開きます： https://github.com/kyo563/plugin-3kHz/releases
-2. 利用したい検証版の「Assets」から、名前が「Sankagata-Seiretsu-Plugin-」で始まるwindows-x64.zipをダウンロードします。GitHubが自動生成する「Source code」は開発用で、そのまま起動できません。
+2. 利用したいバージョンの「Assets」から、名前が「Sankagata-Seiretsu-Plugin-」で始まるwindows-x64.zipをダウンロードします。GitHubが自動生成する「Source code」は開発用で、そのまま起動できません。
 3. ZIPを右クリックして「すべて展開」します。
 4. 展開した「参加型整列プラグイン」フォルダーの「参加型整列プラグイン.exe」を起動します。
 5. README.txtはメモ帳などで開けます。exeだけを移動せず、_internalを含むフォルダー全体を保管してください。
 
-この検証版は未署名です。Windowsが発行元を確認できない旨を表示する場合があります。入手元とSHA256SUMS.txtでファイルを確認し、組織の実行制限がある場合は管理者へ確認してください。
+このバージョンは未署名です。Windowsが発行元を確認できない旨を表示する場合があります。入手元とSHA256SUMS.txtでファイルを確認し、組織の実行制限がある場合は管理者へ確認してください。
 
 チェックサム確認例（PowerShell）：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\Sankagata-Seiretsu-Plugin-0.1.0-preview.22-windows-x64.zip
+Get-FileHash -Algorithm SHA256 .\Sankagata-Seiretsu-Plugin-1.0.0-windows-x64.zip
 ```
 
 起動済みのときに別バージョンのexeを開いても、既存アプリが表示されます。更新時は先に古いアプリを終了してください。
@@ -137,5 +137,5 @@ OBSへ自分で追加したブラウザソース・ドックは、不要にな�
 
 ## 検証状況・配布物
 
-この検証版は、Windowsでの自動テスト・HTTP確認・exe起動終了を実施して公開します。実際のOBS＋Edgeの長時間併用、クリーンPC、全表示倍率、特定チャット製品の接続、インストーラーは未検証です。
+このバージョンは、Windowsでの自動テスト・HTTP確認・exe起動終了を実施して公開します。実際のOBS＋Edgeの長時間併用、クリーンPC、全表示倍率、特定チャット製品の接続、インストーラーは未検証です。
 依存物の通知とライセンスはTHIRD_PARTY_NOTICES.json、THIRD_PARTY_LICENSESに同梱しています。本プロジェクトの再配布・改変ライセンスは未選定です。

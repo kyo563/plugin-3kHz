@@ -19,7 +19,7 @@ Windows 11 x64 / Python 3.12 x64で以下を実行します。
 node --test tests/control_ui.test.cjs tests/overlay_text.test.cjs
 ./.venv/Scripts/python.exe scripts/smoke_http.py
 ./build-windows.ps1
-./.venv/Scripts/python.exe scripts/package_release.py --version 0.1.0-preview.22
+./.venv/Scripts/python.exe scripts/package_release.py --version 1.0.0
 ```
 
 `dist/参加型整列プラグイン/参加型整列プラグイン.exe` と `_internal` を含むフォルダー全体が実行物です。ZIPとSHA256SUMS.txtはdist/releaseに生成します。ビルドとパッケージ処理は公開を行いません。
@@ -36,5 +36,5 @@ node --test tests/control_ui.test.cjs tests/overlay_text.test.cjs
 
 ## 配布状況
 
-GitHubへは未署名ZIPの検証版を配布します。インストーラー定義はinstaller/WaitingListApp.issにありますが、ビルド・受入試験は未完了です。インストーラーの共通AppId/内部保存名を変更して既存データの所有関係を切らないでください。
+GitHubへは未署名ZIPの正式版を配布します。インストーラー定義はinstaller/WaitingListApp.issにありますが、ビルド・受入試験は未完了です。インストーラーの共通AppId/内部保存名を変更して既存データの所有関係を切らないでください。
 Botは保留中。配信サイトAPIへ直接接続する機能はありません。

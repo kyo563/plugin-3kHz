@@ -1,4 +1,4 @@
-﻿param([string]$Compiler = "ISCC.exe", [string]$Version = "0.1.0-preview.1")
+﻿param([string]$Compiler = "ISCC.exe", [string]$Version = "1.0.0")
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 if ($Version -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$') { throw "Invalid version." }

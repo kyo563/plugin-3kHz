@@ -12,5 +12,6 @@ a = Analysis(
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='参加型整列プラグイン',
           icon=str(root / "static" / "app-icon.ico"),
+          version=str(root / "desktop" / "version_info.txt"),
           debug=False, bootloader_ignore_signals=False, strip=False, upx=False, console=False)
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='参加型整列プラグイン')
