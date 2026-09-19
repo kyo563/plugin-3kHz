@@ -20,11 +20,13 @@ https://developer.microsoft.com/microsoft-edge/webview2/
 
 1. GitHubのReleasesを開きます： https://github.com/kyo563/plugin-3kHz/releases
 2. 利用したいバージョンの「Assets」から、名前が「Sankagata-Seiretsu-Plugin-」で始まるwindows-x64.zipをダウンロードします。GitHubが自動生成する「Source code」は開発用で、そのまま起動できません。
-3. ZIPを右クリックして「すべて展開」します。
+3. このプロジェクトから取得したZIPの「プロパティ」→「全般」で、下部に「許可する」がある場合はチェックして「適用」します。その後、ZIPを右クリックして「すべて展開」します。
 4. 展開した「参加型整列プラグイン」フォルダーの「参加型整列プラグイン.exe」を起動します。
 5. README.txtはメモ帳などで開けます。exeだけを移動せず、_internalを含むフォルダー全体を保管してください。
 
-このバージョンは未署名です。Windowsが発行元を確認できない旨を表示する場合があります。入手元とSHA256SUMS.txtでファイルを確認し、組織の実行制限がある場合は管理者へ確認してください。
+このバージョンは未署名です。Windowsが発行元を確認できない旨を表示する場合があります。入手元とリリースページ記載のSHA-256でファイルを確認し、組織の実行制限がある場合は管理者へ確認してください。
+
+「Failed to resolve Python.Runtime.Loader.Initialize」が出る場合は、ダウンロードしたDLLがWindowsでブロックされている可能性があります。配布元を確認したZIPに上記の「許可する」を適用し、新しいフォルダーへ展開し直してください。展開済みファイルには遡って反映されません。
 
 チェックサム確認例（PowerShell）：
 
