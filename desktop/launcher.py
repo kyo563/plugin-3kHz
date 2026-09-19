@@ -130,6 +130,9 @@ def main() -> int:
                                 result["operator_tools_loaded"] = window.evaluate_js("!!document.querySelector('#backup-restore') && !!document.querySelector('#add-participant') && !!document.querySelector('#undo')")
                                 result["development_hidden"] = window.evaluate_js("document.querySelector('#development-actions').hidden")
                                 result["youtube_controls_loaded"] = window.evaluate_js("!!document.querySelector('#youtube-url') && !!document.querySelector('#youtube-key') && !!document.querySelector('#youtube-connect')")
+                                result["history_controls_loaded"] = window.evaluate_js("!!document.querySelector('#history-session') && !!document.querySelector('#history-start') && !!document.querySelector('#history-copy')")
+                                if not result["history_controls_loaded"]:
+                                    raise RuntimeError("参加履歴画面を読み込めませんでした")
                                 if not result["youtube_controls_loaded"]:
                                     raise RuntimeError("YouTubeコメント受信画面を読み込めませんでした")
                                 window.load_url(server.url + "/obs-setup")

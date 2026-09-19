@@ -48,3 +48,7 @@ dialog::backdrop { background:#0009; } dialog li { margin:8px 0; } dialog button
 #move-next:hover:not(:disabled) { background:#ffdf99; }
 #move-next:active:not(:disabled) { background:#edb64c; }
 #move-next-note { margin:6px 0 0; color:#b8c5d6; font-size:11px; }
+
+#history-list { padding:0; list-style:none; max-height:360px; overflow:auto; overflow-wrap:anywhere; }
+#history-list li { padding:4px 0; border-top:1px solid #2b3444; }
+#history-session { max-width:100%; }

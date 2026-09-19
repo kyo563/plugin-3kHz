@@ -20,7 +20,27 @@ class Participant(StrictModel):
     youtube_nickname: str | None = Field(default=None, max_length=200)
     participation_count: Count
 
+class HistoryUser(StrictModel):
+    user_id: UserId
+    display_name: Name
+    first_match: Count
+    count: Count
+
+class HistorySession(StrictModel):
+    id: str = Field(min_length=1, max_length=64)
+    label: str = Field(max_length=100)
+    started_at: str = Field(max_length=64)
+    matches: Count
+    users: list[HistoryUser] = Field(max_length=10000)
+
+    @model_validator(mode="after")
+    def unique_users(self):
+        if len({u.user_id for u in self.users}) != len(self.users):
+            raise ValueError("履歴の参加者IDが重複しています")
+        return self
+
 class BackupState(StrictModel):
+    participation_history: list[HistorySession] = Field(default_factory=list, max_length=100)
     description_text: str = Field(default=DEFAULT_DESCRIPTION, max_length=10000)
     total_match_count: Count = 0
     overlay_settings: OverlaySettings = Field(default_factory=OverlaySettings)

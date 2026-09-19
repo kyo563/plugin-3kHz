@@ -215,3 +215,21 @@ def api_get_description(request: Request):
 def api_save_description(payload: DescriptionSettings, request: Request):
     get_services(request).persistence_service.mutate_state(lambda s: s.update(description_text=payload.text))
     return payload.model_dump()
+
+
+class HistoryStartPayload(BaseModel):
+    label: str = Field(default="", max_length=100)
+
+@router.get("/api/control/history")
+def participation_history(request: Request):
+    return {"sessions": get_services(request).persistence_service.get_state().get("participation_history", [])}
+
+@router.post("/api/control/history/start")
+def start_history(payload: HistoryStartPayload, request: Request):
+    from app.services.participation_history import new_session
+    services = get_services(request)
+    try:
+        services.persistence_service.manual_mutate(lambda state: new_session(state, payload.label))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return participation_history(request)

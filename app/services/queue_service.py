@@ -230,6 +230,11 @@ class QueueService:
             user["participation_count"] = counts[user_id]
 
         if completed:
+            from app.services.participation_history import record_match
+            try:
+                record_match(state)
+            except ValueError as exc:
+                raise ParticipationCountLimitError(str(exc)) from exc
             state["total_match_count"] = total + 1
         next_users = state["waiting"][: self.group_size]
         state["waiting"] = state["waiting"][self.group_size :]
@@ -245,7 +250,7 @@ class QueueService:
         self._log(state, "初回参加優先モードを切り替えました")
 
     def build_view_state(self, state: dict) -> dict:
-        snapshot = deepcopy(state)
+        snapshot = deepcopy({k: v for k, v in state.items() if k != "participation_history"})
         current = list(snapshot["current"])
         waiting = snapshot["waiting"]
 

@@ -71,6 +71,18 @@
             </section>
         </div>
 
+        <details id="history-panel" class="operator-tools">
+            <summary>対戦した参加者の履歴</summary>
+            <p>「次の対戦へ」を押した時点でNOWを記録します。最後の対戦後も押してください。同じ対戦の3人はNOWの並び順です。</p>
+            <label>配信の履歴<select id="history-session"></select></label>
+            <button id="history-refresh" type="button">一覧を更新</button>
+            <button id="history-copy" type="button" disabled>一覧をコピー</button>
+            <p id="history-summary" role="status"></p>
+            <ol id="history-list"></ol>
+            <label>新しい配信の名前<input id="history-label" maxlength="100" placeholder="例：9月20日の配信"></label>
+            <button id="history-start" type="button">新しい配信の履歴を開始</button>
+            <p>以前の履歴は残ります。待機列・累計参加回数・表示設定は変わりません。配信URLの変更では自動で区切りません。全リセットでは履歴も削除されます。</p>
+        </details>
         <details class="operator-tools">
             <summary>参加者の追加・検索</summary>
             <form id="add-participant">
@@ -158,5 +170,6 @@
     <script src="/static/desktop-flow.js"></script>
     <script src="/static/description.js"></script>
     <script src="/static/youtube.js"></script>
+    <script src="/static/history.js"></script>
 </body>
 </html>
