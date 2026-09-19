@@ -35,6 +35,6 @@ YouTube公式APIの受信処理はテストデータで確認済みです。実�
 <details>
 <summary>確認用 SHA-256</summary>
 
-`2e6b75d2ed11e2febd73fb521c1056053af64a923fbc8e9747a1ebd3fbe71cac`
+`1d7fcebbda2d36ebcfd3b4d44bbf2926b74c3e01b31ecd911b4923a71d26233f`
 
 </details>
