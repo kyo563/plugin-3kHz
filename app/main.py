@@ -26,7 +26,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 def create_app(*, db_path: str | None = None, desktop: bool | None = None,
                development: bool = False, services: ApplicationServices | None = None,
-               access_keys: AccessKeys | None = None, desktop_config=None) -> FastAPI:
+               access_keys: AccessKeys | None = None, desktop_config=None, onecomme: bool = False) -> FastAPI:
     # Resolve configuration once. Constructing/importing an app never opens SQLite.
     selected_db = str(Path(db_path or os.environ.get("WAITING_LIST_DB_PATH")
                            or "data/waiting_list.sqlite3").expanduser().resolve())
@@ -38,6 +38,9 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
             db_path=selected_db, desktop=selected_desktop
         )
         application.state.youtube = YouTubeChat(application.state.services)
+        if onecomme:
+            from app.services.onecomme import OneCommeBridge
+            application.state.onecomme = OneCommeBridge(application.state.services)
         try:
             yield
         finally:
@@ -51,6 +54,7 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
         return JSONResponse({"detail": str(exc)}, status_code=409)
 
     application.state.access_keys = access_keys or AccessKeys()
+    application.state.onecomme_mode = onecomme
     application.state.overlay_seen = None
     application.state.overlay_lock = Lock()
     application.state.started_at = time.monotonic()
@@ -58,7 +62,11 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
     application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     application.include_router(pages_router)
     application.include_router(font_router)
-    application.include_router(youtube_router)
+    if onecomme:
+        from app.routes.onecomme_api import router as onecomme_router
+        application.include_router(onecomme_router)
+    else:
+        application.include_router(youtube_router)
     application.include_router(control_api_router)
     application.include_router(comment_api_router)
     application.include_router(overlay_api_router)

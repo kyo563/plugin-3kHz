@@ -67,7 +67,7 @@ class LocalSecurityMiddleware:
             authorization = headers.get(b"authorization", "")
             token = authorization[7:] if authorization.lower().startswith("bearer ") else ""
             admin = secrets.compare_digest(token.encode("utf-8"), self.keys.admin.encode("utf-8"))
-            ingest = path == "/api/comments/receive" and secrets.compare_digest(token.encode("utf-8"), self.keys.ingest.encode("utf-8"))
+            ingest = path in {"/api/comments/receive", "/api/onecomme/comment", "/api/onecomme/heartbeat"} and secrets.compare_digest(token.encode("utf-8"), self.keys.ingest.encode("utf-8"))
             if not (admin or ingest):
                 return await JSONResponse({"detail": "管理画面から接続キーを設定してください"}, 401)(scope, receive, send)
         body_limit = 4 * 1024 * 1024 if path == "/api/control/restore" else self.max_body_bytes

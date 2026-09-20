@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from fastapi import APIRouter
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
 
 router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -14,7 +14,15 @@ def root():
 
 
 @router.get("/control")
-def control_page():
+def control_page(request: Request):
+    if request.app.state.onecomme_mode:
+        html = (STATIC_DIR / "control.html").read_text(encoding="utf-8")
+        start = html.index('        <details id="youtube-panel"')
+        end = html.index('        <div class="actions">', start)
+        html = html[:start] + (STATIC_DIR / "onecomme-panel.html").read_text(encoding="utf-8") + html[end:]
+        html = html.replace('/static/youtube.js', '/static/onecomme.js')
+        html = html.replace('<h1>待機列管理</h1>', '<h1>待機列管理・わんコメ版（試作）</h1>')
+        return HTMLResponse(html)
     return FileResponse(STATIC_DIR / "control.html")
 
 
