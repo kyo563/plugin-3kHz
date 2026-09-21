@@ -77,6 +77,8 @@ class OneCommeBridge:
             parser.feed(comment.message)
             parser.close()
             comment.message = "".join(parser.parts)
+            if getattr(self, 'bot', None) and self.bot.receive(comment):
+                return {'status': 'bot_handled'}
             settings = self.services.persistence_service.get_state()["command_settings"]
             if CommandDetector().detect(CommentNormalizer().normalize(comment.message), settings) == "ignore":
                 return {"status": "ignored"}

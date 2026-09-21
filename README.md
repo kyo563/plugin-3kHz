@@ -2,6 +2,8 @@
 
 今後はこちらのわんコメプラグイン版を更新します。独立版1.1.3は変更せず維持します。
 
+**[Bot追加版1.1.0（検証版）](https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v1.1.0)**：入室案内・本人への順位返信・参加方法の定期投稿を追加しました。[OAuthの準備と使い方](docs/BOT.md)。実アカウントでの投稿は未検証です。
+
 **[わんコメ版1.0.0をダウンロード](https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v1.0.0)**
 
 Assetsの `Taikiretsu-Seiri-App-OneComme-1.0.0-windows-x64.zip` をすべて展開し、`sankagata-seiretsu` フォルダをわんコメのプラグインフォルダへ入れて有効にしてください。「Source code」は利用者向けではありません。

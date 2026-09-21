@@ -12,6 +12,12 @@ Python318件・JavaScript24件成功。ブラウザで同一iframe内の縦横�
 
 以下は試作時点からの設計・検証記録。
 
+## Bot追加版1.1.0
+
+ユーザー指定で専用YouTubeアカウントによる任意の自動投稿を追加。受信はわんコメ、投稿のみYouTube公式APIとデスクトップOAuth/PKCEを使用。詳細はBOT.md。
+初期無効・通知個別切替・10/30分・本人IDによる順位・Botチャンネル除外・接続状態を実装。認証は専用bot.sqlite3へWindows DPAPIで暗号化して保存。既存キューDBと独立版は保全。
+全体Python325件成功後、追加の競合・送信曖昧失敗を含むBot10件成功。JavaScript24件成功。ブラウザで30分設定・個別オフ・再読込保存を確認。実OAuth/実配信投稿は未検証のため、このBot追加版はPre-releaseとして扱う。
+
 2026-09-21のユーザー指定による別系統。独立版1.1.3のRelease・タグ・保存先は変更しない。
 ブランチ codex/onecomme-edition。配布手順は onecomme/README.txt。
 

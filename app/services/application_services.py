@@ -60,6 +60,8 @@ class ApplicationServices:
 
     def move_next(self) -> None:
         self.persistence_service.manual_mutate(self.queue_service.move_next)
+        if getattr(self, 'bot', None):
+            self.bot.announce()
 
     def toggle_open(self) -> None:
         self.persistence_service.manual_mutate(self.queue_service.toggle_open)
@@ -86,6 +88,9 @@ class ApplicationServices:
         self.persistence_service.mutate_state(_append_log)
 
     def receive_comment(self, comment, *, manual=False):
+        if getattr(self, 'bot', None) and self.bot.is_self(comment):
+            from app.schemas.comment import CommentReceiveResult
+            return CommentReceiveResult(status='ignored_bot', duplicate=False, command='ignore')
         with self.comment_lock, self.persistence_service.serialized():
             provider = self.manual_provider if manual else self.external_provider
             received = provider.receive(comment)

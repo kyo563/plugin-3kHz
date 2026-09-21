@@ -1,0 +1,13 @@
+#bot-form { display: flex; flex-direction: column; gap: 14px; }
+#bot-form label { display: block; line-height: 1.7; }
+#bot-form p { margin: -6px 0 4px; color: #b7c8db; font-size: .9rem; }
+#bot-form textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; resize: vertical; min-height: 100px; }
+#bot-form select { margin-left: 12px; padding: 6px; }
+#bot-form input[type=checkbox] { width: 18px; height: 18px; vertical-align: middle; margin-right: 8px; accent-color: #4f8cff; }
+#bot-form button { align-self: flex-start; }
+#bot-client { display: block; max-width: 100%; margin: 10px 0 16px; }
+#bot-status { padding: 12px; background: #121d2b; border-radius: 8px; }
+#bot-last { overflow-wrap: anywhere; }
+a { color: #8fc4ff; }
+#bot-disconnect { margin-top: 12px; }
+textarea, select { background: #101923; color: #f1f5fa; border: 1px solid #53657b; border-radius: 6px; padding: 10px; font: inherit; }

@@ -41,9 +41,17 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
         if onecomme:
             from app.services.onecomme import OneCommeBridge
             application.state.onecomme = OneCommeBridge(application.state.services)
+            from app.services.bot import AnnouncementBot, BotStore
+            application.state.bot = AnnouncementBot(application.state.services, application.state.onecomme,
+                                                     BotStore(Path(selected_db).with_name('bot.sqlite3')))
+            application.state.services.bot = application.state.bot
+            application.state.onecomme.bot = application.state.bot
+            application.state.bot.start()
         try:
             yield
         finally:
+            if onecomme:
+                application.state.bot.stop()
             await application.state.youtube.stop()
             # SQLite connections close after each operation; release service/cache references.
             del application.state.services
@@ -65,6 +73,8 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
     if onecomme:
         from app.routes.onecomme_api import router as onecomme_router
         application.include_router(onecomme_router)
+        from app.routes.bot_api import router as bot_router
+        application.include_router(bot_router)
     else:
         application.include_router(youtube_router)
     application.include_router(control_api_router)
