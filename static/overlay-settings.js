@@ -1,5 +1,6 @@
 (() => {
     const form = document.getElementById('overlay-layout-form');
+    const onecomme = document.body.dataset.onecomme === 'true';
     const frame = document.getElementById('layout-preview');
     const shell = document.getElementById('layout-preview-shell');
     const message = document.getElementById('layout-result');
@@ -49,7 +50,9 @@
         frame.style.width = `${settings.width}px`; frame.style.height = `${settings.height}px`;
         frame.style.transform = `scale(${scale})`;
         frame.contentWindow.postMessage({type:'overlay-preview', appearance:settings}, location.origin);
-        document.getElementById('obs-dimensions').textContent = `OBSブラウザソース：幅 ${settings.width} / 高さ ${settings.height}`;
+        document.getElementById('obs-dimensions').textContent = onecomme
+            ? `OBSの共通枠：1200 × 600 px以上 ／ 表示領域：${settings.width} × ${settings.height} px${settings.width > 1200 || settings.height > 600 ? '（OBSの枠も広げてください）' : ''}`
+            : `OBSブラウザソース：幅 ${settings.width} / 高さ ${settings.height}`;
     }
     async function load() {
         save.disabled = true; resetButton.disabled = true;
@@ -74,9 +77,15 @@
         form.elements.namedItem('width').value = horizontal ? 1200 : 480;
         form.elements.namedItem('height').value = horizontal ? 240 : 600;
         preview();
-        message.textContent = '推奨サイズを入力しました（未保存）。保存後、OBSブラウザソースの幅・高さも合わせてください。';
+        message.textContent = onecomme ? '推奨サイズを入力しました（未保存）。「保存してOBSに反映」を押してください。OBSの共通枠は変更不要です。' : '推奨サイズを入力しました（未保存）。保存後、OBSブラウザソースの幅・高さも合わせてください。';
     });
     document.getElementById('overlay-layout').addEventListener('change', () => {
+        if (onecomme && loaded) {
+            const horizontal = form.elements.namedItem('layout').value === 'horizontal';
+            form.elements.namedItem('width').value = horizontal ? 1200 : 480;
+            form.elements.namedItem('height').value = horizontal ? 240 : 600;
+            message.textContent = '配置と表示領域を切り替えました（未保存）。「保存してOBSに反映」を押してください。';
+        }
         preview();
     });
     form.addEventListener('input', () => { preview(); message.textContent = 'プレビュー中（未保存）。「保存してOBSに反映」で保存します。'; });

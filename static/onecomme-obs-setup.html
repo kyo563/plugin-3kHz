@@ -1,0 +1,7 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OBSに追加する — 待機列整理アプリ</title><link rel="stylesheet" href="/static/settings.css"><link rel="stylesheet" href="/static/fonts.css"></head>
+<body><main><header><a href="/control">管理画面</a> · <a href="/settings">表示設定</a><h1>わんコメからOBSに追加する</h1></header>
+<section class="panel"><h2>初回だけ：テンプレートを追加</h2><ol><li>下のボタンで表示テンプレートZIPを保存します。</li><li>ZIPをわんコメのテンプレート一覧へドラッグ＆ドロップします。フォルダアイコンからファイルを選んで追加することもできます。</li><li>「待機列整理アプリ」の「ここをドラッグしてOBSに入れる」から、OBSのシーンへ追加します。</li><li>OBSのブラウザソースのプロパティで、幅1200・高さ600以上にします。背景は透過します。</li></ol>
+<button id="download-template" type="button">表示テンプレートZIPを保存</button><p id="template-result" role="status"></p></section>
+<section class="panel"><h2>以降の設定はこの管理画面だけ</h2><p><a href="/settings">表示設定を開く</a> → 縦横・文言・改行・色・フォントを変更 →「保存してOBSに反映」。テンプレートを交換する必要はありません。</p><p>標準の縦480×600・横1200×240は同じOBSの枠内に表示します。自由編集で1200×600を超える場合だけOBSの枠も広げてください。</p><p>わんコメで本プラグインを有効にしてください。OBSを先に開いた場合は自動で起動を待ちます。</p></section>
+<section class="panel"><h2>OBSドックでも管理できます</h2><button id="copy-control" type="button">管理用URLをコピー</button><p id="connection-result" role="status"></p><p>OBSの「ドック」→「カスタムブラウザドック」へ登録できます。管理用URLは操作権限を含むため共有しないでください。</p></section>
+</main><script src="/static/auth.js"></script><script src="/static/fonts.js"></script><script src="/static/onecomme-obs-setup.js"></script></body></html>

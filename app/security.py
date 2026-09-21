@@ -64,9 +64,10 @@ class LocalSecurityMiddleware:
         # Permit only the top-level, read-only HTML entry point. This never
         # authenticates API requests or permits cross-site fetches/iframes.
         control_navigation = (self.onecomme and scope["method"] == "GET"
-                              and scope["path"] == "/control"
+                              and scope["path"] in {"/control", "/onecomme-overlay"}
                               and headers.get(b"sec-fetch-mode") == "navigate"
-                              and headers.get(b"sec-fetch-dest") == "document")
+                              and (headers.get(b"sec-fetch-dest") == "document" or
+                                   (scope["path"] == "/onecomme-overlay" and headers.get(b"sec-fetch-dest") == "iframe")))
         if headers.get(b"sec-fetch-site") == "cross-site" and not control_navigation:
             return await JSONResponse({"detail": "外部サイトからの接続を拒否しました"}, 403)(scope, receive, send)
         path = scope["path"]
@@ -123,6 +124,11 @@ class LocalSecurityMiddleware:
             if message["type"] == "http.response.start":
                 extra = [(b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer"),
                     (b"content-security-policy", b"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'self'; connect-src 'self'; img-src 'self' data: https://*.ggpht.com https://ggpht.com https://*.googleusercontent.com https://googleusercontent.com; object-src 'none'; base-uri 'none'")]
+                if self.onecomme and scope["method"] == "GET" and path == "/onecomme-overlay":
+                    # Only this public, read-only display can be framed by an
+                    # OBS local-file template (opaque origin) or OneComme page.
+                    extra = [(key, value.replace(b"frame-ancestors 'self'; ", b""))
+                             if key == b"content-security-policy" else (key, value) for key, value in extra]
                 if path != "/api/overlay-state":
                     extra.append((b"cache-control", b"no-store"))
                 message = {**message, "headers": list(message.get("headers", [])) + extra}

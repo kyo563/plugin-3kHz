@@ -48,7 +48,7 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
             # SQLite connections close after each operation; release service/cache references.
             del application.state.services
 
-    application = FastAPI(title="待機列整理アプリ", lifespan=lifespan)
+    application = FastAPI(title="待機列整理アプリ" if onecomme else "待機列整理アプリ", lifespan=lifespan)
     @application.exception_handler(ParticipationCountLimitError)
     async def count_limit_error(request: Request, exc: ParticipationCountLimitError):
         return JSONResponse({"detail": str(exc)}, status_code=409)

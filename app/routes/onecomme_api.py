@@ -1,9 +1,24 @@
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, Field, model_validator
 import re
+import io
+import zipfile
+from pathlib import Path
+from fastapi.responses import Response
 from app.schemas.comment import ReceivedComment
 
 router = APIRouter()
+
+
+@router.get('/api/onecomme/template')
+def download_template():
+    folder = Path(__file__).resolve().parents[2] / 'static' / 'onecomme-template'
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for name in ('index.html', 'script.js', 'style.css', 'template.json'):
+            archive.writestr('taikiretsu-display/' + name, (folder / name).read_bytes())
+    return Response(output.getvalue(), media_type='application/zip', headers={
+        'Content-Disposition': 'attachment; filename="Taikiretsu-Template.zip"'})
 
 
 class Event(BaseModel):

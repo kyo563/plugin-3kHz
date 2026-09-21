@@ -1,4 +1,4 @@
-"""Separate local prototype artifact. Does not touch standalone release files."""
+"""Separate OneComme release artifact. Does not touch standalone release files."""
 import hashlib
 import importlib.metadata as metadata
 import json
@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    output = ROOT / 'dist' / 'onecomme-prototype'
+    output = ROOT / 'dist' / 'onecomme-release-1.0.0'
     target = output / 'sankagata-seiretsu'
     target.mkdir(parents=True, exist_ok=True)
     source = ROOT / 'dist' / 'onecomme-worker' / 'runtime'
@@ -34,7 +34,11 @@ def main():
                     shutil.copyfile(file, dest / str(item).replace('..', '_').replace('/', '_').replace('\\', '_'))
     license = Path(sys.base_prefix) / 'LICENSE.txt'
     if license.is_file(): shutil.copyfile(license, notices / 'Python-LICENSE.txt')
-    archive = output / 'Sankagata-Seiretsu-OneComme-0.1.1-prototype-windows-x64.zip'
+    template = target / 'Taikiretsu-Template.zip'
+    with zipfile.ZipFile(template, 'w', zipfile.ZIP_DEFLATED) as z:
+        for file in sorted((ROOT / 'static' / 'onecomme-template').iterdir()):
+            if file.is_file(): z.write(file, Path('taikiretsu-display') / file.name)
+    archive = output / 'Taikiretsu-Seiri-App-OneComme-1.0.0-windows-x64.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
         for file in sorted(target.rglob('*')):
             if file.is_file(): z.write(file, file.relative_to(output))
