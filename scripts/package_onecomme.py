@@ -34,7 +34,7 @@ def main():
                     shutil.copyfile(file, dest / str(item).replace('..', '_').replace('/', '_').replace('\\', '_'))
     license = Path(sys.base_prefix) / 'LICENSE.txt'
     if license.is_file(): shutil.copyfile(license, notices / 'Python-LICENSE.txt')
-    archive = output / 'Sankagata-Seiretsu-OneComme-0.1.0-prototype-windows-x64.zip'
+    archive = output / 'Sankagata-Seiretsu-OneComme-0.1.1-prototype-windows-x64.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
         for file in sorted(target.rglob('*')):
             if file.is_file(): z.write(file, file.relative_to(output))

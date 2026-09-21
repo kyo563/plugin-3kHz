@@ -46,7 +46,7 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
     }
     return {
         name: '参加型整列プラグイン・わんコメ版（試作）',
-        uid: 'jp.kyo563.sankagata-seiretsu', version: '0.1.0', author: 'kyo563',
+        uid: 'jp.kyo563.sankagata-seiretsu', version: '0.1.1', author: 'kyo563',
         url: 'http://localhost:11180/plugins/jp.kyo563.sankagata-seiretsu/index.html',
         permissions: ['filter.comment'],
         init({dir}) {

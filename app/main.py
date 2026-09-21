@@ -58,7 +58,7 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
     application.state.overlay_seen = None
     application.state.overlay_lock = Lock()
     application.state.started_at = time.monotonic()
-    application.add_middleware(LocalSecurityMiddleware, keys=application.state.access_keys)
+    application.add_middleware(LocalSecurityMiddleware, keys=application.state.access_keys, onecomme=onecomme)
     application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     application.include_router(pages_router)
     application.include_router(font_router)

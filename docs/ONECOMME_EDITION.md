@@ -53,3 +53,6 @@ Python全体314件成功後、追加の旧版バックアップ移行を含む�
 
 最終ZIPを展開して3回連続で起動・参加・OBS・終了に成功。時刻境界の20ms許容を回帰検証。
 試作ZIP SHA256: f32158320d75a8dbcd1f139a938ddb9f959aed4a7bd2335dea39751ef07f7465
+
+## 0.1.1 管理ページ遷移修正
+わんコメlocalhostからワーカー127.0.0.1への遷移がcross-siteで拒否される問題を修正。わんコメ版のGET /control、navigate/documentのみ例外としAPI・Origin・iframe・fetchの制限は維持。独立版の動作変更なし。関連Python25/Node2と別ポートでの実HTTP遷移・API認証確認成功。利用中ワーカーを保全したため新版ワーカーの同ポート起動は未実施。Windows再ビルド済み。

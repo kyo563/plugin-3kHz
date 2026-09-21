@@ -35,7 +35,7 @@ async function main() {
             assert.equal(r.status, 200); return r.json();
         }
         stage = 'management-page';
-        const html = await (await fetch('http://127.0.0.1:18765/control')).text();
+        const html = await (await fetch('http://127.0.0.1:18765/control', {headers: {'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document'}})).text();
         assert.ok(html.includes('onecomme-stream')); assert.ok(!html.includes('youtube-key'));
         function event(id, message) { return {service: 'youtube', name: '試験配信', data: {id, liveId: 'test-stream', userId: 'UC' + 'a'.repeat(22), name: '試験参加者', timestamp: new Date().toISOString(), comment: message}}; }
         stage = 'discover-stream';

@@ -24,6 +24,22 @@ def test_variant_isolation_auth_and_pages(tmp_path):
             assert ('id="onecomme-stream"' in c.get('/control').text) == variant
 
 
+def test_onecomme_cross_site_navigation_does_not_relax_api_or_iframe_security(tmp_path):
+    navigation = {'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document'}
+    for variant in (True, False):
+        with TestClient(create_app(db_path=str(tmp_path / str(variant)), desktop=True, onecomme=variant), base_url='http://127.0.0.1') as c:
+            assert c.get('/control', headers=navigation).status_code == (200 if variant else 403)
+            assert c.get('/control', headers={**navigation, 'Sec-Fetch-Dest': 'iframe'}).status_code == 403
+            assert c.get('/control', headers={**navigation, 'Sec-Fetch-Mode': 'cors'}).status_code == 403
+            assert c.get('/control', headers={**navigation, 'Origin': 'http://localhost:11180'}).status_code == 403
+            assert c.get('/api/state', headers=navigation).status_code == 403
+            assert c.get('/api/state').status_code == 401
+            auth = {'Authorization': 'Bearer ' + c.app.state.access_keys.admin}
+            assert c.get('/api/state', headers={**navigation, **auth}).status_code == 403
+            assert c.post('/api/control/toggle-open', headers={**navigation, **auth}, json={}).status_code == 403
+            assert c.get('/api/state', headers=auth).status_code == 200
+
+
 def test_selection_history_identity_now_protection_refill_and_persistence(tmp_path):
     app = create_app(db_path=str(tmp_path / 'new.db'), desktop=True, onecomme=True)
     with TestClient(app, base_url='http://127.0.0.1') as c:

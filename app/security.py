@@ -37,8 +37,9 @@ class AccessKeys:
 
 
 class LocalSecurityMiddleware:
-    def __init__(self, app, keys: AccessKeys, max_body_bytes: int = 65536):
+    def __init__(self, app, keys: AccessKeys, max_body_bytes: int = 65536, onecomme: bool = False):
         self.app, self.keys, self.max_body_bytes = app, keys, max_body_bytes
+        self.onecomme = onecomme
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -59,7 +60,14 @@ class LocalSecurityMiddleware:
         origin = headers.get(b"origin")
         if origin is not None and origin != "http://" + host:
             return await JSONResponse({"detail": "許可されないOrigin"}, 403)(scope, receive, send)
-        if headers.get(b"sec-fetch-site") == "cross-site":
+        # OneComme's localhost page navigates to the worker on 127.0.0.1.
+        # Permit only the top-level, read-only HTML entry point. This never
+        # authenticates API requests or permits cross-site fetches/iframes.
+        control_navigation = (self.onecomme and scope["method"] == "GET"
+                              and scope["path"] == "/control"
+                              and headers.get(b"sec-fetch-mode") == "navigate"
+                              and headers.get(b"sec-fetch-dest") == "document")
+        if headers.get(b"sec-fetch-site") == "cross-site" and not control_navigation:
             return await JSONResponse({"detail": "外部サイトからの接続を拒否しました"}, 403)(scope, receive, send)
         path = scope["path"]
         public = path == "/api/overlay-state" or (scope["method"] == "GET" and re.fullmatch(r"/api/font-assets/[a-f0-9]{64}", path) is not None)
