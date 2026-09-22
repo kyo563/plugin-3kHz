@@ -1,0 +1,7 @@
+node_modules/
+.worker-build/
+.wrangler/
+.dev.vars*
+.env*
+*.log
+*.sqlite*

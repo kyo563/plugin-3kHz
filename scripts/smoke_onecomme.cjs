@@ -35,8 +35,23 @@ async function main() {
             assert.equal(r.status, 200); return r.json();
         }
         stage = 'management-page';
-        const html = await (await fetch('http://127.0.0.1:18765/control', {headers: {'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document'}})).text();
+        // Node fetch can replace Sec-Fetch-Mode with cors. Send the actual
+        // browser navigation headers through HTTP for this boundary test.
+        const html = await new Promise((resolve, reject) => {
+            require('node:http').get('http://127.0.0.1:18765/control', {headers: {'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document'}}, r => {
+                if (r.statusCode !== 200) { r.resume(); reject(new Error('navigation rejected')); return; }
+                let text = ''; r.setEncoding('utf8'); r.on('data', part => text += part); r.on('end', () => resolve(text));
+            }).on('error', reject);
+        });
         assert.ok(html.includes('onecomme-stream')); assert.ok(!html.includes('youtube-key'));
+        stage = 'bot-settings';
+        let bot = await api('/api/bot');
+        assert.equal(bot.settings.enabled, false);
+        assert.equal(bot.settings.interval_minutes, 30);
+        assert.equal(bot.authenticated, false);
+        bot = await api('/api/bot/settings', {enabled: false, announce_now: false, reply_position: true, periodic: false, interval_minutes: 15});
+        assert.equal(bot.settings.announce_now, false);
+        assert.equal(bot.settings.interval_minutes, 15);
         function event(id, message) { return {service: 'youtube', name: '試験配信', data: {id, liveId: 'test-stream', userId: 'UC' + 'a'.repeat(22), name: '試験参加者', timestamp: new Date().toISOString(), comment: message}}; }
         stage = 'discover-stream';
         plugin.filterComment(event('before', '参加希望'));

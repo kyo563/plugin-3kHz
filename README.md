@@ -2,6 +2,14 @@
 
 今後はこちらのわんコメプラグイン版を更新します。独立版1.1.3は変更せず維持します。
 
+## 共通Bot版0.1.2
+
+[0.1.2 検証版をダウンロード](https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v0.1.2)。Assets の `Taikiretsu-Seiri-App-OneComme-0.1.2-windows-x64.zip` を使用してください。
+
+ユーザー指定の番号0.1.2で、利用者個別OAuthを共通Bot方式へ置き換えました。NOW呼出し・本人の順番返信・15/30分の人数/組数案内を個別に切り替えられます。[接続・動作・制約](docs/BOT.md)。既存の待機列・OBS表示・プラグインUID・保存先は維持します。Bot投稿は運営側の有効化が必要で、実配信者認証と実投稿は未検証です。
+
+以下の1.0.0/1.1.0は以前の配布記録です。旧リリースと添付は変更していません。
+
 **[Bot追加版1.1.0（検証版）](https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v1.1.0)**：入室案内・本人への順位返信・参加方法の定期投稿を追加しました。[OAuthの準備と使い方](docs/BOT.md)。実アカウントでの投稿は未検証です。
 
 **[わんコメ版1.0.0をダウンロード](https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v1.0.0)**

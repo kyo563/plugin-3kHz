@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    output = ROOT / 'dist' / 'onecomme-release-1.1.0'
+    output = ROOT / 'dist' / 'onecomme-release-0.1.2'
     target = output / 'sankagata-seiretsu'
     target.mkdir(parents=True, exist_ok=True)
     source = ROOT / 'dist' / 'onecomme-worker' / 'runtime'
@@ -38,7 +38,7 @@ def main():
     with zipfile.ZipFile(template, 'w', zipfile.ZIP_DEFLATED) as z:
         for file in sorted((ROOT / 'static' / 'onecomme-template').iterdir()):
             if file.is_file(): z.write(file, Path('taikiretsu-display') / file.name)
-    archive = output / 'Taikiretsu-Seiri-App-OneComme-1.1.0-windows-x64.zip'
+    archive = output / 'Taikiretsu-Seiri-App-OneComme-0.1.2-windows-x64.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
         for file in sorted(target.rglob('*')):
             if file.is_file(): z.write(file, file.relative_to(output))

@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "joinqueue-bot-backend",
+  "account_id": "e8cc51f89ff31b5725c3b34ef608406b",
+  "main": "backend/cloudflare/worker.ts",
+  "compatibility_date": "2026-09-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "send_metrics": false,
+  "vars": {
+    "BOT_AUTH_ENABLED": "false",
+    "BOT_AUTH_EXPIRES_AT": "1790084710219",
+    "CHANNEL_CONNECT_ENABLED": "true",
+    "BOT_POSTING_ENABLED": "false",
+    "BOT_CHANNEL_ID": "UCV3VeoFI04L79MqwuApT-Hg"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "BOT_COORDINATOR", "class_name": "BotCoordinator" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BotCoordinator"] }],
+  "observability": { "enabled": false },
+  "dev": { "ip": "127.0.0.1", "port": 11182 }
+}

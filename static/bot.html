@@ -1,24 +1,25 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Botのお知らせ設定 — 待機列整理アプリ</title><link rel="stylesheet" href="/static/settings.css"><link rel="stylesheet" href="/static/bot.css"></head>
-<body><main><a href="/control">管理画面へ</a> · <a href="/settings">表示設定へ</a><h1>Botのお知らせ設定</h1>
-<section class="panel"><h2>利用するか選んでください</h2><p>Botは任意です。利用しなくても待機列を管理できます。投稿先はライブ連携で選択したYouTube配信のみです。</p>
-<form id="bot-form"><label><input id="bot-enabled" type="checkbox"> Botのお知らせを有効にする</label>
-<label><input id="bot-now" type="checkbox"> 入室案内：「次の対戦へ」で新しいNOWの参加者を通知</label><p>初回はNOWが3人そろったときに通知します。音声読み上げではなくコメント欄への投稿です。</p>
-<label><input id="bot-reply" type="checkbox"> Botへの@メンションに、本人の待機順位を返信</label><p>NOWを除き、NEXT先頭が1番目／第1グループです。同じ人への返信は30秒に1回までです。</p>
-<label><input id="bot-periodic" type="checkbox"> 受付中に参加方法を定期投稿</label>
-<label>投稿間隔<select id="bot-interval"><option value="10">10分</option><option value="30">30分</option></select></label>
-<label>参加方法（200文字まで）<textarea id="bot-guide" maxlength="200" rows="4" required></textarea></label>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>共通Bot設定 — 0.1.2</title><link rel="stylesheet" href="/static/settings.css"><link rel="stylesheet" href="/static/bot.css"></head>
+<body><main><a href="/control">管理画面へ</a> · <a href="/settings">表示設定へ</a><h1>共通Botのお知らせ設定 <small>0.1.2</small></h1>
+<section class="panel"><h2>通知を選ぶ</h2><p>Botを使わなくても待機列・OBS表示は利用できます。チェックの変更は保存後に反映されます。</p>
+<form id="bot-form">
+<label><input id="bot-now" type="checkbox"> 次の対戦へ進んだとき、NOWの3名をまとめて呼び出す</label>
+<label><input id="bot-reply" type="checkbox"> @JoinQueueBotへの呼びかけに本人の待機順・グループを返信する</label>
+<label><input id="bot-periodic" type="checkbox"> 待機人数・待機グループ数を定期案内する</label>
+<label>案内間隔<select id="bot-interval"><option value="15">15分</option><option value="30">30分</option></select></label>
+<p>人数・待機順はNOWを除きます。グループ番号は通算の対戦回数に基づきます。参加受付・辞退・完了のお礼、初回NOW補充時は投稿しません。同じ人への返信は60秒に1回までです。</p>
 <button type="submit">Bot設定を保存</button><p id="bot-save-result" role="status"></p></form></section>
-<section class="panel"><h2>Bot専用アカウント</h2><p id="bot-status" role="status">接続状況を確認しています…</p><p id="bot-last"></p>
-<p>専用のYouTubeチャンネルと@ハンドルを用意してください。わんコメのログインとは別に認証します。Bot自身のコメントは参加・辞退の対象から除外します。</p>
-<label>デスクトップアプリ用OAuthクライアントJSON<input id="bot-client" type="file" accept=".json,application/json"></label>
-<button id="bot-login" type="button">Googleログインを準備する</button><p><a id="bot-login-link" hidden target="_blank" rel="noreferrer noopener">GoogleでBot専用アカウントにログインする</a></p>
-<button id="bot-disconnect" type="button">Botの接続を解除</button><p id="bot-login-result" role="status"></p>
-<p>認証情報はWindowsのユーザーごとに暗号化して保存し、JSONバックアップや配布ZIPには含めません。接続解除でこのPCに保存した認証情報を削除します。Google側の許可はGoogleアカウントの接続管理から解除できます。</p></section>
-<section class="panel"><h2>初回のOAuth作成手順</h2><ol>
-<li>Google Cloud Consoleでプロジェクトを作り、YouTube Data API v3を有効にします。</li>
-<li>Google Auth Platformでアプリ情報・連絡先と対象ユーザーを設定します。テスト運用ではBotアカウントをテストユーザーに登録します。</li>
-<li>クライアントを作成し、種類を「デスクトップアプリ」にしてJSONをダウンロードします。APIキーではありません。</li>
-<li>上でJSONを選択してログインを準備し、表示されたリンクからBot専用アカウントで許可します。接続したチャンネル名を確認してからBotを有効にしてください。</li></ol>
-<p>テスト状態のOAuthは再認証が必要になる場合があります。配布者共通のログインを提供する場合はGoogleの公開・審査手続きが別途必要です。APIの利用上限や配信側の投稿制限により送信できない場合は、接続状況に表示します。</p>
-<p><a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer noopener">Google Cloud Console</a> · <a href="https://developers.google.com/identity/protocols/oauth2/native-app" target="_blank" rel="noreferrer noopener">Googleの設定手順</a></p></section>
-</main><script src="/static/auth.js"></script><script src="/static/bot.js"></script></body></html>
+<section class="panel"><h2>チャンネル接続と起動</h2>
+<p>① <a href="https://www.youtube.com/@JoinQueueBot" target="_blank" rel="noopener noreferrer">@JoinQueueBot</a> をモデレーターに登録<br>② 自分の配信チャンネルを接続<br>③ 管理画面のライブ連携で配信を選択し、Botを起動</p>
+<p>利用者ごとのBotアカウント・Google Cloud設定・OAuth JSONは不要です。Googleの画面では配信者自身のチャンネルを確認します。共通Botの認証情報はサーバーだけで保持します。</p>
+<p id="bot-status" role="status">確認中…</p><p id="bot-last"></p><p id="bot-next"></p>
+<button id="bot-connect" type="button">チャンネルを接続</button>
+<button id="bot-status-check" type="button">認証結果を確認</button>
+<p><a id="bot-login-link" hidden target="_blank" rel="noopener noreferrer">ブラウザーでチャンネルを認証する</a> <span id="bot-confirmation"></span></p>
+<button id="bot-check" type="button">接続確認（投稿なし）</button>
+<button id="bot-start" type="button">Botを起動</button>
+<button id="bot-stop" type="button">Botを停止</button><p id="bot-login-result" role="status"></p>
+<p>再起動時は停止状態です。停止・設定変更時に未送信通知を破棄します。送信済み・送信中の投稿は取り消せません。配信変更や接続切断時も停止します。実配信での接続・投稿確認は未完了です。</p>
+<details><summary>チャンネル接続を解除</summary><p>待機列・履歴は保持します。サーバーで接続を失効できない場合はキーを残し、通信復旧後にやり直します。</p>
+<label><input id="bot-disconnect-confirm" type="checkbox"> 接続を解除することを確認しました</label>
+<button id="bot-disconnect" type="button" disabled>接続を解除</button></details>
+</section></main><script src="/static/auth.js"></script><script src="/static/bot.js"></script></body></html>

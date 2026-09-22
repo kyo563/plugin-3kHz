@@ -1,9 +1,7 @@
 from datetime import datetime, timezone
 import json
 import os
-import time
-from urllib.parse import parse_qs, urlsplit
-
+from pathlib import Path
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -11,24 +9,17 @@ from app.main import create_app
 from app.schemas.comment import ReceivedComment
 from app.services.application_services import ApplicationServices
 from app.services.onecomme import OneCommeBridge
-from app.services.bot import AnnouncementBot, BotSettings, BotStore
-
+from app.services.bot import AnnouncementBot, BotSettings, BotStore, BOT_ORIGIN, BOT_ID, BotError
 
 class MemoryStore:
     def __init__(self): self.data = {}
     def read(self, key, default=None): return self.data.get(key, default)
     def write(self, key, value): self.data[key] = value
-    def forget_credentials(self): self.data.pop('credentials', None)
-    def save_connection(self, credentials, account):
-        self.write('credentials', credentials)
-        self.write('account', account)
-
 
 def comment(n, text='参加希望', message_id=None):
     return ReceivedComment(source='youtube', userKey='UC' + str(n).zfill(22), displayName='User' + str(n),
-                           externalMessageId=message_id or str(n) + text, message=text,
+                           youtubeHandle='@user' + str(n), externalMessageId=message_id or str(n) + text, message=text,
                            receivedAt=datetime.now(timezone.utc).isoformat())
-
 
 @pytest.fixture
 def setup_bot(tmp_path):
@@ -36,177 +27,166 @@ def setup_bot(tmp_path):
     bridge = OneCommeBridge(services)
     bridge.frames['abcdefghijk'] = 'Test'
     bridge.select('abcdefghijk'); bridge.heartbeat()
-    sent = []
+    sent, calls = [], []
     def transport(request):
-        if request.url.path.endswith('/token'):
-            return httpx.Response(200, json={'access_token': 'access-secret', 'refresh_token': 'refresh-secret', 'expires_in': 3600})
-        if request.url.path.endswith('/channels'):
-            return httpx.Response(200, json={'items': [{'id': 'UC' + '9'*22, 'snippet': {'title': 'Test Bot', 'customUrl': '@testbot'}}]})
-        if request.url.path.endswith('/videos'):
-            return httpx.Response(200, json={'items': [{'liveStreamingDetails': {'activeLiveChatId': 'chat'}}]})
-        sent.append(json.loads(request.content)['snippet']['textMessageDetails']['messageText'])
-        return httpx.Response(200, json={'id': 'sent'})
+        assert str(request.url).startswith(BOT_ORIGIN + '/')
+        assert request.headers['Authorization'].startswith('Bearer ')
+        calls.append(request)
+        if request.url.path.endswith('/posts'):
+            sent.append(json.loads(request.content))
+            return httpx.Response(200, json={'status': 'sent'})
+        if request.url.path.endswith('/start'):
+            return httpx.Response(200, json={'authorizationUrl': BOT_ORIGIN + '/connect?session=test', 'confirmation': '1234abcd', 'expiresAt': 2000000000000})
+        return httpx.Response(200, json={'status': 'connected', 'channelId': 'UC' + '9'*22,
+                            'connectionId': '11111111-1111-4111-8111-111111111111', 'serviceEnabled': True})
     now = [100.0]
     bot = AnnouncementBot(services, bridge, MemoryStore(), client=httpx.Client(transport=httpx.MockTransport(transport)), clock=lambda: now[0])
     services.bot = bridge.bot = bot
-    bot.account = {'id': 'UC' + '9'*22, 'name': 'Bot', 'handle': '@testbot'}
-    bot.credentials = {'client_id': 'client.apps.googleusercontent.com', 'client_secret': 'client-secret', 'refresh_token': 'refresh-secret'}
-    yield bot, bridge, services, now, sent
+    yield bot, bridge, services, now, sent, calls
     bot.stop()
 
+def activate(bot):
+    bot.command('connect'); bot.command('status'); bot.command('start')
 
-def test_disabled_defaults_self_exclusion_and_persistence(setup_bot):
-    bot, bridge, services, now, sent = setup_bot
-    own = comment(999); own.user_key = bot.account['id']
-    bridge.receive('abcdefghijk', 'Test', own)
-    services.receive_comment(own)
+def test_disabled_defaults_self_exclusion_persistence_and_no_google_secrets(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    own = comment(999); own.user_key = BOT_ID
+    bridge.receive('abcdefghijk', 'Test', own); services.receive_comment(own)
     assert services.build_view_state()['current'] == []
-    bot.tick(); assert not sent
-    bot.configure(BotSettings(enabled=True, interval_minutes=30, announce_now=False))
-    assert bot.store.data['settings']['interval_minutes'] == 30
-    assert 'credentials' not in bot.status() and 'refresh-secret' not in str(bot.status())
+    bot.tick(); assert not sent and not calls
+    activate(bot)
+    bot.configure(BotSettings(enabled=True, interval_minutes=15, announce_now=False))
+    assert bot.store.data['shared_settings']['interval_minutes'] == 15
+    assert bot.store.data['shared_settings']['enabled'] is False
+    assert bot.device not in str(bot.status())
+    restored = AnnouncementBot(services, bridge, bot.store, client=httpx.Client(transport=httpx.MockTransport(lambda r: pytest.fail('network'))))
+    assert not restored.running and restored.settings.interval_minutes == 15
+    restored.stop()
     bot.disconnect()
-    assert bot.is_self(own)
-    assert not bot.status()['authenticated']
-
-
-def test_now_next_announcements_and_no_duplicate_or_stale_group(setup_bot):
-    bot, bridge, services, now, sent = setup_bot
-    bot.configure(BotSettings(enabled=True))
-    for i in range(6): services.receive_comment(comment(i))
-    bot.tick()
-    assert sent == ['User0さん、User1さん、User2さん 入室お願いします']
-    now[0] += 6; bot.announce(); bot.tick(); assert len(sent) == 1
-    services.move_next(); bot.tick()
-    assert sent[-1] == 'User3さん、User4さん、User5さん 入室お願いします'
-    assert len(sent) == 2
-    now[0] += 6
-    services.move_next(); bot.tick(); assert len(sent) == 2
-
-
-def test_position_uses_id_next_included_and_no_join_in_query(setup_bot):
-    bot, bridge, services, now, sent = setup_bot
-    bot.configure(BotSettings(enabled=True, announce_now=False))
-    for i in range(8): services.receive_comment(comment(i))
-    bot.tick()
-    bridge.receive('abcdefghijk', 'Test', comment(6, '@testbot 順番は？ 参加辞退'))
-    bot.tick(); assert sent[-1] == '@User6さんは4番目/第2グループです'
-    assert len(services.build_view_state()['waiting']) == 5
-    now[0] += 6
-    bridge.receive('abcdefghijk', 'Test', comment(6, '@testbot 順番は？', 'repeat'))
-    bot.tick(); assert len(sent) == 1
-    bridge.receive('abcdefghijk', 'Test', comment(1, '@testbot 順番は？'))
-    bot.tick(); assert 'NOW' in sent[-1]
-    now[0] += 6
-    bridge.receive('abcdefghijk', 'Test', comment(50, '@testbot 順番は？'))
-    bot.tick(); assert '登録されていません' in sent[-1]
-    assert not bot.receive(comment(60, '@testbot-other 参加希望'))
-
-
-def test_timer_features_disable_selection_and_heartbeat(setup_bot):
-    bot, bridge, services, now, sent = setup_bot
-    bot.configure(BotSettings(enabled=True, announce_now=False, guide='参加希望'))
-    bot.tick(); now[0] += 601; bot.tick()
-    assert sent == ['参加希望']
-    services.toggle_open(); now[0] += 601; bot.tick(); assert len(sent) == 1
-    bot.configure(BotSettings(enabled=False)); now[0] += 601; bot.tick(); assert len(sent) == 1
-    bot.configure(BotSettings(enabled=True, announce_now=False))
-    bot.receive(comment(20, '@testbot')); bridge.select(''); bot.tick(); assert len(sent) == 1
-    bridge.select('abcdefghijk'); bridge.heartbeat_at = 0
-    now[0] += 601; bot.tick(); assert len(sent) == 1
-    assert not bot.status()['ready']
-
-
-def test_oauth_pkce_state_and_account_exclusion(setup_bot):
-    bot, bridge, services, now, sent = setup_bot
-    url = bot.begin_login({'installed': {'client_id': 'test.apps.googleusercontent.com', 'client_secret': 'secret'}})
-    query = parse_qs(urlsplit(url).query)
-    assert query['code_challenge_method'] == ['S256']
-    redirect = query['redirect_uri'][0]
-    with httpx.Client(trust_env=False) as c:
-        assert c.get(redirect, params={'state': 'wrong', 'code': 'code'}).status_code == 400
-        assert bot.status()['login_pending']
-        assert c.get(redirect, params={'state': query['state'][0], 'code': 'code'}).status_code == 200
-    assert bot.status()['account']['handle'] == '@testbot'
-    assert bot.store.data['credentials']['refresh_token'] == 'refresh-secret'
-    assert not bot.settings.enabled
+    assert bot.is_self(own) and not bot.status()['authenticated']
     assert not sent
 
-
-def test_no_retry_for_ambiguous_post_and_stale_queue(setup_bot):
-    bot, bridge, services, now, sent = setup_bot
-    bot.configure(BotSettings(enabled=True, announce_now=False))
-    bot.tick()
-    bot.receive(comment(1, '@testbot 順番'))
-    now[0] += 61
+def test_only_next_group_notifies_once_and_never_join_leave(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    for i in range(7): services.receive_comment(comment(i))
     bot.tick(); assert not sent
-    bot.receive(comment(2, '@testbot 順番'))
-    bot.http.close()
+    services.move_next(); bot.tick()
+    assert len(sent) == 1 and sent[0]['templateId'] == 'called'
+    assert [u['handle'] for u in sent[0]['variables']['members']] == ['@user3', '@user4', '@user5']
+    assert sent[0]['variables']['group'] == 2
+    now[0] += 10; bot.announce(); bot.tick(); assert len(sent) == 1
+    services.move_next(); bot.tick()
+    assert len(sent[-1]['variables']['members']) == 1
+    assert sent[-1]['variables']['group'] == 3
+
+def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    for i in range(8): services.receive_comment(comment(i))
+    bridge.receive('abcdefghijk', 'Test', comment(6, '@JoinQueueBot @user7 順番？'))
+    bot.tick()
+    assert sent[-1]['variables'] == {'name':'@user6','handle':'@user6','state':'waiting','position':4,'group':3}
+    assert sent[-1]['recipient']['userId'] == comment(6).user_key
+    now[0] += 10; bot.receive(comment(6, '@JoinQueueBot', 'again')); bot.tick(); assert len(sent) == 1
+    bot.receive(comment(1, '@JoinQueueBot')); bot.tick(); assert sent[-1]['variables']['state'] == 'now'
+    now[0] += 10; bot.receive(comment(50, '@JoinQueueBot')); bot.tick(); assert sent[-1]['variables']['state'] == 'not-queued'
+    assert not bot.receive(comment(60, '@JoinQueueBot-other'))
+    assert not bot.receive(comment(60, '@@JoinQueueBot'))
+
+@pytest.mark.parametrize('mask', range(8))
+def test_three_switches_all_combinations(setup_bot, mask):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    bot.configure(BotSettings(enabled=True, announce_now=bool(mask & 1), reply_position=bool(mask & 2), periodic=bool(mask & 4), interval_minutes=15))
+    for i in range(6): services.receive_comment(comment(i))
+    services.move_next(); bot.tick()
+    now[0] += 10; bot.receive(comment(4, '@JoinQueueBot')); bot.tick()
+    now[0] = 100 + 15*60; bot.tick()
+    assert [s['templateId'] for s in sent] == [k for i,k in enumerate(('called','position','announcement')) if mask & (1 << i)]
+
+def test_timer_counts_interval_off_on_sleep_stop_and_disconnect(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    for i in range(7): services.receive_comment(comment(i))
+    bot.tick(); assert not sent
+    now[0] += 1800; bot.tick()
+    assert sent[-1]['variables'] == {'waitingCount':4,'groupCount':2,'groupSize':3}
+    bot.configure(BotSettings(enabled=True, periodic=False, interval_minutes=15))
+    now[0] += 1800; bot.tick(); assert len(sent) == 1 and bot.running
+    bot.configure(BotSettings(enabled=True, periodic=True, interval_minutes=15))
+    bot.tick(); now[0] += 899; bot.tick(); assert len(sent) == 1
+    now[0] += 1; bot.tick(); assert len(sent) == 2
+    now[0] += 5400; bot.tick(); assert len(sent) == 2
+    bridge.heartbeat_at = 0; bot.tick(); assert not bot.running
+    now[0] += 900; bot.tick(); assert len(sent) == 2
+
+def test_no_replay_after_switch_off_and_no_old_google_auth_read(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.store.data['credentials'] = {'refresh_token':'old-secret'}
+    bot.store.data['settings'] = {'enabled':True, 'interval_minutes':10, 'guide':'old'}
+    restored = AnnouncementBot(services, bridge, bot.store, client=httpx.Client(transport=httpx.MockTransport(lambda r: pytest.fail('network'))))
+    assert not restored.running and restored.device is None and restored.settings.interval_minutes == 30
+    assert 'old-secret' not in str(restored.status()); restored.stop()
+    activate(bot); bot.receive(comment(6, '@JoinQueueBot'))
+    bot.configure(BotSettings(enabled=True, reply_position=False))
+    bot.configure(BotSettings(enabled=True)); now[0] += 10; bot.tick(); assert not sent
+    assert bot.store.data['credentials']['refresh_token'] == 'old-secret'
+
+def test_ambiguous_post_stops_and_never_retries(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot); bot.receive(comment(6, '@JoinQueueBot'))
     attempts = []
     def fail(request):
-        attempts.append(request)
-        raise httpx.ReadTimeout('uncertain')
-    bot.http = httpx.Client(transport=httpx.MockTransport(fail))
-    with pytest.raises(httpx.ReadTimeout): bot.tick()
-    now[0] += 6; bot.tick()
-    assert len(attempts) == 1
+        attempts.append(request); raise httpx.ReadTimeout('PRIVATE')
+    bot.http.close(); bot.http = httpx.Client(transport=httpx.MockTransport(fail))
+    bot.tick(); now[0] += 60; bot.tick()
+    assert len(attempts) == 1 and not bot.running and 'PRIVATE' not in bot.error
 
+def test_disconnect_failure_retains_key_and_redacts_provider_response(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot); token = bot.device
+    bot.http.close()
+    bot.http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500, json={'error':{'message':token}})))
+    with pytest.raises(BotError): bot.disconnect()
+    assert bot.device == token and bot.store.data['shared_device'] == token
+    assert not bot.running and token not in str(bot.status())
 
-def test_disconnected_during_oauth_does_not_restore_credentials(setup_bot):
-    bot, bridge, services, now, sent = setup_bot
-    url = bot.begin_login({'installed': {'client_id': 'test.apps.googleusercontent.com', 'client_secret': 'secret'}})
-    query = parse_qs(urlsplit(url).query)
-    old_request = bot._request
-    def cancel(method, url, **kwargs):
-        result = old_request(method, url, **kwargs)
-        if url.endswith('/channels'):
-            bot.disconnect()
-        return result
-    bot._request = cancel
-    with httpx.Client(trust_env=False) as c:
-        c.get(query['redirect_uri'][0], params={'state': query['state'][0], 'code': 'code'})
-    assert not bot.credentials
-    assert 'credentials' not in bot.store.data
-
+def test_start_response_cannot_undo_concurrent_stop(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.command('connect')
+    def stop_during_check(request):
+        bot.pause()
+        return httpx.Response(200,json={'status':'connected','channelId':'UC'+'9'*22,'connectionId':'11111111-1111-4111-8111-111111111111','serviceEnabled':True})
+    bot.http.close(); bot.http = httpx.Client(transport=httpx.MockTransport(stop_during_check))
+    with pytest.raises(BotError): bot.command('start')
+    assert not bot.running
 
 @pytest.mark.skipif(os.name != 'nt', reason='Windows DPAPI')
-def test_credentials_are_encrypted_and_removed(tmp_path):
-    path = tmp_path/'bot.sqlite3'
-    store = BotStore(path)
-    secret = {'refresh_token': 'secret-refresh-token-test'}
-    store.write('credentials', secret)
-    assert store.read('credentials') == secret
-    assert b'secret-refresh-token-test' not in path.read_bytes()
-    store.forget_credentials(); assert store.read('credentials') is None
-    store.save_connection(secret, {'id': 'test'})
-    assert store.read('credentials') == secret
-    assert store.read('account')['id'] == 'test'
+def test_device_key_is_encrypted_without_touching_legacy_records(tmp_path):
+    path = tmp_path/'bot.sqlite3'; store = BotStore(path)
+    store.write('credentials', {'refresh_token':'legacy-test'})
+    store.write('shared_device', 'device-test')
+    assert store.read('shared_device') == 'device-test'
+    assert b'device-test' not in path.read_bytes()
+    store.write('shared_device', None)
+    assert store.read('shared_device') is None
+    assert store.read('credentials') == {'refresh_token':'legacy-test'}
 
-
-def test_token_refresh_cannot_restore_disconnected_session(setup_bot):
-    bot, bridge, services, now, sent = setup_bot
-    def disconnect_on_refresh(request):
-        bot.disconnect()
-        return httpx.Response(200, json={'access_token': 'old-token', 'expires_in': 3600})
-    bot.http.close()
-    bot.http = httpx.Client(transport=httpx.MockTransport(disconnect_on_refresh))
-    with pytest.raises(ValueError): bot._access_token()
-    assert bot.token == ''
-    assert not bot.status()['authenticated']
-
-
-def test_bot_api_admin_only_variant_and_validations(tmp_path):
+def test_api_local_auth_legacy_endpoint_removed_and_disconnect_confirmation(tmp_path):
     with TestClient(create_app(db_path=str(tmp_path/'q'), desktop=True, onecomme=True), base_url='http://127.0.0.1') as c:
         assert c.get('/api/bot').status_code == 401
         c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.ingest
-        assert c.post('/api/bot/settings', json={'enabled': True}).status_code == 401
+        assert c.post('/api/bot/connection', json={'action':'connect'}).status_code == 401
         c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
-        assert c.get('/api/bot').json()['settings']['enabled'] is False
-        assert c.post('/api/bot/settings', json={'interval_minutes': 7}).status_code == 422
-        assert c.post('/api/bot/login', json={'installed': {}}).status_code == 422
-        assert c.get('/bot').status_code == 200
-        assert '/bot' in c.get('/control').text
+        assert c.post('/api/bot/settings', json={'interval_minutes':10}).status_code == 422
+        assert c.post('/api/bot/settings', json={'enabled':True}).status_code == 422
+        assert c.post('/api/bot/settings', json={'periodic':'false'}).status_code == 422
+        assert c.post('/api/bot/login', json={'installed':{}}).status_code == 404
+        assert c.post('/api/bot/disconnect', json={}).status_code == 422
+        assert c.post('/api/bot/connection', json={'action':'stop','url':'https://evil.invalid'}).status_code == 422
+        html = c.get('/bot').text
+        assert '0.1.2' in html and 'id="bot-client"' not in html
     with TestClient(create_app(db_path=str(tmp_path/'old'), desktop=True), base_url='http://127.0.0.1') as c:
         c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
-        assert c.get('/api/bot').status_code == 404
-        assert c.get('/bot').status_code == 404
+        assert c.get('/api/bot').status_code == 404 and c.get('/bot').status_code == 404

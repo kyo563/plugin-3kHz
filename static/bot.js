@@ -1,55 +1,61 @@
 (() => {
   const el = id => document.getElementById(id);
+  let current, busy = false;
   async function call(path, value) {
-    const r = await fetch('/api/bot' + path, value === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(value)});
-    const data = await r.json();
-    if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : '設定内容を確認してください');
+    const response = await fetch('/api/bot' + path, value === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(value)});
+    const data = await response.json();
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : '設定内容を確認してください');
     return data;
   }
   function status(s) {
-    const name = s.account.name ? `${s.account.name} ${s.account.handle || ''}` : '未接続';
-    el('bot-status').textContent = `${name}：${s.error || (s.ready ? '投稿準備OK' : s.authenticated ? (s.settings.enabled ? '配信の選択・接続を待っています' : 'ログイン済み／Bot無効') : s.login_pending ? 'Googleログイン待ち' : 'Googleログインが必要です')}`;
+    current = s;
+    el('bot-status').textContent = s.error || (s.ready ? 'Bot稼働中' : s.authenticated ? 'チャンネル接続済み／停止中' : s.login_pending ? 'チャンネル認証待ち' : 'Bot停止中／未接続');
+    if (s.channel_id) el('bot-status').textContent += ' · 配信チャンネル ' + s.channel_id;
     el('bot-last').textContent = s.last_result || '';
-    if (s.authenticated && !s.account.handle) el('bot-status').textContent += '。@ハンドルが確認できないため順位返信は利用できません。';
+    el('bot-next').textContent = !s.settings.periodic ? '定期案内：オフ' : s.next_announcement_seconds === null ? '定期案内：停止中' : '次の定期案内まで約' + Math.ceil(s.next_announcement_seconds / 60) + '分';
+    const link = el('bot-login-link');
+    link.hidden = true; link.removeAttribute('href');
+    if (s.authorization_url) {
+      const url = new URL(s.authorization_url);
+      if (url.origin === 'https://joinqueue-bot-backend.joinqueue.workers.dev' && url.pathname === '/connect' && !url.username && !url.password && !url.hash) {
+        link.href = url.href; link.hidden = false;
+      }
+    }
+    el('bot-confirmation').textContent = s.confirmation ? '照合番号：' + s.confirmation : '';
   }
+  const interval = () => { el('bot-interval').disabled = !el('bot-periodic').checked; };
+  el('bot-periodic').addEventListener('change', interval);
   call('').then(s => {
-    const c = s.settings;
-    el('bot-enabled').checked = c.enabled;
-    el('bot-now').checked = c.announce_now;
-    el('bot-reply').checked = c.reply_position;
-    el('bot-periodic').checked = c.periodic;
-    el('bot-interval').value = String(c.interval_minutes);
-    el('bot-guide').value = c.guide;
-    status(s);
-  }).catch(e => el('bot-status').textContent = e.message);
+    el('bot-now').checked = s.settings.announce_now; el('bot-reply').checked = s.settings.reply_position;
+    el('bot-periodic').checked = s.settings.periodic; el('bot-interval').value = String(s.settings.interval_minutes);
+    interval(); status(s);
+  }).catch(e => { el('bot-status').textContent = e.message; });
   el('bot-form').addEventListener('submit', async e => {
-    e.preventDefault();
+    e.preventDefault(); if (busy || !current) return; busy = true;
     try {
-      status(await call('/settings', {enabled: el('bot-enabled').checked, announce_now: el('bot-now').checked,
-        reply_position: el('bot-reply').checked, periodic: el('bot-periodic').checked,
-        interval_minutes: Number(el('bot-interval').value), guide: el('bot-guide').value}));
+      status(await call('/settings', {enabled: current.ready, announce_now: el('bot-now').checked,
+        reply_position: el('bot-reply').checked, periodic: el('bot-periodic').checked, interval_minutes: Number(el('bot-interval').value)}));
       el('bot-save-result').textContent = '保存しました。';
     } catch (error) { el('bot-save-result').textContent = error.message; }
+    finally { busy = false; }
   });
-  el('bot-login').addEventListener('click', async () => {
-    el('bot-login').disabled = true;
-    try {
-      const file = el('bot-client').files[0];
-      if (!file || file.size > 16384) throw new Error('OAuthクライアントJSONを選んでください（16KBまで）');
-      const result = await call('/login', JSON.parse(await file.text()));
-      const url = new URL(result.url);
-      if (url.origin !== 'https://accounts.google.com') throw new Error('ログインURLが不正です');
-      el('bot-login-link').href = url.href; el('bot-login-link').hidden = false;
-      el('bot-client').value = '';
-      el('bot-login-result').textContent = '上のリンクからBot専用アカウントでログインしてください。';
-    } catch (error) { el('bot-login-result').textContent = error.message; }
-    finally { el('bot-login').disabled = false; }
-  });
+  for (const [id, action] of Object.entries({'bot-connect':'connect', 'bot-status-check':'status', 'bot-check':'check', 'bot-start':'start', 'bot-stop':'stop'})) {
+    el(id).addEventListener('click', async () => {
+      if (busy && action !== 'stop') return;
+      busy = true;
+      try { status(await call('/connection', {action})); el('bot-login-result').textContent = '操作を反映しました。'; }
+      catch (error) { el('bot-login-result').textContent = error.message; }
+      finally { busy = false; }
+    });
+  }
+  el('bot-disconnect-confirm').addEventListener('change', () => { el('bot-disconnect').disabled = !el('bot-disconnect-confirm').checked; });
   el('bot-disconnect').addEventListener('click', async () => {
-    try { status(await call('/disconnect', {})); el('bot-login-link').hidden = true; }
+    if (busy || !el('bot-disconnect-confirm').checked) return;
+    busy = true;
+    try { status(await call('/disconnect', {confirmation: '接続を解除'})); el('bot-disconnect-confirm').checked = false; el('bot-disconnect').disabled = true; }
     catch (error) { el('bot-login-result').textContent = error.message; }
+    finally { busy = false; }
   });
-  let busy = false;
   setInterval(async () => {
     if (busy || document.hidden) return;
     busy = true;

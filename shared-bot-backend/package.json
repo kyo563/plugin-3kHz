@@ -1,0 +1,24 @@
+{
+  "name": "joinqueue-shared-bot-backend",
+  "version": "0.1.2",
+  "private": true,
+  "description": "人数整理アプリに統合するための、わんコメ待機列・共通Bot連携開発モジュール",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "node scripts/build-worker.mjs",
+    "check": "tsc --noEmit && tsx --test tests/*.test.ts && node scripts/build-worker.mjs",
+    "worker:dry-run": "wrangler deploy --dry-run --outdir .worker-build/wrangler"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260921.1",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "miniflare": "5.20260918.0-alpha",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.135.0"
+  }
+}

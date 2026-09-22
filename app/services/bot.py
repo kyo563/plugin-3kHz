@@ -1,51 +1,58 @@
-"""Opt-in YouTube announcements. Reception continues through OneComme only."""
-import base64
+"""Shared Bot: OneComme receives comments; Google credentials stay on the server."""
 import ctypes
 from ctypes import wintypes
 from collections import OrderedDict, deque
 from contextlib import contextmanager
 import hashlib
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import math
-from pathlib import Path
 import re
 import secrets
 import sqlite3
-from threading import Event, RLock, Thread
+from threading import Event, Lock, RLock, Thread
 import time
-from urllib.parse import parse_qs, urlencode, urlsplit
-
+from urllib.parse import urlsplit
+from uuid import uuid4
 import httpx
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, StrictBool, field_validator
 from app.services.user_identity_service import UserIdentityService
 
-SCOPE = 'https://www.googleapis.com/auth/youtube.force-ssl'
-DEFAULT_GUIDE = '参加希望とコメントしてください。ゲーム内の名前が異なる場合は「参加希望 『名前』」。待機中の辞退は「参加辞退」。'
-
+BOT_ORIGIN = 'https://joinqueue-bot-backend.joinqueue.workers.dev'
+BOT_ID = 'UCV3VeoFI04L79MqwuApT-Hg'
+BOT_HANDLE = '@JoinQueueBot'
+ERRORS = {
+    'SERVICE_DISABLED': '共通Botは運営側で停止中です。',
+    'UNAUTHENTICATED': '接続が失効しました。接続解除後に再接続してください。',
+    'CHANNEL_NOT_LINKED': '配信チャンネルを接続してください。',
+    'CHANNEL_MISMATCH': '接続したチャンネルと配信の所有者が一致しません。',
+    'LIVE_NOT_ACTIVE': 'わんコメで配信中のYouTube枠を選択してください。',
+    'CHAT_UNAVAILABLE': '対象配信のチャットを利用できません。',
+    'BOT_PERMISSION_REQUIRED': '@JoinQueueBotのモデレーター登録を確認してください。',
+    'RATE_LIMITED': '間隔が短すぎます。時間を空けてください。この通知は再送しません。',
+    'QUOTA_EXHAUSTED': '共通Botの利用上限に達しました。',
+    'INVALID_MESSAGE': '通知の名前の長さ・人数・形式を確認してください。',
+    'REQUEST_EXPIRED': '通知の期限が切れました。再送しません。',
+    'DELIVERY_UNKNOWN': '投稿結果が不明です。二重投稿を避けるため再送しません。',
+}
+class BotError(ValueError):
+    def __init__(self, code='UNAVAILABLE'):
+        self.code = code
+        super().__init__(ERRORS.get(code, '共通Botサーバーに接続できません。通知は再送しません。'))
 
 class BotSettings(BaseModel):
-    enabled: bool = False
-    announce_now: bool = True
-    reply_position: bool = True
-    periodic: bool = True
-    interval_minutes: int = 10
-    guide: str = Field(default=DEFAULT_GUIDE, min_length=1, max_length=200)
+    model_config = ConfigDict(extra='forbid')
+    enabled: StrictBool = False
+    announce_now: StrictBool = True
+    reply_position: StrictBool = True
+    periodic: StrictBool = True
+    interval_minutes: int = 30
 
-    @field_validator('interval_minutes')
+    @field_validator('interval_minutes', mode='before')
     @classmethod
-    def interval(cls, v):
-        if v not in (10, 30):
-            raise ValueError('10分または30分を指定してください')
-        return v
-
-    @field_validator('guide')
-    @classmethod
-    def guide_text(cls, v):
-        if not v.strip():
-            raise ValueError('参加方法を入力してください')
-        return ' '.join(v.split())
-
+    def interval(cls, value):
+        if type(value) is not int or value not in (15, 30):
+            raise ValueError('15分または30分を指定してください')
+        return value
 
 def protect(data: bytes, decrypt=False) -> bytes:
     """Windows user-bound DPAPI. Never fall back to plaintext."""
@@ -91,12 +98,12 @@ class BotStore:
             row = c.execute('SELECT value FROM bot_data WHERE key=?', (key,)).fetchone()
         if not row:
             return default
-        raw = protect(row[0], True) if key == 'credentials' else row[0]
+        raw = protect(row[0], True) if key in ('shared_device', 'credentials') else row[0]
         return json.loads(raw)
 
     def write(self, key, value):
         raw = json.dumps(value, ensure_ascii=False).encode('utf8')
-        if key == 'credentials':
+        if key in ('shared_device', 'credentials'):
             raw = protect(raw)
         with self.connection() as c:
             c.execute('INSERT OR REPLACE INTO bot_data VALUES (?,?)', (key, raw))
@@ -114,347 +121,310 @@ class BotStore:
 
 class AnnouncementBot:
     def __init__(self, services, bridge, store, *, client=None, clock=time.monotonic):
-        self.services, self.bridge, self.store = services, bridge, store
-        self.clock = clock
-        self.http = client or httpx.Client(timeout=10, trust_env=False)
-        self.lock, self.stopped = RLock(), Event()
-        self.settings = BotSettings(**(store.read('settings', {}) or {}))
-        self.account = store.read('account', {}) or {}
-        self.credentials = None
-        self.error = ''
+        self.services, self.bridge, self.store, self.clock = services, bridge, store, clock
+        self.http = client or httpx.Client(timeout=25, trust_env=False, follow_redirects=False)
+        self.lock, self.command_lock, self.send_lock = RLock(), Lock(), Lock()
+        self.stopped = Event()
+        raw = store.read('shared_settings')
+        if raw is None:
+            legacy = store.read('settings', {}) or {}
+            raw = {k: legacy[k] for k in ('announce_now', 'reply_position', 'periodic') if k in legacy}
+            raw['interval_minutes'] = legacy.get('interval_minutes') if legacy.get('interval_minutes') in (15, 30) else 30
+        self.settings = BotSettings(**raw).model_copy(update={'enabled': False})
+        self.device, self.error = None, ''
         try:
-            self.credentials = store.read('credentials')
+            device = store.read('shared_device')
+            if device is not None and (not isinstance(device, str) or not re.fullmatch(r'[A-Za-z0-9_-]{43}', device)):
+                raise ValueError()
+            self.device = device
         except Exception:
-            self.error = '保存したログイン情報を開けません。再接続してください。'
-        self.queue = deque(maxlen=100)
-        self.seen, self.reply_times = OrderedDict(), OrderedDict()
-        self.last_sent = -100.0
-        self.next_guide = self.clock() + self.settings.interval_minutes * 60
-        self.last_frame = ''
-        self.chat_id = ''
-        self.token = ''
-        self.expires = 0
-        self.retry_after = 0
-        self.last_result = ''
-        self.generation = 0
-        self.auth_server = None
-        self.auth_pending = None
-        self.auth_thread = None
-        self.now_events = OrderedDict()
-        self.thread = None
-        self.initial_announced = False
+            self.error = '保存した接続キーを復元できません。元のWindowsユーザーで開いてください。'
+        self.storage_error = bool(self.error)
+        # Old Google credentials are never read, reused, uploaded or deleted.
+        self.connection = self.authorization_url = self.confirmation = self.checked = None
+        self.running, self.active_video = False, ''
+        self.queue = deque(maxlen=20)
+        self.seen, self.reply_times, self.now_events = OrderedDict(), OrderedDict(), OrderedDict()
+        self.last_sent, self.next_guide, self.last_result = -100.0, None, ''
+        self.generation, self.thread = 0, None
 
     def start(self):
-        self.thread = Thread(target=self._run, daemon=True, name='queue-bot')
+        self.thread = Thread(target=self._run, daemon=True, name='shared-queue-bot')
         self.thread.start()
+
+    def pause(self):
+        with self.lock:
+            self.running, self.active_video = False, ''
+            self.generation += 1
+            self.queue.clear()
+            self.next_guide = self.checked = None
+            self.settings = self.settings.model_copy(update={'enabled': False})
 
     def stop(self):
         self.stopped.set()
-        with self.lock:
-            self.generation += 1
-            self.queue.clear()
-            self.auth_pending = None
+        self.pause()
         if self.thread:
-            self.thread.join(timeout=12)
-        if self.auth_thread:
-            self.auth_thread.join(timeout=22)
+            self.thread.join(timeout=27)
         self.http.close()
 
     def status(self):
         with self.lock:
-            return {'settings': self.settings.model_dump(), 'account': dict(self.account),
-                    'authenticated': bool(self.credentials),
-                    'ready': bool(self.settings.enabled and self.credentials and self.chat_id and not self.error),
-                    'error': self.error, 'last_result': self.last_result,
-                    'pending': len(self.queue), 'login_pending': self.auth_pending is not None,
-                    'needs_setup': not self.account}
+            return {'settings': self.settings.model_dump(),
+                    'account': {'id': BOT_ID, 'name': 'JoinQueueBot', 'handle': BOT_HANDLE},
+                    'authenticated': self.connection is not None, 'ready': self.running,
+                    'channel_id': self.connection['channelId'] if self.connection else None,
+                    'error': self.error, 'last_result': self.last_result, 'pending': len(self.queue),
+                    'authorization_url': self.authorization_url, 'confirmation': self.confirmation,
+                    'has_connection_key': self.device is not None, 'login_pending': bool(self.authorization_url),
+                    'next_announcement_seconds': max(0, math.ceil(self.next_guide - self.clock())) if self.running and self.next_guide is not None else None}
 
     def configure(self, settings):
         with self.lock:
-            self.store.write('settings', settings.model_dump())
+            if settings.enabled and not self.running:
+                raise ValueError('接続確認後に「Botを起動」を押してください。')
+            old = self.settings
+            self.store.write('shared_settings', settings.model_copy(update={'enabled': False}).model_dump())
             self.settings = settings
             self.generation += 1
             self.queue.clear()
-            self.next_guide = self.clock() + settings.interval_minutes * 60
-            self.retry_after = 0
-            self.error = ''
+            if not settings.enabled:
+                self.pause()
+            elif not settings.periodic:
+                self.next_guide = None
+            elif not old.periodic or old.interval_minutes != settings.interval_minutes:
+                self.next_guide = self.clock() + settings.interval_minutes * 60
         return self.status()
+
+    def _api(self, path, body=None):
+        if not self.device:
+            raise BotError('CHANNEL_NOT_LINKED')
+        try:
+            with self.http.stream('POST', BOT_ORIGIN + path, headers={'Authorization': 'Bearer ' + self.device},
+                                  json=body or {}, follow_redirects=False) as response:
+                raw = bytearray()
+                for part in response.iter_bytes():
+                    raw.extend(part)
+                    if len(raw) > 8192:
+                        raise BotError()
+                data = json.loads(raw)
+                if not isinstance(data, dict):
+                    raise BotError()
+                if not 200 <= response.status_code < 300:
+                    code = data.get('error', {}).get('code') if isinstance(data.get('error'), dict) else ''
+                    raise BotError(code if code in ERRORS else 'UNAVAILABLE')
+                return data
+        except BotError:
+            raise
+        except Exception:
+            raise BotError() from None
+
+    def command(self, action):
+        if action == 'stop':
+            self.pause()
+            return self.status()
+        if not self.command_lock.acquire(blocking=False):
+            raise ValueError('接続処理中です。少し待ってください。')
+        try:
+            if self.storage_error or self.stopped.is_set():
+                raise BotError()
+            bridge = self.bridge.snapshot()
+            video = bridge['selected'] if bridge['connected'] and re.fullmatch(r'[A-Za-z0-9_-]{11}', bridge['selected']) else ''
+            epoch = self.generation
+            if action == 'connect':
+                if self.device:
+                    raise ValueError('保存済みの接続があります。認証結果を確認するか、先に接続解除してください。')
+                token = secrets.token_urlsafe(32)
+                self.store.write('shared_device', token)
+                self.device = token
+                data = self._api('/v1/connections/start')
+                url = urlsplit(data.get('authorizationUrl', ''))
+                if (url.scheme + '://' + url.netloc != BOT_ORIGIN or url.path != '/connect'
+                        or url.fragment or not re.fullmatch(r'[a-f0-9]{8}', str(data.get('confirmation', '')))):
+                    raise BotError()
+                with self.lock:
+                    if epoch == self.generation:
+                        self.authorization_url, self.confirmation = data['authorizationUrl'], data['confirmation']
+            elif action == 'disconnect':
+                self.pause()
+                if self.device:
+                    try:
+                        self._api('/v1/connections/disconnect')
+                    except BotError as exc:
+                        if exc.code != 'UNAUTHENTICATED':
+                            raise
+                self.store.write('shared_device', None)
+                self.device = self.connection = self.authorization_url = self.confirmation = None
+            elif action in ('status', 'check', 'start'):
+                if action != 'status' and not video:
+                    raise BotError('LIVE_NOT_ACTIVE')
+                if action == 'start' and self.checked and self.checked[0] == video and self.clock() - self.checked[1] < 60:
+                    data = self.checked[2]
+                else:
+                    data = self._api('/v1/connections/' + ('status' if action == 'status' else 'check'), {'videoId': video or None})
+                current = self.bridge.snapshot()
+                with self.lock:
+                    if epoch != self.generation or self.stopped.is_set():
+                        raise BotError()
+                    if data.get('status') == 'pending':
+                        return self.status()
+                    if (data.get('status') != 'connected' or not re.fullmatch(r'UC[\w-]{22}', str(data.get('channelId', '')))
+                            or not re.fullmatch(r'[a-f0-9-]{36}', str(data.get('connectionId', '')))):
+                        raise BotError()
+                    self.connection = {k: data[k] for k in ('channelId', 'connectionId')}
+                    self.authorization_url = self.confirmation = None
+                    if action != 'status':
+                        self.checked = (video, self.clock(), data)
+                    if action == 'start':
+                        if data.get('serviceEnabled') is not True:
+                            raise BotError('SERVICE_DISABLED')
+                        if current['selected'] != video or not current['connected']:
+                            raise BotError('LIVE_NOT_ACTIVE')
+                        self.generation += 1
+                        self.queue.clear()
+                        self.running, self.active_video = True, video
+                        self.settings = self.settings.model_copy(update={'enabled': True})
+                        self.next_guide = self.clock() + self.settings.interval_minutes * 60 if self.settings.periodic else None
+            else:
+                raise ValueError('未対応の接続操作です。')
+            self.error = ''
+            return self.status()
+        except ValueError as exc:
+            self.error = str(exc)
+            raise
+        except Exception:
+            self.error = '接続設定を保存できません。保存先と接続状態を確認してください。'
+            raise ValueError(self.error) from None
+        finally:
+            self.command_lock.release()
 
     def disconnect(self):
-        with self.lock:
-            self.store.forget_credentials()
-            self.credentials = None
-            self.token = self.chat_id = ''
-            self.auth_pending = None
-            self.generation += 1
-            self.queue.clear()
-            self.error = ''
-            # Keep the channel ID excluded even when posting is disabled.
-        return self.status()
+        return self.command('disconnect')
 
     def is_self(self, comment):
-        return comment.source == 'youtube' and comment.user_key == self.account.get('id')
+        return comment.source == 'youtube' and (comment.user_key == BOT_ID or (comment.youtube_handle or '').lower() == BOT_HANDLE.lower())
 
-    def _enqueue(self, kind, data):
+    def _enqueue(self, kind, data, event_id=None):
         with self.lock:
-            if not self.settings.enabled or not self.credentials:
-                return
-            frame = self.bridge.selected
-            if frame:
-                self.queue.append((self.clock(), self.generation, frame, kind, data))
+            flags = {'called': self.settings.announce_now, 'position': self.settings.reply_position, 'announcement': self.settings.periodic}
+            if self.running and self.settings.enabled and flags[kind]:
+                self.queue.append((self.clock(), self.generation, self.active_video, kind, data, event_id or str(uuid4())))
 
     def announce(self):
         state = self.services.build_view_state()
-        current = state['current']
-        ids = tuple(u['user_id'] for u in current)
-        if ids:
-            with self.lock:
-                key = (self.bridge.selected, state.get('total_match_count', 0), ids)
-                self.initial_announced = True
-                if key in self.now_events:
-                    return
-                self.now_events[key] = True
-                while len(self.now_events) > 1000:
-                    self.now_events.popitem(last=False)
-                self._enqueue('now', ids)
+        ids = tuple(u['user_id'] for u in state['current'] if not u.get('is_placeholder'))
+        if not ids:
+            return
+        with self.lock:
+            if not self.running or not self.settings.announce_now:
+                return
+            key = (self.active_video, state.get('total_match_count', 0), ids)
+            if key in self.now_events:
+                return
+            self.now_events[key] = True
+            while len(self.now_events) > 1000:
+                self.now_events.popitem(last=False)
+        self._enqueue('called', ids)
 
     def receive(self, comment):
-        """True consumes a bot query before join/leave command detection."""
         if self.is_self(comment):
             return True
-        handle = self.account.get('handle', '')
-        if not handle.startswith('@') or not re.search(r'(?<![\w@])' + re.escape(handle) + r'(?![\w.-])', comment.message, re.I):
+        if comment.source != 'youtube' or not re.search(r'(?<![\w@.·-])@JoinQueueBot(?![\w.·-])', comment.message, re.I):
             return False
         with self.lock:
-            if not self.settings.enabled or not self.settings.reply_position:
-                return False
             key = comment.external_message_id
-            now = self.clock()
-            if key in self.seen:
+            if not key or key in self.seen:
                 return True
-            self.seen[key] = now
+            self.seen[key] = True
             while len(self.seen) > 2000:
                 self.seen.popitem(last=False)
-            uid = comment.user_key
-            if now - self.reply_times.get(uid, -100) < 30:
+            if not self.running or not self.settings.reply_position:
                 return True
-            self.reply_times[uid] = now
+            uid = comment.user_key
+            if self.clock() - self.reply_times.get(uid, -100) < 60:
+                return True
+            self.reply_times[uid] = self.clock()
             while len(self.reply_times) > 1000:
                 self.reply_times.popitem(last=False)
-            self._enqueue('position', (uid, comment.youtube_handle or comment.display_name))
-            return True
+        event = 'mention-' + hashlib.sha256((self.active_video + ':' + key).encode()).hexdigest()
+        self._enqueue('position', (uid, comment.youtube_handle, comment.display_name), event)
+        return True
 
-    def _message(self, kind, data):
-        state = self.services.build_view_state()
-        def name(u):
-            return ' '.join(str(u.get('declared_player_name') or u.get('youtube_handle') or u.get('display_name') or '参加者').split())[:40]
-        if kind == 'guide':
-            return self.settings.guide if self.settings.periodic and state.get('is_open') else None
-        if kind == 'now':
-            if not self.settings.announce_now or tuple(u['user_id'] for u in state['current']) != data:
+    @staticmethod
+    def _name(user):
+        handle = user.get('youtube_handle')
+        name = handle or user.get('declared_player_name') or user.get('display_name') or '参加者'
+        return {'name': name, **({'handle': handle} if handle else {})}
+
+    def _variables(self, kind, data, state):
+        group = state.get('total_match_count', 0) + 1
+        if kind == 'called':
+            members = [u for u in state['current'] if not u.get('is_placeholder')]
+            if tuple(u['user_id'] for u in members) != data:
                 return None
-            return '、'.join(name(u) + 'さん' for u in state['current']) + ' 入室お願いします'
-        if not self.settings.reply_position:
-            return None
-        uid, display = data
+            return {'members': [self._name(u) for u in members], 'group': group}
+        if kind == 'announcement':
+            count = len(state['waiting'])
+            return {'waitingCount': count, 'groupCount': math.ceil(count / 3), 'groupSize': 3}
+        uid, handle, display = data
         identity = UserIdentityService().build_comment_user_id('youtube', uid)
-        mention = '@' + ' '.join(display.lstrip('@').split())[:50] + 'さん'
+        variables = self._name({'youtube_handle': handle, 'display_name': display})
         if any(u['user_id'] == identity for u in state['current']):
-            return mention + 'は現在NOWの対局メンバーです'
-        for i, u in enumerate(state['waiting'], 1):
-            if u['user_id'] == identity:
-                return f'{mention}は{i}番目/第{math.ceil(i / 3)}グループです'
-        return mention + 'は現在待機列に登録されていません'
-
-    def _request(self, method, url, **kwargs):
-        if self.stopped.is_set():
-            raise ValueError('Botを停止しました')
-        r = self.http.request(method, url, **kwargs)
-        if r.status_code >= 400:
-            raise ValueError(f'YouTubeへの接続に失敗しました（HTTP {r.status_code}）。ログイン・配信状態・API利用上限を確認してください。')
-        return r.json()
-
-    def _access_token(self):
-        if self.token and self.clock() < self.expires:
-            return self.token
-        c = self.credentials
-        generation = self.generation
-        if not c:
-            raise ValueError('Bot専用アカウントでログインしてください')
-        result = self._request('POST', 'https://oauth2.googleapis.com/token', data={
-            'client_id': c['client_id'], 'client_secret': c['client_secret'],
-            'refresh_token': c['refresh_token'], 'grant_type': 'refresh_token'})
-        with self.lock:
-            if generation != self.generation or c is not self.credentials or self.stopped.is_set():
-                raise ValueError('接続設定が変更されました')
-            self.token = result['access_token']
-            self.expires = self.clock() + max(0, int(result.get('expires_in', 300)) - 60)
-            return self.token
+            return {**variables, 'state': 'now', 'group': group}
+        for i, user in enumerate(state['waiting'], 1):
+            if user['user_id'] == identity:
+                return {**variables, 'state': 'waiting', 'position': i, 'group': group + math.ceil(i / 3)}
+        return {**variables, 'state': 'not-queued'}
 
     def tick(self):
-        bridge = self.bridge.snapshot()
-        frame = bridge['selected']
-        with self.lock:
-            if frame != self.last_frame:
-                self.last_frame = frame
-                self.chat_id = ''
-                self.queue.clear()
-                self.initial_announced = False
-                self.next_guide = self.clock() + self.settings.interval_minutes * 60
-                self.retry_after = 0
-            if not self.settings.enabled or not self.credentials or not frame or not bridge['connected']:
-                self.chat_id = ''
-                return
-            generation = self.generation
-        if self.clock() < self.retry_after:
+        if not self.send_lock.acquire(blocking=False):
             return
-        if not re.fullmatch(r'[A-Za-z0-9_-]{11}', frame):
-            raise ValueError('配信IDを確認できません。わんコメでYouTube配信を選び直してください。')
-        headers = {'Authorization': 'Bearer ' + self._access_token()}
-        if not self.chat_id:
-            info = self._request('GET', 'https://www.googleapis.com/youtube/v3/videos',
-                                 params={'part': 'liveStreamingDetails', 'id': frame}, headers=headers)
-            items = info.get('items', [])
-            chat_id = items[0].get('liveStreamingDetails', {}).get('activeLiveChatId') if items else None
-            if not chat_id:
-                raise ValueError('投稿先チャットを取得できません。配信中か、Botが閲覧できる配信か確認してください。')
+        try:
+            bridge = self.bridge.snapshot()
+            if not self.running:
+                return
+            if not bridge['connected'] or bridge['selected'] != self.active_video:
+                self.pause()
+                self.error = '配信変更または切断のため停止しました。接続確認して起動してください。'
+                return
+            now = self.clock()
             with self.lock:
-                if generation != self.generation or self.bridge.selected != frame or self.stopped.is_set():
+                if self.settings.periodic and self.next_guide is not None and now >= self.next_guide:
+                    late = now - self.next_guide
+                    self.next_guide = now + self.settings.interval_minutes * 60
+                    if late <= 60:
+                        self._enqueue('announcement', None)
+                if not self.queue or now - self.last_sent < 10:
                     return
-                self.chat_id = chat_id
-                self.error = ''
-        state = self.services.build_view_state()
-        if not self.initial_announced and len(state['current']) == 3:
-            self.announce()
-        if self.clock() >= self.next_guide:
-            self.next_guide = self.clock() + self.settings.interval_minutes * 60
-            self._enqueue('guide', None)
-        with self.lock:
-            if not self.queue or self.clock() - self.last_sent < 5:
-                return
-            at, event_generation, target, kind, data = self.queue.popleft()
-            if (event_generation != generation or generation != self.generation or target != frame
-                    or self.clock() - at > 60 or self.bridge.selected != frame or self.stopped.is_set()):
-                return
-            message = self._message(kind, data)
-            if not message:
-                return
-            self.last_sent = self.clock()
-            chat_id = self.chat_id
-        if generation != self.generation or self.bridge.selected != frame or self.stopped.is_set():
-            return
-        # No retries after an ambiguous response: avoid duplicate public posts.
-        self._request('POST', 'https://www.googleapis.com/youtube/v3/liveChat/messages',
-                      params={'part': 'snippet'}, headers=headers, json={'snippet': {
-                          'liveChatId': chat_id, 'type': 'textMessageEvent',
-                          'textMessageDetails': {'messageText': message[:200]}}})
-        with self.lock:
-            self.error = ''
-            self.last_result = '投稿しました：' + message
+                at, epoch, video, kind, data, event_id = self.queue.popleft()
+                if now - at > 60 or epoch != self.generation or not self.connection:
+                    return
+            variables = self._variables(kind, data, self.services.build_view_state())
+            current = self.bridge.snapshot()
+            with self.lock:
+                if variables is None or epoch != self.generation or not self.running or current['selected'] != video or not current['connected']:
+                    return
+                candidate = {'channelConnectionId': self.connection['connectionId'], 'eventId': event_id,
+                             'videoId': video, 'createdAt': int(time.time() * 1000),
+                             'templateId': kind, 'variables': variables}
+                if kind == 'position':
+                    candidate['recipient'] = {'service': 'youtube', 'userId': data[0]}
+                self.last_sent = now
+            try:
+                result = self._api('/v1/bot/posts', candidate)
+                if epoch == self.generation:
+                    self.last_result = 'Bot通知を送信しました。' if result.get('status') == 'sent' else ERRORS['DELIVERY_UNKNOWN']
+            except BotError as exc:
+                if epoch == self.generation:
+                    self.error = str(exc)
+                    if exc.code != 'RATE_LIMITED':
+                        self.pause()
+        finally:
+            self.send_lock.release()
 
     def _run(self):
         while not self.stopped.wait(1):
             try:
                 self.tick()
-            except Exception as exc:
-                with self.lock:
-                    self.error = str(exc) if isinstance(exc, ValueError) else '接続エラーです。1分後に接続を再確認します。'
-                    self.retry_after = self.clock() + 60
-                    self.chat_id = ''
-                    self.queue.clear()
-
-    def begin_login(self, document):
-        installed = document.get('installed', {})
-        client_id, secret = installed.get('client_id', ''), installed.get('client_secret', '')
-        if not isinstance(client_id, str) or not client_id.endswith('.apps.googleusercontent.com') or not isinstance(secret, str) or not secret:
-            raise ValueError('デスクトップアプリ用のOAuthクライアントJSONを選んでください')
-        with self.lock:
-            if self.auth_pending:
-                raise ValueError('ログイン画面を開いています。完了または10分後に再試行してください')
-            self.settings = self.settings.model_copy(update={'enabled': False})
-            self.store.write('settings', self.settings.model_dump())
-            self.generation += 1
-            self.queue.clear()
-            state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
-            self.auth_pending = state
-            auth_generation = self.generation
-        owner = self
-        class Callback(BaseHTTPRequestHandler):
-            def log_message(self, *args):
-                pass
-            def do_GET(self):
-                query = parse_qs(urlsplit(self.path).query)
-                supplied = query.get('state', [''])[0]
-                if urlsplit(self.path).path != '/callback' or not secrets.compare_digest(supplied, state):
-                    self.send_error(400)
-                    return
-                with owner.lock:
-                    valid = owner.auth_pending == state and not owner.stopped.is_set()
-                    owner.auth_pending = None
-                if not valid:
-                    self.send_error(400)
-                    return
-                message = 'ログインできませんでした。管理画面から再試行してください。'
-                try:
-                    if query.get('error') or not query.get('code'):
-                        raise ValueError('Googleログインがキャンセルされました')
-                    token = owner._request('POST', 'https://oauth2.googleapis.com/token', data={
-                        'client_id': client_id, 'client_secret': secret, 'code': query['code'][0],
-                        'code_verifier': verifier, 'redirect_uri': redirect, 'grant_type': 'authorization_code'})
-                    if not token.get('refresh_token'):
-                        raise ValueError('再接続用の認証を取得できませんでした')
-                    data = owner._request('GET', 'https://www.googleapis.com/youtube/v3/channels',
-                        params={'part': 'snippet', 'mine': 'true'}, headers={'Authorization': 'Bearer ' + token['access_token']})
-                    channel = data.get('items', [])[0]
-                    account = {'id': channel['id'], 'name': channel['snippet']['title'],
-                               'handle': channel['snippet'].get('customUrl', '')}
-                    if not re.fullmatch(r'UC[A-Za-z0-9_-]{22}', account['id']):
-                        raise ValueError('YouTubeチャンネルを確認できません')
-                    with owner.lock:
-                        if owner.generation != auth_generation or owner.stopped.is_set():
-                            raise ValueError('接続処理が取り消されました')
-                        credentials = {'client_id': client_id, 'client_secret': secret, 'refresh_token': token['refresh_token']}
-                        owner.store.save_connection(credentials, account)
-                        owner.credentials, owner.account = credentials, account
-                        owner.token = ''
-                        owner.chat_id = ''
-                        owner.generation += 1
-                        owner.error = ''
-                        owner.retry_after = 0
-                    message = '接続できました。この画面を閉じて管理画面でBotを有効にしてください。'
-                except Exception:
-                    with owner.lock:
-                        owner.error = message
-                body = message.encode('utf8')
-                self.send_response(200)
-                self.send_header('Content-Type', 'text/plain; charset=utf-8')
-                self.send_header('Cache-Control', 'no-store')
-                self.send_header('Content-Length', str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-        class LocalCallbackServer(HTTPServer):
-            def get_request(self):
-                connection, address = super().get_request()
-                connection.settimeout(5)
-                return connection, address
-        server = LocalCallbackServer(('127.0.0.1', 0), Callback)
-        server.timeout = 1
-        self.auth_server = server
-        redirect = f'http://127.0.0.1:{server.server_port}/callback'
-        def listen():
-            deadline = time.monotonic() + 600
-            try:
-                while not self.stopped.is_set() and time.monotonic() < deadline and self.auth_pending == state:
-                    server.handle_request()
-            finally:
-                server.server_close()
-                with self.lock:
-                    if self.auth_pending == state:
-                        self.auth_pending = None
-        self.auth_thread = Thread(target=listen, daemon=True, name='bot-oauth')
-        self.auth_thread.start()
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')
-        return 'https://accounts.google.com/o/oauth2/v2/auth?' + urlencode({
-            'client_id': client_id, 'redirect_uri': redirect, 'response_type': 'code', 'scope': SCOPE,
-            'state': state, 'code_challenge': challenge, 'code_challenge_method': 'S256',
-            'access_type': 'offline', 'prompt': 'consent select_account'})
+            except Exception:
+                self.pause()
+                self.error = '通知処理に失敗したため停止しました。通知は再送しません。'
