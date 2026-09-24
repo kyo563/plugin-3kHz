@@ -29,8 +29,8 @@ function fixture() {
     lookups++; return Response.json({ items: bad === 'empty' ? [] : [{ id: bad === 'bot' ? env.BOT_CHANNEL_ID : channelId }] });
   };
   const auth = () => new ChannelConnections(driver, env, { async resolveChat(_video, owner) { checks++; assert.equal(owner, channelId); return 'chat'; }, async post() { assert.fail('No posting from connection endpoints'); } }, request, () => now);
-  const api = (path: string, body = {}, credential = token) => auth().handle(new Request(AUTH_ORIGIN + '/v1/connections/' + path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + credential }, body: JSON.stringify(body),
+  const api = (path: string, body = {}, credential = token, source = 'a'.repeat(64)) => auth().handle(new Request(AUTH_ORIGIN + '/v1/connections/' + path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + credential, 'X-JoinQueue-Source': source }, body: JSON.stringify(body),
   }));
   const start = async () => {
     const res = await api('start'); assert.equal(res.status, 200); const data = await res.json() as any;
@@ -118,6 +118,9 @@ test('channel pairing: boundary, issuance caps and browser CSRF fail closed', as
     assert.equal(bad.status, 403);
     for (let i = 1; i < 20; i++) assert.equal((await f.api('start', {}, randomBytes(32).toString('base64url'))).status, 200);
     assert.equal((await f.api('start', {}, randomBytes(32).toString('base64url'))).status, 429);
+    assert.equal((await f.api('start', {}, randomBytes(32).toString('base64url'), 'b'.repeat(64))).status, 200);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM channel_oauth_budget').get()!.n, 0);
+    assert.equal((await f.api('start', {}, randomBytes(32).toString('base64url'), '')).status, 403);
     assert.equal(f.counts().exchanges, 0);
   } finally { f.db.close(); }
 });

@@ -82,6 +82,7 @@ class CommentQueueApplyService:
                             else result.declared_player_name),
                         "youtube_handle": comment.youtube_handle,
                         "avatar_url": comment.avatar_url,
+                        "onecomme_memo": comment.onecomme_memo,
                         "youtube_nickname": comment.youtube_nickname or (comment.display_name if comment.youtube_handle or comment.source.lower() == 'youtube' else None),
                         "participation_count": saved_participation_count,
                     },

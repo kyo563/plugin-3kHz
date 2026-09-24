@@ -109,6 +109,8 @@ class QueueService:
         }
         for field in ('youtube_handle', 'youtube_nickname', 'avatar_url'):
             if user.get(field): merged_user[field] = user[field]
+        if user.get('onecomme_memo') is not None:
+            merged_user['onecomme_memo'] = user['onecomme_memo']
         if user.get('user_id') in state.get('name_overrides', {}):
             declared_player_name = state['name_overrides'][user['user_id']]
         if declared_player_name:

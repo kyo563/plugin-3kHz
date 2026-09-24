@@ -83,7 +83,7 @@ class SQLitePersistenceService:
             if "declared_player_name" not in columns:
                 conn.execute("ALTER TABLE participants ADD COLUMN declared_player_name TEXT NULL")
 
-            for field in ('youtube_handle', 'youtube_nickname', 'avatar_url'):
+            for field in ('youtube_handle', 'youtube_nickname', 'avatar_url', 'onecomme_memo'):
                 if field not in columns:
                     conn.execute(f"ALTER TABLE participants ADD COLUMN {field} TEXT NULL")
 
@@ -117,7 +117,7 @@ class SQLitePersistenceService:
             app_state_rows = conn.execute("SELECT key, value FROM app_state").fetchall()
             app_state = {row["key"]: row["value"] for row in app_state_rows}
             participants = conn.execute("""
-                SELECT user_id, display_name, declared_player_name, youtube_handle, youtube_nickname, avatar_url, status, participation_count, created_at, updated_at
+                SELECT user_id, display_name, declared_player_name, youtube_handle, youtube_nickname, avatar_url, onecomme_memo, status, participation_count, created_at, updated_at
                 FROM participants
                 ORDER BY status, position
                 """).fetchall()
@@ -134,6 +134,7 @@ class SQLitePersistenceService:
                 "youtube_handle": row["youtube_handle"],
                 "youtube_nickname": row["youtube_nickname"],
                 "avatar_url": normalize_avatar_url(row["avatar_url"]),
+                "onecomme_memo": row["onecomme_memo"],
                 "participation_count": row["participation_count"],
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
@@ -221,9 +222,9 @@ class SQLitePersistenceService:
                         ) == (user["display_name"], user.get("declared_player_name"), status, position, user.get("participation_count", 0))
                         updated_at = prior["updated_at"] if unchanged else timestamp
                         conn.execute("""
-                        INSERT INTO participants(user_id, display_name, declared_player_name, status, position, participation_count, created_at, updated_at, youtube_handle, youtube_nickname, avatar_url)
-                        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (user["user_id"], user["display_name"], user.get("declared_player_name"), status, position, user.get("participation_count", 0), user.get("created_at", timestamp), updated_at, user.get("youtube_handle"), user.get("youtube_nickname"), normalize_avatar_url(user.get("avatar_url"))))
+                        INSERT INTO participants(user_id, display_name, declared_player_name, status, position, participation_count, created_at, updated_at, youtube_handle, youtube_nickname, avatar_url, onecomme_memo)
+                        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (user["user_id"], user["display_name"], user.get("declared_player_name"), status, position, user.get("participation_count", 0), user.get("created_at", timestamp), updated_at, user.get("youtube_handle"), user.get("youtube_nickname"), normalize_avatar_url(user.get("avatar_url")), user.get("onecomme_memo")))
                 conn.execute("DELETE FROM operation_logs")
                 for message in state.get("logs", [])[-30:]:
                     conn.execute("INSERT INTO operation_logs(message, created_at) VALUES(?, ?)", (message, timestamp))

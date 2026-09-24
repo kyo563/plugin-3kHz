@@ -1,16 +1,14 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>共通Bot設定 — 0.1.2</title><link rel="stylesheet" href="/static/settings.css"><link rel="stylesheet" href="/static/bot.css"></head>
-<body><main><a href="/control">管理画面へ</a> · <a href="/settings">表示設定へ</a><h1>共通Botのお知らせ設定 <small>0.1.2</small></h1>
-<section class="panel"><h2>通知を選ぶ</h2><p>Botを使わなくても待機列・OBS表示は利用できます。チェックの変更は保存後に反映されます。</p>
+<section class="panel"><h2>通知選択</h2>
 <form id="bot-form">
 <label><input id="bot-now" type="checkbox"> 次の対戦へ進んだとき、NOWの3名をまとめて呼び出す</label>
 <label><input id="bot-reply" type="checkbox"> @JoinQueueBotへの呼びかけに本人の待機順・グループを返信する</label>
 <label><input id="bot-periodic" type="checkbox"> 待機人数・待機グループ数を定期案内する</label>
 <label>案内間隔<select id="bot-interval"><option value="15">15分</option><option value="30">30分</option></select></label>
-<p>人数・待機順はNOWを除きます。グループ番号は通算の対戦回数に基づきます。参加受付・辞退・完了のお礼、初回NOW補充時は投稿しません。同じ人への返信は60秒に1回までです。</p>
+
 <button type="submit">Bot設定を保存</button><p id="bot-save-result" role="status"></p></form></section>
 <section class="panel"><h2>チャンネル接続と起動</h2>
 <p>① <a href="https://www.youtube.com/@JoinQueueBot" target="_blank" rel="noopener noreferrer">@JoinQueueBot</a> をモデレーターに登録<br>② 自分の配信チャンネルを接続<br>③ 管理画面のライブ連携で配信を選択し、Botを起動</p>
-<p>利用者ごとのBotアカウント・Google Cloud設定・OAuth JSONは不要です。Googleの画面では配信者自身のチャンネルを確認します。共通Botの認証情報はサーバーだけで保持します。</p>
+
 <p id="bot-status" role="status">確認中…</p><p id="bot-last"></p><p id="bot-next"></p>
 <button id="bot-connect" type="button">チャンネルを接続</button>
 <button id="bot-status-check" type="button">認証結果を確認</button>
@@ -22,4 +20,4 @@
 <details><summary>チャンネル接続を解除</summary><p>待機列・履歴は保持します。サーバーで接続を失効できない場合はキーを残し、通信復旧後にやり直します。</p>
 <label><input id="bot-disconnect-confirm" type="checkbox"> 接続を解除することを確認しました</label>
 <button id="bot-disconnect" type="button" disabled>接続を解除</button></details>
-</section></main><script src="/static/auth.js"></script><script src="/static/bot.js"></script></body></html>
+</section>

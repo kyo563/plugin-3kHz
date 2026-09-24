@@ -59,6 +59,7 @@ dialog::backdrop { background:#0009; } dialog li { margin:8px 0; } dialog button
 .participant-avatar img { position:absolute; inset:0; width:28px; height:28px; object-fit:cover; border-radius:50%; }
 
 .participant-count { white-space:normal; max-width:9em; line-height:1.35; }
+.participant-memo { flex:0 1 30%; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#b8c5d6; }
 
 .status #toggle-priority { text-align:left; width:100%; cursor:pointer; }
 .status #toggle-priority:disabled { cursor:wait; }

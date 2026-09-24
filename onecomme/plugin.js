@@ -2,19 +2,22 @@
 const {spawn} = require('node:child_process');
 const path = require('node:path');
 
-function convert(comment) {
+function convert(comment, userData) {
     const d = comment?.data;
     if (comment?.service !== 'youtube' || !d || d.meta?.type === 'system' || d.meta?.anonymity || d.autoModerated) return null;
-    if (typeof d.userId !== 'string' || !/^UC[A-Za-z0-9_-]{22}$/.test(d.userId)) return null;
+    // OneComme owns identity. Preserve opaque IDs exactly, including existing UC IDs.
+    if (typeof d.userId !== 'string' || !d.userId.trim() || d.userId.length > 512 || /[\p{Cc}\p{Cf}]/u.test(d.userId)) return null;
     if (![d.id, d.liveId, d.name, d.timestamp].every(v => typeof v === 'string' && v.length > 0)) return null;
     if (typeof d.comment !== 'string' || d.comment.length > 4096 || d.name.length > 200 || d.id.length > 512 || d.liveId.length > 200) return null;
     const handle = [d.screenName, d.name].find(v => typeof v === 'string' && /^@[^\s]{1,199}$/.test(v));
+    const memo = userData?.id === d.userId && (userData.service === undefined || userData.service === 'youtube') && typeof userData.memo === 'string'
+        ? userData.memo.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').slice(0, 4000) : null;
     return {
         frame_id: d.liveId, frame_name: `${String(comment.name || 'YouTube').slice(0, 150)} (${d.liveId})`.slice(0, 200),
         comment: {source: 'youtube', externalMessageId: d.id, receivedAt: d.timestamp,
             userKey: d.userId, displayName: d.name, youtubeNickname: d.name,
             youtubeHandle: handle || null, avatarUrl: typeof d.profileImage === 'string' ? d.profileImage : null,
-            message: d.comment}
+            oneCommeMemo: memo, message: d.comment}
     };
 }
 
@@ -46,7 +49,7 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
     }
     return {
         name: '待機列整理アプリ',
-        uid: 'jp.kyo563.sankagata-seiretsu', version: '0.1.2', author: 'kyo563',
+        uid: 'jp.kyo563.sankagata-seiretsu', version: '0.1.3', author: 'kyo563',
         url: 'http://localhost:11180/plugins/jp.kyo563.sankagata-seiretsu/index.html',
         permissions: ['filter.comment'],
         init({dir}) {
@@ -85,10 +88,10 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
             }, 1500);
             timer.unref?.();
         },
-        filterComment(comment) {
+        filterComment(comment, service, userData) {
             // Never change, suppress, or wait for processing of OneComme comments.
             if (ready) {
-                const event = convert(comment);
+                const event = convert(comment, userData);
                 if (event) {
                     if (queue.length >= 500) dropped++;
                     else { queue.push(event); void drain(); }

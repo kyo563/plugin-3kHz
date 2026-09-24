@@ -18,6 +18,7 @@ class ReceivedComment(BaseModel):
     youtube_handle: str | None = Field(default=None, alias="youtubeHandle", pattern=r"^@[^\s]{1,199}$", max_length=200)
     youtube_nickname: str | None = Field(default=None, alias="youtubeNickname", min_length=1, max_length=200)
     avatar_url: AvatarUrl = Field(default=None, alias="avatarUrl")
+    onecomme_memo: str | None = Field(default=None, alias="oneCommeMemo", max_length=4000)
     user_key: str = Field(alias="userKey", min_length=1, max_length=512)
     message: str = Field(max_length=4096)
     badges: CommentBadges = CommentBadges()

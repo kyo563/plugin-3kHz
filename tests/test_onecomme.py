@@ -78,7 +78,7 @@ def test_selection_history_identity_now_protection_refill_and_persistence(tmp_pa
         assert c.post('/api/onecomme/heartbeat', json={'dropped': 2}, headers=ingest).status_code == 200
         assert c.get('/api/onecomme/status').json()['connected']
         assert c.get('/api/onecomme/status').json()['dropped'] == 2
-        bad = event(); bad['comment']['userKey'] = '@same-name'
+        bad = event(); bad['comment']['userKey'] = 'invalid\nidentity'
         assert post(bad).status_code == 422
         assert c.post('/api/onecomme/select', json={'frame_id': ''}).status_code == 200
         assert post(event(5)).json()['status'] == 'unselected'

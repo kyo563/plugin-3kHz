@@ -27,6 +27,7 @@ class PlainText(HTMLParser):
 class OneCommeBridge:
     def __init__(self, services):
         self.services = services
+        self.services.receive_service.quoted_names_only = True
         self.lock = RLock()
         self.frames = OrderedDict()
         self.selected = ""
@@ -77,6 +78,7 @@ class OneCommeBridge:
             parser.feed(comment.message)
             parser.close()
             comment.message = "".join(parser.parts)
+            self.services.update_comment_memo(comment)
             if getattr(self, 'bot', None) and self.bot.receive(comment):
                 return {'status': 'bot_handled'}
             settings = self.services.persistence_service.get_state()["command_settings"]

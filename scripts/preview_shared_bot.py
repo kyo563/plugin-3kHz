@@ -26,6 +26,14 @@ with tempfile.TemporaryDirectory(prefix='queue-bot-ui-') as folder:
         bot.device = 't' * 43
         app.state.onecomme.frames['abcdefghijk'] = '架空のUI試験（実投稿なし）'
         app.state.onecomme.select('abcdefghijk')
+        from app.schemas.comment import ReceivedComment
+        from datetime import datetime, timezone
+        for i in range(6):
+            app.state.onecomme.receive('abcdefghijk', '架空のUI試験（実投稿なし）', ReceivedComment(
+                source='youtube', userKey='test-user-'+str(i), displayName='試験参加者'+str(i),
+                youtubeHandle='@test'+str(i), message='参加希望『テスト名'+str(i)+'』',
+                oneCommeMemo='わんコメのメモ <script>は文字表示</script>' if i == 3 else '試験用メモ',
+                externalMessageId=str(i), receivedAt=datetime.now(timezone.utc).isoformat()))
         print(server.url + '/bot#key=' + keys.admin, flush=True)
         while True:
             app.state.onecomme.heartbeat()

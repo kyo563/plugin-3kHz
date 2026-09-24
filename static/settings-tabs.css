@@ -1,0 +1,6 @@
+.page-header a { color: #8fc4ff; }
+.settings-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #53657b; padding-bottom: 8px; }
+.settings-tabs [role=tab] { flex: 1; padding: 12px 20px; color: #b7c8db; background: #1a2330; border: 1px solid #53657b; border-radius: 8px; font: inherit; cursor: pointer; }
+.settings-tabs [aria-selected=true] { color: #fff; background: #254e81; border-color: #8fc4ff; box-shadow: inset 0 -3px #8fc4ff; font-weight: 700; }
+.settings-tabs [role=tab]:focus-visible { outline: 3px solid #8fc4ff; outline-offset: 3px; }
+[role=tabpanel][hidden] { display: none !important; }

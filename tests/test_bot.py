@@ -48,6 +48,67 @@ def setup_bot(tmp_path):
 def activate(bot):
     bot.command('connect'); bot.command('status'); bot.command('start')
 
+
+def test_start_is_idempotent_preserving_timer_queue_and_generation(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    bot.receive(comment(3, '@JoinQueueBot'))
+    before = (bot.next_guide, bot.generation, list(bot.queue), len(calls))
+    now[0] += 300
+    assert bot.command('start')['ready']
+    assert before == (bot.next_guide, bot.generation, list(bot.queue), len(calls))
+
+
+@pytest.mark.parametrize('code', ['INVALID_MESSAGE', 'REQUEST_EXPIRED', 'DUPLICATE_CONFLICT'])
+def test_bad_single_notification_does_not_stop_next_notification(setup_bot, code):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    bot.http.close()
+    attempts = []
+    def reply(request):
+        attempts.append(json.loads(request.content))
+        return httpx.Response(400, json={'error':{'code':code}}) if len(attempts) == 1 else httpx.Response(200, json={'status':'sent'})
+    bot.http = httpx.Client(transport=httpx.MockTransport(reply))
+    bot.receive(comment(3, '@JoinQueueBot')); bot.tick()
+    assert bot.running and len(attempts) == 1
+    now[0] += 10
+    bot.receive(comment(4, '@JoinQueueBot')); bot.tick()
+    assert bot.running and len(attempts) == 2
+    assert attempts[0]['eventId'] != attempts[1]['eventId']
+
+
+@pytest.mark.parametrize('name', ['Player: A', 'https://www.example.com', 'x'*200, '😀'*100, '\u200b\n'])
+def test_bot_name_is_bounded_safe_and_never_leaks_memo(name):
+    value = AnnouncementBot._name({'display_name':name, 'onecomme_memo':'PRIVATE'})
+    assert value['name'].strip() and len(value['name'].encode('utf-16-le')) // 2 <= 45
+    assert not any(s in value['name'].lower() for s in ('/', ':', 'www.', 'PRIVATE'.lower()))
+    assert set(value) == {'name'}
+    assert 'handle' not in AnnouncementBot._name({'youtube_handle':'@'+'a'*100, 'display_name':name})
+
+
+@pytest.mark.parametrize('corruption', ['invalid_settings', 'invalid_json', 'database'])
+def test_bot_storage_corruption_preserves_data_and_queue_availability(tmp_path, corruption):
+    path = tmp_path/'bot.sqlite3'
+    if corruption == 'database':
+        path.write_bytes(b'not a sqlite database')
+    else:
+        store = BotStore(path)
+        store.write('shared_settings', {'interval_minutes':10})
+        if corruption == 'invalid_json':
+            with store.connection() as db:
+                db.execute("UPDATE bot_data SET value=? WHERE key='shared_settings'", (b'{PRIVATE',))
+    original = path.read_bytes()
+    with TestClient(create_app(db_path=str(tmp_path/'q.db'), desktop=True, onecomme=True), base_url='http://127.0.0.1') as c:
+        c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
+        assert c.get('/api/state').status_code == 200
+        assert c.get('/overlay').status_code == 200
+        assert c.get('/api/bot').json()['ready'] is False
+        assert '保存' in c.get('/api/bot').json()['error']
+        assert 'PRIVATE' not in str(c.get('/api/bot').json())
+        assert c.post('/api/bot/connection', json={'action':'start'}).status_code == 422
+        assert c.post('/api/bot/settings', json={}).status_code == 422
+    assert path.read_bytes() == original
+
 def test_disabled_defaults_self_exclusion_persistence_and_no_google_secrets(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     own = comment(999); own.user_key = BOT_ID
@@ -186,7 +247,17 @@ def test_api_local_auth_legacy_endpoint_removed_and_disconnect_confirmation(tmp_
         assert c.post('/api/bot/disconnect', json={}).status_code == 422
         assert c.post('/api/bot/connection', json={'action':'stop','url':'https://evil.invalid'}).status_code == 422
         html = c.get('/bot').text
-        assert '0.1.2' in html and 'id="bot-client"' not in html
+        assert '0.1.3' in html and 'id="bot-client"' not in html
+        assert c.get('/bot', follow_redirects=False).headers['location'] == '/settings?tab=bot'
+        assert 'role="tablist"' in html and 'aria-controls="settings-bot-panel"' in html
+        assert '<h2>通知選択</h2>' in html and html.count('id="bot-form"') == 1
+        assert html.count('id="overlay-layout-form"') == 1
+        for removed in ('通知を選ぶ', 'Botを使わなくても', 'チェックの変更は保存後', '利用者ごとのBotアカウント', '人数・待機順はNOWを除きます'):
+            assert removed not in html
+        control = c.get('/control').text
+        assert '<a href="/settings?tab=bot">Bot設定</a>' in control
+        assert 'Botのお知らせ設定' not in control
     with TestClient(create_app(db_path=str(tmp_path/'old'), desktop=True), base_url='http://127.0.0.1') as c:
         c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
         assert c.get('/api/bot').status_code == 404 and c.get('/bot').status_code == 404
+        assert 'settings-bot-panel' not in c.get('/settings').text

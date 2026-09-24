@@ -25,6 +25,14 @@ function harness(fetcher) {
     return {sandbox,element,handlers,modal:()=>{modal=true;}};
 }
 const reply = data => ({ok:true,json:async()=>data});
+
+test('OneComme memo is rendered as text, never HTML', () => {
+    const h = harness(()=>Promise.resolve(reply(state(1))));
+    const row = h.sandbox.participantItem({user_id:'id',display_name:'Name',onecomme_memo:'<img src=x onerror=alert(1)>'});
+    const memo = row.children.find(child=>child.className==='participant-memo');
+    assert.equal(memo.textContent, ' / <img src=x onerror=alert(1)>');
+    assert.equal(memo.innerHTML, undefined);
+});
 test('rapid next clicks send only one mutation', async()=>{
     let calls=0, release;
     const h=harness((url, options)=>{

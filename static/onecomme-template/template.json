@@ -1,6 +1,6 @@
 {
-  "name": "待機列整理アプリ",
+  "name": "待機列整理アプリ｜OBS表示",
   "author": "kyo563",
   "link": "https://github.com/kyo563/plugin-3kHz/tree/codex/onecomme-edition",
-  "description": "縦横共通の待機列表示。OBSは1200×600px以上。表示設定はプラグイン管理画面で行います。"
+  "description": "コメント欄から参加者をリストアップするプラグインです。表示設定はプラグイン管理画面から。"
 }

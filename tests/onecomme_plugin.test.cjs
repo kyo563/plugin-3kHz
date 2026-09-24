@@ -11,9 +11,22 @@ test('maps documented fields and never uses display names as identity', () => {
     assert.equal(convert(c).comment.userKey, c.data.userId);
     assert.equal(convert(c).comment.youtubeHandle, '@handle');
     assert.equal(convert({...c, service: 'twitch'}), null);
-    c.data.userId = '@handle'; assert.equal(convert(c), null);
+    c.data.userId = '@handle'; assert.equal(convert(c).comment.userKey, '@handle');
+    c.data.userId = 'opaque-onecomme-id'; assert.equal(convert(c).comment.userKey, 'opaque-onecomme-id');
+    for (const id of ['', '   ', 'x\n', 'a'.repeat(513)]) {
+        c.data.userId = id; assert.equal(convert(c), null);
+    }
     c.data.userId = 'UC' + 'a'.repeat(22); c.data.comment = 'a'.repeat(4097);
     assert.equal(convert(c), null);
+});
+test('memo uses matching official UserNameData, retaining absent vs explicit empty', () => {
+    const c = comment(), data = {id:c.data.userId, service:'youtube', memo:'<b>private</b>'};
+    assert.equal(convert(c, data).comment.oneCommeMemo, data.memo);
+    assert.equal(convert(c, {...data, id:'other'}).comment.oneCommeMemo, null);
+    assert.equal(convert(c, {...data, service:'twitch'}).comment.oneCommeMemo, null);
+    assert.equal(convert(c).comment.oneCommeMemo, null);
+    assert.equal(convert(c, {...data, memo:''}).comment.oneCommeMemo, '');
+    assert.equal(convert(c, {...data, memo:'a'.repeat(5000)}).comment.oneCommeMemo.length, 4000);
 });
 test('worker ownership, exact pass-through, bounded forwarding and no secrets in plugin response', async () => {
     const worker = new EventEmitter();

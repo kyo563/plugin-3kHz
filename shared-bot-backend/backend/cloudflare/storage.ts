@@ -19,16 +19,17 @@ export function durableSqlDriver(storage: DurableObjectStorage): SqlDriver {
   };
 }
 
-/** Bounded, persistent global ingress counter; no raw IP or auth header stored. */
-export function takeIngress(driver: SqlDriver, now = Date.now()): void {
+/** Persistent per-source ingress counters, pruned after a minute; no raw IP/auth stored. */
+export function takeIngress(driver: SqlDriver, now = Date.now(), source = 'global'): void {
   driver.transaction(() => {
-    driver.exec('CREATE TABLE IF NOT EXISTS ingress (id INTEGER PRIMARY KEY CHECK(id=1), start INTEGER NOT NULL, n INTEGER NOT NULL)');
-    const row = driver.prepare('SELECT start,n FROM ingress WHERE id=1').get();
+    driver.exec('CREATE TABLE IF NOT EXISTS ingress_sources (source TEXT PRIMARY KEY, start INTEGER NOT NULL, n INTEGER NOT NULL)');
+    driver.prepare('DELETE FROM ingress_sources WHERE start<=?').run(now - 60_000);
+    const row = driver.prepare('SELECT start,n FROM ingress_sources WHERE source=?').get(source);
     if (!row || now - Number(row.start) >= 60_000) {
-      driver.prepare('INSERT OR REPLACE INTO ingress VALUES (1,?,1)').run(now);
+      driver.prepare('INSERT OR REPLACE INTO ingress_sources VALUES (?,?,1)').run(source, now);
     } else {
       if (Number(row.n) >= 60) throw new BotFault('RATE_LIMITED', 429, 60);
-      driver.prepare('UPDATE ingress SET n=n+1 WHERE id=1').run();
+      driver.prepare('UPDATE ingress_sources SET n=n+1 WHERE source=?').run(source);
     }
   });
 }

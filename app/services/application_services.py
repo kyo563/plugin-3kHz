@@ -87,6 +87,20 @@ class ApplicationServices:
 
         self.persistence_service.mutate_state(_append_log)
 
+    def update_comment_memo(self, comment):
+        # Missing metadata retains the last known memo; an explicit empty memo clears it.
+        # Only existing queue participants are touched, never history or identities.
+        if comment.onecomme_memo is None:
+            return
+        identity = UserIdentityService().build_comment_user_id(comment.source, comment.user_key)
+        with self.comment_lock, self.persistence_service.serialized():
+            state = self.persistence_service.get_state()
+            users = [u for u in state['current'] + state['waiting'] if u['user_id'] == identity]
+            if any(u.get('onecomme_memo') != comment.onecomme_memo for u in users):
+                for user in users:
+                    user['onecomme_memo'] = comment.onecomme_memo
+                self.persistence_service.set_state(state)
+
     def receive_comment(self, comment, *, manual=False):
         if getattr(self, 'bot', None) and self.bot.is_self(comment):
             from app.schemas.comment import CommentReceiveResult

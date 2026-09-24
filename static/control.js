@@ -50,6 +50,13 @@ function participantItem(user, { draggable = false, listType = "", position = nu
         li.appendChild(avatar);
     }
     li.appendChild(label);
+    if (user.user_id && !user.is_placeholder && user.onecomme_memo != null) {
+        const memo = document.createElement('span');
+        memo.className = 'participant-memo';
+        memo.textContent = ' / ' + (user.onecomme_memo || 'メモなし');
+        memo.title = user.onecomme_memo;
+        li.appendChild(memo);
+    }
     if (user.user_id && !user.is_placeholder && user.participation_count !== undefined) {
         const count = document.createElement('span'); count.className='participant-count';
         count.textContent = `今回${latestState?.session_participation_counts?.[user.user_id] ?? 0}回／累計${user.participation_count}回`; count.title='今回：現在の配信の対戦済み回数。累計：過去の配信を含む対戦済み回数'; li.appendChild(count);

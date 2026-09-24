@@ -9,13 +9,14 @@ import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = '0.1.3'
 
 
 def main():
-    output = ROOT / 'dist' / 'onecomme-release-0.1.2'
+    output = ROOT / 'dist' / f'onecomme-release-{VERSION}'
     target = output / 'sankagata-seiretsu'
     target.mkdir(parents=True, exist_ok=True)
-    source = ROOT / 'dist' / 'onecomme-worker' / 'runtime'
+    source = ROOT / 'dist' / f'onecomme-worker-{VERSION}' / 'runtime'
     if not (source / 'QueueWorker.exe').is_file():
         raise RuntimeError('Build onecomme-worker.spec first')
     shutil.copytree(source, target / 'runtime', dirs_exist_ok=True)
@@ -38,12 +39,14 @@ def main():
     with zipfile.ZipFile(template, 'w', zipfile.ZIP_DEFLATED) as z:
         for file in sorted((ROOT / 'static' / 'onecomme-template').iterdir()):
             if file.is_file(): z.write(file, Path('taikiretsu-display') / file.name)
-    archive = output / 'Taikiretsu-Seiri-App-OneComme-0.1.2-windows-x64.zip'
+    archive = output / f'Taikiretsu-Seiri-App-OneComme-{VERSION}-windows-x64.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
         for file in sorted(target.rglob('*')):
             if file.is_file(): z.write(file, file.relative_to(output))
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    (output / 'SHA256SUMS.txt').write_text(digest + '  ' + archive.name + '\n', encoding='utf-8')
+    (output / 'SHA256SUMS.txt').write_text(
+        digest + '  ' + archive.name + '\n' +
+        hashlib.sha256(template.read_bytes()).hexdigest() + '  ' + template.name + '\n', encoding='utf-8')
     print(json.dumps({'zip': str(archive), 'sha256': digest, 'published': False}, ensure_ascii=False))
 
 

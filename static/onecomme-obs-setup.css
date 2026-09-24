@@ -1,0 +1,15 @@
+.obs-drag-source {
+    display: inline-block;
+    padding: 16px 24px;
+    margin: 4px 0 16px;
+    border: 2px solid #8be9b0;
+    border-radius: 12px;
+    background: #195c3a;
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: grab;
+}
+.obs-drag-source:hover { background: #23794d; }
+.obs-drag-source:active { cursor: grabbing; }
+.obs-drag-source:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }

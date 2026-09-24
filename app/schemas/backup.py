@@ -21,6 +21,7 @@ class Participant(StrictModel):
     youtube_handle: str | None = Field(default=None, max_length=200)
     youtube_nickname: str | None = Field(default=None, max_length=200)
     avatar_url: AvatarUrl = None
+    onecomme_memo: str | None = Field(default=None, max_length=4000)
     participation_count: Count
 
 class HistoryUser(StrictModel):

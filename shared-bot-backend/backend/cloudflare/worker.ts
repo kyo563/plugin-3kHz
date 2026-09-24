@@ -1,4 +1,6 @@
 import type { DurableObjectNamespace, DurableObjectState } from '@cloudflare/workers-types';
+import { createHmac } from 'node:crypto';
+import { isIP } from 'node:net';
 import { BotFault } from '../policy';
 import { BotService } from '../service';
 import { SqlBotStore } from '../sql-store';
@@ -20,6 +22,22 @@ export interface WorkerEnv extends GoogleBotSecrets, BotAuthEnv, ChannelEnv {
 // Never derive this name from client input. Changing it would reset safeguards.
 const COORDINATOR_NAME = 'shared-youtube-bot-v1';
 
+// Never forward a client-supplied X-JoinQueue-Source / X-Forwarded-For.
+// Cloudflare overwrites CF-Connecting-IP at the public edge. IPv6 is grouped by /64.
+export function sourceKey(request: Request, env: WorkerEnv): string {
+  const ip = request.headers.get('CF-Connecting-IP') ?? '';
+  const version = isIP(ip);
+  if (!version || !env.BOT_VAULT_KEY) throw new BotFault('UNAUTHENTICATED', 403);
+  let network = ip;
+  if (version === 6) {
+    const canonical = new URL('http://[' + ip + ']').hostname.slice(1, -1);
+    const [left, right] = canonical.split('::');
+    const a = left ? left.split(':') : [], b = right ? right.split(':') : [];
+    network = [...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill('0'), ...b].slice(0, 4).map(s => s.padStart(4, '0')).join(':');
+  }
+  return createHmac('sha256', env.BOT_VAULT_KEY).update('ingress:' + network).digest('hex');
+}
+
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     try {
@@ -27,7 +45,7 @@ export default {
       if (isChannelRoute(url.pathname)) {
         if (!channelBoundary(request, env)) return json({ error: { code: 'NOT_FOUND' } }, 404);
         const stub = env.BOT_COORDINATOR.get(env.BOT_COORDINATOR.idFromName(COORDINATOR_NAME));
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = { 'X-JoinQueue-Source': sourceKey(request, env) };
         for (const name of ['Origin', 'Cookie', 'Content-Type', 'Authorization']) {
           const value = request.headers.get(name); if (value !== null) headers[name] = value;
         }
@@ -38,7 +56,7 @@ export default {
       if (url.pathname === AUTH_PATH || url.pathname.startsWith(AUTH_PATH + '/')) {
         if (!authBoundary(request, env)) return json({ error: { code: 'NOT_FOUND' } }, 404);
         const stub = env.BOT_COORDINATOR.get(env.BOT_COORDINATOR.idFromName(COORDINATOR_NAME));
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = { 'X-JoinQueue-Source': sourceKey(request, env) };
         for (const name of ['Origin', 'Cookie', 'Content-Type']) { const value = request.headers.get(name); if (value !== null) headers[name] = value; }
         const result = await stub.fetch(request.url, { method: request.method, headers, redirect: 'manual',
           ...(request.method === 'POST' ? { body: await boundedText(request, 4096) } : {}) });
@@ -54,7 +72,7 @@ export default {
       const input = await boundedJson(request);
       const stub = env.BOT_COORDINATOR.get(env.BOT_COORDINATOR.idFromName(COORDINATOR_NAME));
       const response = await stub.fetch('https://coordinator.internal/v1/bot/posts', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: request.headers.get('Authorization')! },
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: request.headers.get('Authorization')!, 'X-JoinQueue-Source': sourceKey(request, env) },
         body: JSON.stringify(input),
       });
       return new Response(await response.text(), { status: response.status, headers: Object.fromEntries(response.headers) });
@@ -85,19 +103,21 @@ export class BotCoordinator {
   async fetch(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url);
+      const source = request.headers.get('X-JoinQueue-Source');
+      if (!source || !/^[a-f0-9]{64}$/.test(source)) throw new BotFault('UNAUTHENTICATED', 403);
       if (isChannelRoute(url.pathname)) {
         if (!channelBoundary(request, this.#env)) return json({ error: { code: 'NOT_FOUND' } }, 404);
-        takeIngress(durableSqlDriver(this.#ctx.storage));
+        takeIngress(durableSqlDriver(this.#ctx.storage), Date.now(), source);
         return await this.#connections.handle(request);
       }
       if (url.pathname === AUTH_PATH || url.pathname.startsWith(AUTH_PATH + '/')) {
         if (!authBoundary(request, this.#env)) return json({ error: { code: 'NOT_FOUND' } }, 404);
-        takeIngress(durableSqlDriver(this.#ctx.storage));
+        takeIngress(durableSqlDriver(this.#ctx.storage), Date.now(), source);
         return await this.#authorization.handle(request);
       }
       const invalid = validatePostRequest(request); if (invalid) return invalid;
       if (this.#env.BOT_POSTING_ENABLED !== 'true') return rejected(new BotFault('SERVICE_DISABLED', 503));
-      takeIngress(durableSqlDriver(this.#ctx.storage));
+      takeIngress(durableSqlDriver(this.#ctx.storage), Date.now(), source);
       const input = await boundedJson(request);
       return apiResponse(await this.#service.submit(request.headers.get('Authorization') ?? undefined, input));
     } catch (error) { return rejected(error instanceof BotFault ? error : new BotFault('BOT_UNAVAILABLE', 503)); }

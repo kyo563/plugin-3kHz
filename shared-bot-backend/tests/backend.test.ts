@@ -7,12 +7,18 @@ import { tmpdir } from 'node:os';
 import { request as httpRequest } from 'node:http';
 import { BotStore, REQUEST_UNITS, type Limits } from '../backend/store';
 import { BotService, type AuditEvent, type YouTubeGateway } from '../backend/service';
-import { BotFault } from '../backend/policy';
+import { BotFault, parsePost, renderPost } from '../backend/policy';
 import { createLocalServer } from '../backend/http';
 import type { BotPostRequest } from '../src/contracts/bot-api';
 
 const channel = `UC${'a'.repeat(22)}`;
 const anotherChannel = `UC${'b'.repeat(22)}`;
+test('plugin safe display names fit a full three-person call and opaque recipients', () => {
+  const base = {channelConnectionId:'connection',videoId:'abcdefghijk',eventId:'test',createdAt:1000000};
+  const call = parsePost({...base, templateId:'called',variables:{group:1000000,members:[{name:'名'.repeat(45)},{name:'😀'.repeat(22)},{name:'Player： A／ｗｗｗ．example.com'}]}});
+  assert.ok([...renderPost(call)].length <= 200);
+  assert.equal(parsePost({...base,templateId:'position',recipient:{service:'youtube',userId:'x'.repeat(512)},variables:{name:'Player： A',state:'not-queued'}}).recipient!.userId.length,512);
+});
 function fixture(limits: Partial<Limits> = {}, path = ':memory:') {
   let now = Date.parse('2026-09-22T00:00:00Z');
   const store = new BotStore(path); const token = randomBytes(32).toString('base64url');

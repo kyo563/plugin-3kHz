@@ -1,3 +1,18 @@
+const obsDragSource = document.getElementById('obs-drag-source');
+obsDragSource.addEventListener('dragstart', event => {
+    // Only the public, read-only display URL is sent to OBS. Never copy the
+    // current page URL, which can carry the management key in its fragment.
+    event.dataTransfer.clearData();
+    event.dataTransfer.setData('text/uri-list', obsDragSource.href);
+    event.dataTransfer.setData('text/plain', obsDragSource.href);
+    event.dataTransfer.effectAllowed = 'copy';
+});
+obsDragSource.addEventListener('click', event => {
+    event.preventDefault();
+    document.getElementById('obs-drag-result').textContent = 'このボタンを押したままOBSのプレビュー画面へ移動し、離してください。';
+});
+obsDragSource.addEventListener('dragend', () => obsDragSource.blur());
+
 document.getElementById('download-template').addEventListener('click', async () => {
     const result = document.getElementById('template-result');
     try {

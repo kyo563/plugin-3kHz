@@ -55,7 +55,8 @@ export class ChannelConnections {
       stateHash TEXT, browserHash TEXT, verifier TEXT, channelId TEXT, connectionId TEXT, deviceId TEXT);
       CREATE TABLE IF NOT EXISTS channel_checks (deviceId TEXT PRIMARY KEY, checkedAt INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS channel_probe_budget (deviceId TEXT PRIMARY KEY, startedAt INTEGER NOT NULL, count INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS channel_start_budget (id INTEGER PRIMARY KEY CHECK(id=1), startedAt INTEGER NOT NULL, count INTEGER NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS channel_source_budget (source TEXT PRIMARY KEY, startedAt INTEGER NOT NULL, count INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS channel_oauth_budget (id INTEGER PRIMARY KEY CHECK(id=1), startedAt INTEGER NOT NULL, count INTEGER NOT NULL);`);
   }
   async handle(r: Request): Promise<Response> {
     if (!channelBoundary(r, this.env)) return json({ error: { code: 'NOT_FOUND' } }, 404);
@@ -71,11 +72,15 @@ export class ChannelConnections {
         if (this.env.CHANNEL_CONNECT_ENABLED !== 'true' || !this.env.GOOGLE_CLIENT_ID || !this.env.GOOGLE_CLIENT_SECRET || !opaque(this.env.BOT_VAULT_KEY)) throw new BotFault('SERVICE_DISABLED', 503);
         const id = randomUUID(), key = random(), now = this.clock(), expiresAt = now + 600_000;
         this.db.transaction(() => {
-          // A development-wide daily cap also bounds OAuth lookup quota and storage.
-          const budget = this.db.prepare('SELECT * FROM channel_start_budget WHERE id=1').get();
+          // This header is created only by our edge Worker from Cloudflare's client IP.
+          // Rotating a self-chosen device token cannot consume other clients' allowance.
+          const source = r.headers.get('X-JoinQueue-Source');
+          if (!source || !/^[a-f0-9]{64}$/.test(source)) throw denied();
+          this.db.prepare('DELETE FROM channel_source_budget WHERE startedAt<=?').run(now - 86_400_000);
+          const budget = this.db.prepare('SELECT * FROM channel_source_budget WHERE source=?').get(source);
           const current = budget && Number(budget.startedAt) > now - 86_400_000;
           if (current && Number(budget.count) >= 20) throw new BotFault('RATE_LIMITED', 429, 3600);
-          this.db.prepare('INSERT OR REPLACE INTO channel_start_budget VALUES (1,?,?)').run(current ? Number(budget.startedAt) : now, current ? Number(budget.count) + 1 : 1);
+          this.db.prepare('INSERT OR REPLACE INTO channel_source_budget VALUES (?,?,?)').run(source, current ? Number(budget.startedAt) : now, current ? Number(budget.count) + 1 : 1);
           this.db.prepare("DELETE FROM channel_pairings WHERE expiresAt<=? AND status!='connected'").run(now);
           this.db.prepare('INSERT INTO channel_pairings (id,tokenHash,browserKey,createdAt,expiresAt,status) VALUES (?,?,?,?,?,?)').run(id, tokenHash, digest(key), now, expiresAt, 'new');
         });
@@ -165,6 +170,14 @@ export class ChannelConnections {
       }) });
       if (typeof grant.access_token !== 'string' || !/^[\x21-\x7e]{1,8192}$/.test(grant.access_token) || grant.token_type?.toLowerCase() !== 'bearer' ||
         typeof grant.scope !== 'string' || !grant.scope.split(' ').includes(CHANNEL_SCOPE)) throw denied();
+      // Reserve shared YouTube lookup quota only AFTER successful Google authentication.
+      // Abandoned starts and invalid OAuth codes consume no shared daily lookup allowance.
+      this.db.transaction(() => {
+        const now = this.clock(), budget = this.db.prepare('SELECT * FROM channel_oauth_budget WHERE id=1').get();
+        const current = budget && Number(budget.startedAt) > now - 86_400_000;
+        if (current && Number(budget.count) >= 200) throw new BotFault('RATE_LIMITED', 429, 3600);
+        this.db.prepare('INSERT OR REPLACE INTO channel_oauth_budget VALUES (1,?,?)').run(current ? Number(budget.startedAt) : now, current ? Number(budget.count) + 1 : 1);
+      });
       const mine = await this.google('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true', { headers: { Authorization: 'Bearer ' + grant.access_token } });
       const channelId = mine.items?.[0]?.id;
       if (!Array.isArray(mine.items) || mine.items.length !== 1 || typeof channelId !== 'string' || !/^UC[\w-]{22}$/.test(channelId) || channelId === this.env.BOT_CHANNEL_ID) throw denied();

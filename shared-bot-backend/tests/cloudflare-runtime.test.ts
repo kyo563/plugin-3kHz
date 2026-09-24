@@ -65,7 +65,7 @@ test('Cloudflare runtime: 実Workersランタイムで停止・認証拒否、�
     }
     const stub = (await mf.getDurableObjectNamespace('BOT_COORDINATOR'));
     const result = await stub.get(stub.idFromName('shared-youtube-bot-v1')).fetch('https://internal/v1/bot/posts', options);
-    assert.equal(result.status, 503);
+    assert.equal(result.status, 403); // A direct DO call cannot omit the edge-provided source.
   } finally { await mf.dispose(); }
 });
 

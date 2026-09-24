@@ -8,6 +8,6 @@
 #bot-client { display: block; max-width: 100%; margin: 10px 0 16px; }
 #bot-status { padding: 12px; background: #121d2b; border-radius: 8px; }
 #bot-last { overflow-wrap: anywhere; }
-a { color: #8fc4ff; }
+#settings-bot-panel a { color: #8fc4ff; }
 #bot-disconnect { margin-top: 12px; }
-textarea, select { background: #101923; color: #f1f5fa; border: 1px solid #53657b; border-radius: 6px; padding: 10px; font: inherit; }
+#settings-bot-panel textarea, #settings-bot-panel select { background: #101923; color: #f1f5fa; border: 1px solid #53657b; border-radius: 6px; padding: 10px; font: inherit; }

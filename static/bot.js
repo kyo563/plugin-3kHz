@@ -9,6 +9,7 @@
   }
   function status(s) {
     current = s;
+    el('bot-start').disabled = s.ready;
     el('bot-status').textContent = s.error || (s.ready ? 'Bot稼働中' : s.authenticated ? 'チャンネル接続済み／停止中' : s.login_pending ? 'チャンネル認証待ち' : 'Bot停止中／未接続');
     if (s.channel_id) el('bot-status').textContent += ' · 配信チャンネル ' + s.channel_id;
     el('bot-last').textContent = s.last_result || '';

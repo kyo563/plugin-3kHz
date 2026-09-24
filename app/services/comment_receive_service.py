@@ -18,6 +18,7 @@ class CommentReceiveService:
         self._normalizer = CommentNormalizer()
         self._detector = CommandDetector()
         self._declared_player_name_parser = DeclaredPlayerNameParser()
+        self.quoted_names_only = False
 
     def receive(self, comment: ReceivedComment, settings=None) -> CommentReceiveResult:
         with self._lock:
@@ -37,7 +38,7 @@ class CommentReceiveService:
         declared_player_name = None
         if command == "join":
             declared_player_name = (self._declared_player_name_parser.parse_quoted(comment.message, settings["join"] if settings else None)
-                                    or self._declared_player_name_parser.parse(normalized_message))
+                                    or (None if self.quoted_names_only else self._declared_player_name_parser.parse(normalized_message)))
 
         declared_player_name_flag = "yes" if declared_player_name else "no"
         self._log_writer(

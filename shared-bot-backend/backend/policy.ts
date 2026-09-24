@@ -76,7 +76,7 @@ export function parsePost(value: unknown): BotPostRequest {
   if (p.recipient !== undefined) {
     const r = object(p.recipient); keys(r, ['service', 'userId']);
     if (r.service !== 'youtube') throw new BotFault('INVALID_MESSAGE');
-    recipient = { service: 'youtube', userId: text(r.userId, 200) };
+    recipient = { service: 'youtube', userId: text(r.userId, 512) };
   }
   const result: BotPostRequest = { channelConnectionId, videoId, eventId, createdAt: p.createdAt as number,
     templateId: p.templateId as BotPostRequest['templateId'], ...(recipient ? { recipient } : {}),

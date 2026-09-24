@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import os
+import sqlite3
 from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException
@@ -41,9 +42,13 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
         if onecomme:
             from app.services.onecomme import OneCommeBridge
             application.state.onecomme = OneCommeBridge(application.state.services)
-            from app.services.bot import AnnouncementBot, BotStore
+            from app.services.bot import AnnouncementBot, BotStore, UnavailableBotStore
+            try:
+                bot_store = BotStore(Path(selected_db).with_name('bot.sqlite3'))
+            except (OSError, ValueError, sqlite3.Error):
+                bot_store = UnavailableBotStore()
             application.state.bot = AnnouncementBot(application.state.services, application.state.onecomme,
-                                                     BotStore(Path(selected_db).with_name('bot.sqlite3')))
+                                                     bot_store)
             application.state.services.bot = application.state.bot
             application.state.onecomme.bot = application.state.bot
             application.state.bot.start()

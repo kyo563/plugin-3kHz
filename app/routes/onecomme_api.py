@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, Field, model_validator
-import re
+import unicodedata
 import io
 import zipfile
 from pathlib import Path
@@ -15,7 +15,7 @@ def download_template():
     folder = Path(__file__).resolve().parents[2] / 'static' / 'onecomme-template'
     output = io.BytesIO()
     with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for name in ('index.html', 'script.js', 'style.css', 'template.json'):
+        for name in ('index.html', 'script.js', 'style.css', 'template.json', 'thumb.png'):
             archive.writestr('taikiretsu-display/' + name, (folder / name).read_bytes())
     return Response(output.getvalue(), media_type='application/zip', headers={
         'Content-Disposition': 'attachment; filename="Taikiretsu-Template.zip"'})
@@ -28,8 +28,9 @@ class Event(BaseModel):
 
     @model_validator(mode="after")
     def youtube_identity(self):
-        if self.comment.source != "youtube" or not re.fullmatch(r"UC[A-Za-z0-9_-]{22}", self.comment.user_key):
-            raise ValueError("YouTubeの安定したチャンネルIDが必要です")
+        if (self.comment.source != "youtube" or not self.comment.user_key.strip()
+                or any(unicodedata.category(c) in ('Cc', 'Cf', 'Cs') for c in self.comment.user_key)):
+            raise ValueError("わんコメが提供するYouTube利用者IDが必要です")
         if not self.comment.external_message_id:
             raise ValueError("コメントIDが必要です")
         return self
