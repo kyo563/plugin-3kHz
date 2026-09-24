@@ -12,7 +12,8 @@
     "BOT_AUTH_ENABLED": "false",
     "BOT_AUTH_EXPIRES_AT": "1790084710219",
     "CHANNEL_CONNECT_ENABLED": "true",
-    "BOT_POSTING_ENABLED": "false",
+    "BOT_POSTING_ENABLED": "true",
+    "BOT_POSTING_APPROVAL_ID": "8778e730-f511-4cd8-b064-b45305cd6ed4",
     "BOT_CHANNEL_ID": "UCV3VeoFI04L79MqwuApT-Hg"
   },
   "durable_objects": {

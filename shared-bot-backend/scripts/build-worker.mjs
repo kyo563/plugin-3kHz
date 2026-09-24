@@ -17,4 +17,4 @@ for (const path of Object.keys(result.metafile.inputs)) {
 }
 const external = Object.values(result.metafile.outputs).flatMap(output => output.imports);
 assert.ok(external.every(item => ['node:crypto', 'node:buffer', 'node:net'].includes(item.path)), 'Unexpected runtime dependency');
-console.log('Built isolated Cloudflare Worker (not deployed, posting disabled).');
+console.log('Built isolated Cloudflare Worker (not deployed; posting state is controlled by the deployed environment).');
