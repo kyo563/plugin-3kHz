@@ -20,14 +20,14 @@ test('sample preview shows session ordinals for every name mode, never for place
 
 async function settingsHarness(onecomme = true) {
   const defaults = {width:480, height:600, font_size:28, layout:'vertical', name_mode:'youtube',
-    show_participation_number:false, fonts:{all:'default'}};
+    show_participation_number:false, auto_fit_font:true, background_color:'#000000', background_transparency:100, fonts:{all:'default'}};
   let stored = {...defaults, show_participation_number:true};
   const elements = {}, fields = {}, calls = [], previews = [];
   const element = () => ({events:{}, style:{}, disabled:false, value:'', checked:false,
     addEventListener(name, fn) {this.events[name] = fn;}, focus(){}, close(){}, showModal(){}});
   for (const [key, value] of Object.entries(defaults)) {
     if (key === 'fonts' || (key === 'show_participation_number' && !onecomme)) continue;
-    fields[key] = {...element(), value:String(value), type:key === 'show_participation_number' ? 'checkbox' : 'text'};
+    fields[key] = {...element(), value:String(value), type:['show_participation_number','auto_fit_font'].includes(key) ? 'checkbox' : 'text'};
   }
   const get = id => elements[id] ||= element();
   const form = get('overlay-layout-form');
@@ -83,4 +83,29 @@ test('standalone settings still load and save without the new checkbox', async (
   assert.equal(get('save-overlay-layout').disabled, false);
   await form.events.submit({preventDefault(){}});
   assert.equal(Object.hasOwn(calls.at(-1), 'show_participation_number'), false);
+});
+
+test('background and font settings preview, save typed values, reload and reset', async () => {
+  const {form, fields, get, calls, previews} = await settingsHarness();
+  assert.equal(fields.auto_fit_font.checked, true);
+  fields.background_color.value = '#123456';
+  fields.background_transparency.value = '35';
+  fields.font_size.value = '56';
+  fields.auto_fit_font.checked = false;
+  form.events.input();
+  assert.equal(previews.at(-1).background_transparency, 35);
+  assert.equal(previews.at(-1).auto_fit_font, false);
+  await form.events.submit({preventDefault(){}});
+  assert.equal(calls.at(-1).background_color, '#123456');
+  assert.equal(calls.at(-1).font_size, 56);
+  assert.equal(calls.at(-1).auto_fit_font, false);
+  fields.auto_fit_font.checked = true;
+  fields.background_transparency.value = '100';
+  await get('reload-overlay-layout').onclick();
+  assert.equal(fields.auto_fit_font.checked, false);
+  assert.equal(Number(fields.background_transparency.value), 35);
+  await get('confirm-reset-settings').onclick();
+  assert.equal(fields.auto_fit_font.checked, true);
+  assert.equal(Number(fields.background_transparency.value), 100);
+  assert.equal(Number(fields.font_size.value), 28);
 });

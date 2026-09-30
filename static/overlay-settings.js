@@ -33,10 +33,11 @@
     window.addEventListener('app-font-error',()=>{fontMessage.textContent='一部のフォントを読み込めません。標準で表示しています。ファイルを再登録してください。';});
     function values() {
         const settings = Object.fromEntries(new FormData(form));
-        for (const key of ['width','height','font_size']) settings[key] = Number(settings[key]);
+        for (const key of ['width','height','font_size','background_transparency']) settings[key] = Number(settings[key]);
         for (const select of fontFields) delete settings[select.name];
         const participation = form.elements.namedItem('show_participation_number');
         if (participation) settings.show_participation_number = participation.checked;
+        settings.auto_fit_font = form.elements.namedItem('auto_fit_font').checked;
         settings.fonts = fontValues();
         return settings;
     }

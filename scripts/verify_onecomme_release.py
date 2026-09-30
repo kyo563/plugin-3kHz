@@ -23,6 +23,9 @@ with zipfile.ZipFile(archive_path) as archive:
     assert b'id="obs-drag-source"' in archive.read(static + 'onecomme-obs-setup.html')
     assert b'settings.show_participation_number = participation.checked' in archive.read(static + 'overlay-settings.js')
     assert b'appearance.show_participation_number' in archive.read(static + 'overlay.js')
+    assert b'background_transparency' in archive.read(static + 'overlay-settings.js')
+    assert b'--background-color' in archive.read(static + 'overlay.css')
+    assert b'auto_fit_font' in archive.read(static + 'settings.html')
     assert static + 'onecomme-obs-setup.css' in names
     with zipfile.ZipFile(io.BytesIO(archive.read(root + 'Taikiretsu-Template.zip'))) as template:
         assert len(template.namelist()) == 5

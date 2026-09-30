@@ -36,5 +36,8 @@ class OverlaySettings(BaseModel):
     width: int = Field(default=480, ge=160, le=3840)
     height: int = Field(default=600, ge=200, le=2160)
     font_size: int = Field(default=28, ge=12, le=96)
+    auto_fit_font: bool = True
+    background_color: str = Field(default="#000000", pattern=r"^#[0-9a-fA-F]{6}$")
+    background_transparency: int = Field(default=100, ge=0, le=100)
     text_color: str = Field(default="#ffffff", pattern=r"^#[0-9a-fA-F]{6}$")
     fonts: FontSettings = Field(default_factory=FontSettings)

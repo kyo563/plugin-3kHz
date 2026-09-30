@@ -110,3 +110,11 @@ GitHub Release `onecomme-v0.1.4`（ID 400028895）をdraft=false・prerelease=fa
 - わんコメ版だけ `QueueService.protect_next` を有効化。NOWが満員の場合、NEXT3名より後ろのうち参加回数が多い人の直前へ挿入する。既存NEXTと同じ優先度の先着順を維持する。比較する回数の基準自体は従来どおり。
 - OBS表示設定 `show_participation_number`（初期false）は既存のSQLite表示設定へ保存し、JSONバックアップにも含む。出力は既存display_nameへ文字列として付記し、利用者IDや内部履歴をOBSへ追加公開しない。
 - 回数はユーザー確認により現在の配信履歴の対戦済み回数+1。募集枠へは付けない。名前表示4方式と縦横の共通処理に適用。チェックボックスの保存・再読込・リセット、元に戻す・配信切替・再起動・バックアップ復元を検証。
+
+## 0.1.4 OBS背景・フォントサイズ追加更新（2026-09-30）
+
+ユーザー指定により0.1.4を維持。`background_color`（初期黒）・`background_transparency`（整数0～100、初期100）・`auto_fit_font`（初期true）を表示設定へ追加。背景はパネル領域にRGBAとして適用し、文字のopacityは1を維持。文字サイズは従来の12～96px、自動縮小をOFFにすると指定pxを優先する。枠外はクリップするため画面の案内で領域の調整を説明。SQLite保存、既存バックアップの初期値補完、バックアップ復元、表示設定リセットに対応。
+
+Python 380件・JavaScript 41件成功。IABの分離保存先で、縦／横、背景#123456・透過35％（rgba alpha0.65）、透過0／100％、56px固定、自動縮小28.5714px、保存後の再読込復元を実測。配布ファイルと導入先ファイルの両方で起動・終了・再起動・背景設定保存・既存機能のスモーク試験が成功。確認サーバーは終了。ユーザーの実データは変更しない。
+
+追加更新ZIP: `dist/onecomme-release-0.1.4-obs-style/Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip`、SHA256 `dcac28640dc8513a23a1cd3cbd031a6d1d67e30f22fc727aa4e7c8ae433b0a5b`。導入先201ファイルのハッシュ一致と元データ不変を確認。バックアップ: `%LOCALAPPDATA%/WaitingListAppOneComme-backups/release-0.1.4-obs-style-20260930`。GitHub添付の初回版は名前を変更して保管し、初回タグは移動せず、追加更新のソースコミットを公開説明に明記する。Botサーバー・Google・課金設定は変更しない。

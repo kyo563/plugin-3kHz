@@ -105,6 +105,7 @@ async function main() {
         assert.ok(settingsPage.includes('<small>' + plugin.version + '</small>'));
         assert.ok(settingsPage.includes('<h2>通知選択</h2>'));
         assert.ok(settingsPage.includes('name="show_participation_number"'));
+        for (const name of ['background_color','background_transparency','auto_fit_font']) assert.ok(settingsPage.includes('name="' + name + '"'));
         assert.ok(!settingsPage.includes('Botを使わなくても'));
         let bot = await api('/api/bot');
         assert.equal(bot.settings.enabled, false);
@@ -136,7 +137,7 @@ async function main() {
         assert.ok(!JSON.stringify(await api('/api/overlay-state')).includes('PRIVATE MEMO'));
         stage = 'overlay-number';
         assert.equal((await api('/api/settings/overlay')).show_participation_number, false);
-        await api('/api/settings/overlay', {name_mode:'declared', show_participation_number:true});
+        await api('/api/settings/overlay', {name_mode:'declared', show_participation_number:true, background_color:'#123456', background_transparency:35, font_size:56, auto_fit_font:false});
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');
         assert.equal((await api('/api/overlay-state')).now_view[2].display_name, '参加者募集中');
         assert.equal(fs.readFileSync(sentinel, 'utf8'), 'unchanged');
@@ -151,6 +152,11 @@ async function main() {
         assert.equal((await api('/api/state')).current.length, 2);
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');
         assert.equal((await api('/api/bot')).settings.enabled, false);
+        const appearance = (await api('/api/overlay-state')).appearance;
+        assert.equal(appearance.background_color, '#123456');
+        assert.equal(appearance.background_transparency, 35);
+        assert.equal(appearance.font_size, 56);
+        assert.equal(appearance.auto_fit_font, false);
         stage = 'protected-next';
         for (let i = 0; i < 7; i++) await api('/api/control/add-user', {user_id:'priority-smoke-' + i, display_name:'Priority ' + i});
         const beforePriority = await api('/api/state');
