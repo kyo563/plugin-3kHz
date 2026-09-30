@@ -4,6 +4,8 @@ Windows x64向けの正式リリースです。わんコメ版0.1.3の更新版�
 
 2026-09-30 追加更新：OBSの背景色・透過度・文字サイズ設定に対応しました。バージョンは0.1.4のままです。初回公開分を導入済みの場合も、下の本体ZIPを再ダウンロードして更新してください。
 
+[追加更新のソースコード](https://github.com/kyo563/plugin-3kHz/tree/13522b3542a22cef7b79370eb12755395c04860b)。初回タグは保持しています。添付名に `initial` が付くものは初回版の保管用です。通常は下の本体ZIPをお使いください。
+
 ## ダウンロード
 
 **[プラグイン本体をダウンロード](https://github.com/kyo563/plugin-3kHz/releases/download/onecomme-v0.1.4/Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip)**
