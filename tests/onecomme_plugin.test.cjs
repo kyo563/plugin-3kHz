@@ -19,6 +19,13 @@ test('maps documented fields and never uses display names as identity', () => {
     c.data.userId = 'UC' + 'a'.repeat(22); c.data.comment = 'a'.repeat(4097);
     assert.equal(convert(c), null);
 });
+test('membership flag does not exclude ordinary participation comments', () => {
+    const c = comment();
+    c.data.isMember = true;
+    assert.equal(convert(c).comment.message, c.data.comment);
+    assert.equal(convert(c).comment.userKey, c.data.userId);
+});
+
 test('memo uses matching official UserNameData, retaining absent vs explicit empty', () => {
     const c = comment(), data = {id:c.data.userId, service:'youtube', memo:'<b>private</b>'};
     assert.equal(convert(c, data).comment.oneCommeMemo, data.memo);

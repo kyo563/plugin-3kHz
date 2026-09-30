@@ -14,17 +14,40 @@
     let loaded = false;
     const fontFields = [...form.querySelectorAll('select[name^="font_"]')];
     const fontMessage = document.getElementById('font-import-result');
-    let library = [];
+    let library = [], systemFonts = [];
+    const obsFont = document.getElementById('obs-font-select');
+    const fontSearch = document.getElementById('obs-font-search');
+    const obsFields = ['status','now_heading','next_heading','queue_heading','now_names','next_names','summary'];
+    function obsSample() {
+        if (!obsFont) return;
+        const fonts = fontValues();
+        const id = fonts.obs_all || fonts.all || 'default';
+        document.getElementById('obs-font-sample').style.setProperty('--sample-font', window.AppFonts.family(id));
+        const count = obsFields.filter(key => fonts[key]).length;
+        const absent = id.startsWith('system:') && !systemFonts.some(f => f.id === id);
+        document.getElementById('obs-font-overrides').textContent =
+            (count ? `${count}項目に個別指定があります。下の見本は一括フォント、ページ下部のプレビューは個別指定を含む表示です。` : 'OBSの全項目に同じフォントを使用します。')
+            + (absent ? ' 選択中のPC内フォントは一覧にありません。未インストールの場合は標準で表示します。' : '');
+        document.getElementById('reset-obs-font-overrides').disabled = !loaded || !count;
+    }
+    function filterObsFonts() {
+        if (!obsFont) return;
+        const search = fontSearch.value.normalize('NFKC').toLocaleLowerCase();
+        // Keep the selected item visible so filtering never silently changes a setting.
+        for (const option of obsFont.options) option.hidden = !!search && option.value !== obsFont.value && !option.textContent.normalize('NFKC').toLocaleLowerCase().includes(search);
+    }
     function populateFonts(selected = {}) {
-        const choices = [['default','標準'],['gothic','游ゴシック'],['mincho','游明朝'],['meiryo','メイリオ'],['sans','標準ゴシック'],['serif','標準明朝'],...library.map(f=>[f.id,f.name])];
+        const choices = [['default','標準'],['gothic','游ゴシック'],['mincho','游明朝'],['meiryo','メイリオ'],['sans','標準ゴシック'],['serif','標準明朝'],...library.map(f=>[f.id,`追加済み：${f.name}`]),...systemFonts.map(f=>[f.id,`${f.japanese ? '日本語対応・' : ''}PC：${f.name}`])];
         for(const select of fontFields) {
             const key = select.name.slice(5), value = selected[key] ?? (key === 'all' ? 'default' : '');
             select.replaceChildren();
             const options = key === 'all' ? choices : [['','一括設定に従う'],...choices];
             for(const [id,label] of options) select.add(new Option(label,id));
-            if(value && !choices.some(([id])=>id===value)) select.add(new Option('未登録フォント（標準で表示・同じファイルを再登録）',value));
+            if(value && !choices.some(([id])=>id===value)) select.add(new Option(window.AppFonts.systemName(value) ? `PCに未登録：${window.AppFonts.systemName(value)}` : '未登録フォント（標準で表示・同じファイルを再登録）',value));
             select.value = value;
         }
+        filterObsFonts();
+        obsSample();
     }
     function fontValues() {
         return Object.fromEntries(fontFields.map(select=>[select.name.slice(5), select.value || null]));
@@ -52,6 +75,7 @@
     }
     function preview() {
         if (!loaded || !form.checkValidity()) return;
+        obsSample();
         const settings = values();
         document.getElementById('apply-layout-size').disabled = false;
         document.getElementById('vertical-editor').hidden = settings.layout !== 'vertical';
@@ -151,6 +175,34 @@
         for(const select of fontFields) if(select.name !== 'font_all') select.value = '';
         preview(); message.textContent = '個別指定を解除しました。保存すると反映されます。';
     };
+    if (obsFont) {
+        const clearObsOverrides = () => {
+            if (!loaded) return;
+            for (const key of obsFields) form.elements.namedItem('font_' + key).value = '';
+            filterObsFonts(); preview();
+            message.textContent = 'OBSのフォントを揃えました（未保存）。管理画面のフォントは変更していません。';
+        };
+        obsFont.addEventListener('change', clearObsOverrides);
+        document.getElementById('reset-obs-font-overrides').onclick = clearObsOverrides;
+        fontSearch.addEventListener('input', filterObsFonts);
+        const refreshFonts = document.getElementById('refresh-system-fonts');
+        refreshFonts.onclick = async () => {
+            refreshFonts.disabled = true;
+            const status = document.getElementById('system-font-status');
+            status.textContent = 'PC内のフォントを読み込んでいます…';
+            try {
+                const response = await fetch('/api/fonts/system', {signal:AbortSignal.timeout(10000)});
+                if (!response.ok) throw new Error();
+                const fonts = await response.json();
+                if (!Array.isArray(fonts)) throw new Error();
+                systemFonts = fonts;
+                populateFonts(fontValues());
+                status.textContent = fonts.length ? `PC内の${fonts.length}書体を表示しています。日本語対応を優先しています。` : 'PC内フォントが見つかりません。標準フォントか詳細設定のファイル追加をご利用ください。';
+            } catch (_) { status.textContent = 'PC内フォントを取得できませんでした。一覧を更新するか、標準フォント・ファイル追加をご利用ください。'; }
+            finally { refreshFonts.disabled = false; }
+        };
+        void refreshFonts.onclick();
+    }
     document.getElementById('font-file').addEventListener('change', async event => {
         const input = event.target, file = input.files[0]; if(!file) return;
         input.disabled = true;

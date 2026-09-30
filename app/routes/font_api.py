@@ -9,6 +9,17 @@ from app.dependencies import get_services
 router = APIRouter()
 MAX_FONT_BYTES = 32 * 1024 * 1024
 
+
+@router.get('/api/fonts/system')
+def system_fonts(request: Request):
+    if not getattr(request.app.state, 'onecomme', None):
+        raise HTTPException(404)
+    from app.services.system_fonts import enumerate_windows_fonts
+    try:
+        return enumerate_windows_fonts()
+    except OSError:
+        raise HTTPException(503, 'PC内のフォントを取得できません。標準フォントかファイル追加をご利用ください') from None
+
 def font_type(data):
     if len(data) < 12:
         raise ValueError('フォントファイルを確認できません')

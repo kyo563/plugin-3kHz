@@ -1,0 +1,14 @@
+        <section class="font-picker" aria-labelledby="font-picker-title">
+          <h3 id="font-picker-title">OBS全体のフォント</h3>
+          <p>一覧から選ぶだけでプレビューできます。管理画面のフォントは変わりません。</p>
+          <label>フォント名で検索 <input id="obs-font-search" type="search" placeholder="例：メイリオ、游ゴシック" autocomplete="off"></label>
+          <label>フォント <select name="font_obs_all" id="obs-font-select" aria-describedby="obs-font-note"></select></label>
+          <button id="refresh-system-fonts" type="button">PC内のフォント一覧を更新</button>
+          <p id="system-font-status" role="status"></p>
+          <p id="obs-font-note">選び直すとOBSの個別指定も選んだフォントに揃えます。保存するまでは配信画面に反映しません。</p>
+          <p id="obs-font-overrides" role="status"></p>
+          <button id="reset-obs-font-overrides" type="button">OBSの個別指定を解除して揃える</button>
+          <div class="obs-font-sample" id="obs-font-sample" aria-label="選択フォントの見本">NOW ／ NEXT<br>参加者名：あおい *2回目<br>1グループ／3人待機中</div>
+          <p>PC内フォントは名前だけを保存します。別PCにないフォントや対応しない文字は標準フォントで表示されます。</p>
+        </section>
+        <details id="font-details"><summary>詳細設定（項目別フォント・ファイル追加）</summary>

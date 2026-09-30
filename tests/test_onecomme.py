@@ -88,6 +88,29 @@ def test_selection_history_identity_now_protection_refill_and_persistence(tmp_pa
         assert len(c.get('/api/control/history').json()['sessions'][0]['users']) == 3
 
 
+def test_sixty_waiting_comments_reorder_and_restore_without_changing_obs_slots(tmp_path):
+    db = str(tmp_path / 'sixty.db')
+    with TestClient(create_app(db_path=db, desktop=True, onecomme=True), base_url='http://127.0.0.1') as c:
+        c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
+        assert c.post('/api/onecomme/comment', json=event(text='通常コメント')).status_code == 200
+        assert c.post('/api/onecomme/select', json={'frame_id':'live'}).status_code == 200
+        for n in range(63):
+            assert c.post('/api/onecomme/comment', json=event(n)).status_code == 200
+        state = c.get('/api/state').json()
+        assert len(state['current']) == 3
+        assert len(state['waiting']) == 60
+        ids = [u['user_id'] for u in state['waiting']]
+        reordered = [ids[-1], *ids[:-1]]
+        assert c.post('/api/control/reorder-waiting', json={'ordered_user_ids':reordered}).status_code == 200
+        assert [u['user_id'] for u in c.get('/api/state').json()['waiting']] == reordered
+        overlay = c.app.state.services.build_overlay_state()
+        assert len(overlay['now_view']) == len(overlay['next_view']) == 3
+        assert overlay['total_waiting_count'] == 60
+    with TestClient(create_app(db_path=db, desktop=True, onecomme=True), base_url='http://127.0.0.1') as c:
+        c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
+        assert [u['user_id'] for u in c.get('/api/state').json()['waiting']] == reordered
+
+
 def test_explicit_backup_migration_keeps_counts_without_writing_old_database(tmp_path):
     old = tmp_path / 'standalone.db'
     uid = UserIdentityService().build_comment_user_id('youtube', 'UC' + '0' * 22)

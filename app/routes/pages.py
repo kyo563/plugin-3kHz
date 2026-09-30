@@ -45,6 +45,8 @@ def overlay_page():
 def settings_page(request: Request):
     if request.app.state.onecomme_mode:
         html = (STATIC_DIR / "settings.html").read_text(encoding="utf-8")
+        html = html.replace('<!-- ONECOMME_FONT_PICKER -->', (STATIC_DIR / 'font-picker.html').read_text(encoding='utf-8'))
+        html = html.replace('<!-- ONECOMME_FONT_DETAILS_END -->', '</details>')
         html = html.replace('<body>', '<body data-onecomme="true">')
         html = html.replace('<h1>設定画面</h1>', '<h1>設定画面 <small>0.1.4</small></h1>')
         html = html.replace('<!-- ONECOMME_PARTICIPATION_NUMBER -->',

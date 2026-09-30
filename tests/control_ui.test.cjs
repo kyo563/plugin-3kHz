@@ -175,6 +175,23 @@ test('drag reorder supports first and last positions across the NEXT boundary', 
 });
 
 
+test('sixty waiting participants render without truncation and can move last to first', async () => {
+    const bodies = [];
+    const h = harness(async (url, options) => {
+        if (options?.method === 'POST') bodies.push(JSON.parse(options.body));
+        return reply(state(2));
+    });
+    h.sandbox.window.controlListDisplay = {values: {avatar:true, username:true, alias:true, memo:true, count:true, order:true}};
+    const waiting = Array.from({length:60}, (_, i) => ({user_id:`u${i}`, display_name:`User${i}`, participation_count:0}));
+    h.sandbox.renderState({...state(1), waiting});
+    assert.equal(h.element('#waiting').children.length, 60);
+    assert.equal(h.element('#waiting-count').textContent, '60人');
+    assert.equal(h.element('#waiting').children.at(-1).dataset.userId, 'u59');
+    assert.equal(h.element('#waiting').children.at(-1).draggable, true);
+    await h.sandbox.reorderWaitingWithDrag('u59', 'u0');
+    assert.deepEqual(bodies[0].ordered_user_ids, ['u59', ...waiting.slice(0, 59).map(u => u.user_id)]);
+});
+
 test('waiting avatars are lazy, private and reject foreign URLs', () => {
     const h = harness(async()=>reply(state(1)));
     const user = {user_id:'u1',display_name:'Alice',avatar_url:'https://yt3.ggpht.com/example=s32'};

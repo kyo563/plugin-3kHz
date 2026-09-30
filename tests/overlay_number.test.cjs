@@ -23,16 +23,21 @@ async function settingsHarness(onecomme = true) {
     show_participation_number:false, auto_fit_font:true, background_color:'#000000', background_transparency:100, fonts:{all:'default'}};
   let stored = {...defaults, show_participation_number:true};
   const elements = {}, fields = {}, calls = [], previews = [];
-  const element = () => ({events:{}, style:{}, disabled:false, value:'', checked:false,
+  const element = () => ({events:{}, style:{setProperty(k,v){this[k]=v;}}, disabled:false, value:'', checked:false,
+    options:[], replaceChildren(){this.options=[];}, add(option){this.options.push(option);},
     addEventListener(name, fn) {this.events[name] = fn;}, focus(){}, close(){}, showModal(){}});
   for (const [key, value] of Object.entries(defaults)) {
     if (key === 'fonts' || (key === 'show_participation_number' && !onecomme)) continue;
     fields[key] = {...element(), value:String(value), type:['show_participation_number','auto_fit_font'].includes(key) ? 'checkbox' : 'text'};
   }
   const get = id => elements[id] ||= element();
+  const fontKeys = ['all','ui_body','ui_heading','ui_controls','status','now_heading','next_heading','queue_heading','now_names','next_names','summary'];
+  if (onecomme) fontKeys.push('obs_all');
+  for (const key of fontKeys) fields['font_'+key] = {...element(), name:'font_'+key};
+  if (onecomme) elements['obs-font-select'] = fields.font_obs_all;
   const form = get('overlay-layout-form');
   form.elements = {namedItem:key=>fields[key] || null};
-  form.querySelectorAll = () => [];
+  form.querySelectorAll = () => fontKeys.map(key=>fields['font_'+key]);
   form.checkValidity = () => true;
   get('layout-preview-shell').parentElement = {clientWidth:840};
   get('layout-preview').contentWindow = {postMessage(message) {previews.push(message.appearance);}};
@@ -44,11 +49,13 @@ async function settingsHarness(onecomme = true) {
       }
     }
   }
-  const context = {document:{body:{dataset:{onecomme:String(onecomme)}}, getElementById:get},
-    window:{addEventListener(){}, AppFonts:{apply(){}}}, location:{origin:'http://127.0.0.1'},
+  const context = {document:{body:{dataset:{onecomme:String(onecomme)}}, getElementById:id=>!onecomme && ['obs-font-select','obs-font-search'].includes(id) ? null : get(id)},
+    Option:class {constructor(text,value){this.textContent=text;this.value=value;}},
+    window:{addEventListener(){}, AppFonts:{apply(){},family:id=>id,systemName:()=>null}}, location:{origin:'http://127.0.0.1'},
     localStorage:{setItem(){}}, AbortSignal, FormData,
     fetch:async (path, options = {}) => {
       if (path === '/api/fonts') return {ok:true, json:async()=>[]};
+      if (path === '/api/fonts/system') return {ok:true, json:async()=>[{id:'system:417269616c',name:'Arial',japanese:false}]};
       if (options.body) {const body = JSON.parse(options.body); calls.push(body); stored = {...defaults, ...body};}
       return {ok:true, json:async()=>stored};
     }};
@@ -76,6 +83,28 @@ test('ordinal checkbox restores, previews, saves booleans both ways and resets',
   await get('confirm-reset-settings').onclick();
   assert.equal(checkbox.checked, false);
   assert.equal(previews.at(-1).show_participation_number, false);
+});
+
+test('OBS font picker searches without selection loss and clears only OBS overrides on change', async () => {
+  const {fields, get, form, calls, previews} = await settingsHarness();
+  fields.font_ui_body.value = 'mincho';
+  fields.font_now_names.value = 'gothic';
+  fields.font_obs_all.value = 'system:417269616c';
+  get('obs-font-search').value = 'no match';
+  get('obs-font-search').events.input();
+  assert.equal(fields.font_obs_all.value, 'system:417269616c');
+  assert.equal(fields.font_obs_all.options.find(o=>o.value==='system:417269616c').hidden, false);
+  fields.font_obs_all.events.change();
+  assert.equal(fields.font_now_names.value, '');
+  assert.equal(fields.font_ui_body.value, 'mincho');
+  assert.equal(previews.at(-1).fonts.obs_all, 'system:417269616c');
+  await form.events.submit({preventDefault(){}});
+  assert.equal(calls.at(-1).fonts.obs_all, 'system:417269616c');
+  assert.equal(calls.at(-1).fonts.ui_body, 'mincho');
+  await get('reload-overlay-layout').onclick();
+  assert.equal(fields.font_obs_all.value, 'system:417269616c');
+  await get('confirm-reset-settings').onclick();
+  assert.equal(fields.font_obs_all.value, '');
 });
 
 test('standalone settings still load and save without the new checkbox', async () => {

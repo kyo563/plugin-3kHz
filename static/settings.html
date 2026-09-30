@@ -57,6 +57,7 @@
         </div>
         <p><label><input name="auto_fit_font" type="checkbox" checked> 枠に合わせて文字を自動縮小する</label></p>
         <p>指定サイズのまま表示したい場合は自動縮小をOFFにしてください。文字が収まらない場合は、表示領域やOBSソースのサイズを広げてください。背景は表示領域全体に適用します。</p>
+        <!-- ONECOMME_FONT_PICKER -->
         <h3>フォント（一括・個別）</h3>
         <p>一括設定は管理画面とOBS表示に適用します。個別指定がある項目はそちらを優先します。</p>
         <div class="layout-fields">
@@ -76,6 +77,7 @@
         <p><label>PCからフォントを追加 <input id="font-file" type="file" accept=".ttf,.otf,.woff,.woff2"></label></p>
         <p id="font-import-result" role="status">TTF・OTF・WOFF・WOFF2（1個32 MiB、合計64 MiB・20個まで）。追加後、上の選択欄で指定してください。</p>
         <p>元ファイルは変更せずアプリ内にコピーします。フォントファイル本体はJSONバックアップに含まれません。別PCへ復元した場合は同じファイルを再登録してください。未登録・非対応文字は標準フォントで表示します。</p>
+        <!-- ONECOMME_FONT_DETAILS_END -->
         <p class="save-hint">編集しただけではOBSに反映されません。下のボタンで保存してください。</p>
         <button id="save-overlay-layout" type="submit" disabled>保存してOBSに反映</button>
         <button id="reload-overlay-layout" type="button">保存済み設定を読み込む</button>

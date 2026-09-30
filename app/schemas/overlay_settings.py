@@ -1,11 +1,24 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, AfterValidator
 from typing import Annotated, Literal
 
-FontId = Annotated[str, Field(pattern=r'^(default|gothic|mincho|meiryo|sans|serif|[a-f0-9]{64})$')]
+def validate_font_id(value: str) -> str:
+    if value.startswith('system:'):
+        from app.services.system_fonts import valid_family
+        try:
+            name = bytes.fromhex(value[7:]).decode('utf-8')
+        except (ValueError, UnicodeError):
+            raise ValueError('フォント名が不正です') from None
+        if not valid_family(name):
+            raise ValueError('フォント名が不正です')
+    return value
+
+
+FontId = Annotated[str, Field(pattern=r'^(default|gothic|mincho|meiryo|sans|serif|[a-f0-9]{64}|system:(?:[a-f0-9]{2}){1,512})$'), AfterValidator(validate_font_id)]
 
 class FontSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     all: FontId = 'default'
+    obs_all: FontId | None = None
     ui_body: FontId | None = None
     ui_heading: FontId | None = None
     ui_controls: FontId | None = None

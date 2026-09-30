@@ -137,7 +137,11 @@ async function main() {
         assert.ok(!JSON.stringify(await api('/api/overlay-state')).includes('PRIVATE MEMO'));
         stage = 'overlay-number';
         assert.equal((await api('/api/settings/overlay')).show_participation_number, false);
-        await api('/api/settings/overlay', {name_mode:'declared', show_participation_number:true, background_color:'#123456', background_transparency:35, font_size:56, auto_fit_font:false});
+        const systemFonts = await api('/api/fonts/system');
+        assert.ok(systemFonts.length > 0 && systemFonts.every(f => f.id.startsWith('system:')));
+        assert.ok(settingsPage.includes('id="obs-font-select"'));
+        const fontSettings = {all:'default', ui_body:'meiryo', obs_all:systemFonts[0].id};
+        await api('/api/settings/overlay', {name_mode:'declared', show_participation_number:true, background_color:'#123456', background_transparency:35, font_size:56, auto_fit_font:false, fonts:fontSettings});
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');
         assert.equal((await api('/api/overlay-state')).now_view[2].display_name, '参加者募集中');
         assert.equal(fs.readFileSync(sentinel, 'utf8'), 'unchanged');
@@ -157,6 +161,8 @@ async function main() {
         assert.equal(appearance.background_transparency, 35);
         assert.equal(appearance.font_size, 56);
         assert.equal(appearance.auto_fit_font, false);
+        assert.equal(appearance.fonts.obs_all, fontSettings.obs_all);
+        assert.equal(appearance.fonts.ui_body, 'meiryo');
         stage = 'protected-next';
         for (let i = 0; i < 7; i++) await api('/api/control/add-user', {user_id:'priority-smoke-' + i, display_name:'Priority ' + i});
         const beforePriority = await api('/api/state');
