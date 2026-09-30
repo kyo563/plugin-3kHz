@@ -32,6 +32,7 @@ class OverlaySettings(BaseModel):
     horizontal_next_text: str = Field(default="[NEXT見出し]\n[NEXT1]\n[NEXT2]\n[NEXT3]", max_length=4000)
     horizontal_queue_text: str = Field(default="[QUEUE見出し]\n[待機グループ]\n/[待機人数のみ]", max_length=4000)
     name_mode: Literal["youtube", "declared", "youtube_declared", "declared_youtube"] | None = None
+    show_participation_number: bool = False
     width: int = Field(default=480, ge=160, le=3840)
     height: int = Field(default=600, ge=200, le=2160)
     font_size: int = Field(default=28, ge=12, le=96)

@@ -38,10 +38,12 @@ test('Cloudflare channel connection: actual Worker routing, OAuth proof and revo
     const start = await api('start'); assert.equal(start.status, 200, await start.clone().text());
     const link = (await start.json() as any).authorizationUrl;
     const page = await mf.dispatchFetch(link); assert.equal(page.status, 200);
+    assert.equal(page.headers.get('referrer-policy'), 'same-origin');
     const cookie = page.headers.get('set-cookie')!.split(';')[0]!;
     const csrf = /name="csrf" value="([^"]+)"/.exec(await page.text())![1]!;
     const begin = await mf.dispatchFetch(link, { method: 'POST', redirect: 'manual', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf }).toString() });
-    assert.equal(begin.status, 303); const state = new URL(begin.headers.get('location')!).searchParams.get('state')!;
+    assert.equal(begin.status, 303); assert.equal(begin.headers.get('referrer-policy'), 'no-referrer');
+    const state = new URL(begin.headers.get('location')!).searchParams.get('state')!;
     const done = await mf.dispatchFetch(AUTH_ORIGIN + CONNECT_CALLBACK + '?state=' + state + '&code=fake', { headers: { Cookie: cookie } });
     assert.equal(done.status, 200, await done.clone().text()); assert.equal(exchanges, 1);
     const status = await (await api('status')).json() as any;

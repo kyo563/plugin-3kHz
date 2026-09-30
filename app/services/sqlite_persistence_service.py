@@ -52,6 +52,7 @@ class SQLitePersistenceService:
 
     def _initialize_schema(self) -> None:
         with self._connect() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS control_display (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS app_state (
                     key TEXT PRIMARY KEY,
@@ -291,6 +292,23 @@ class SQLitePersistenceService:
     def list_fonts(self):
         with self._connect() as conn:
             return [dict(row) for row in conn.execute("SELECT id, name FROM font_assets ORDER BY name, id")]
+
+    def get_control_display(self):
+        from app.schemas.control_display import ControlDisplaySettings
+        with self._lock, self._connect() as conn:
+            row = conn.execute("SELECT value FROM control_display WHERE id=1").fetchone()
+            return (ControlDisplaySettings.model_validate_json(row['value']) if row
+                    else ControlDisplaySettings()).model_dump()
+
+    def save_control_display(self, settings):
+        from app.schemas.control_display import ControlDisplaySettings
+        validated = ControlDisplaySettings.model_validate(settings)
+        # Separate from operational snapshots: visibility changes must not consume undo,
+        # alter queue revisions, or be overwritten by comment arrival/queue restore.
+        with self._lock, self._connect() as conn:
+            conn.execute("INSERT INTO control_display(id,value) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value",
+                         (validated.model_dump_json(),))
+        return validated.model_dump()
 
     def get_font(self, font_id):
         with self._connect() as conn:

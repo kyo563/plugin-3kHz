@@ -11,9 +11,11 @@ class ParticipationCountLimitError(ValueError):
 
 
 class QueueService:
-    def __init__(self, group_size: int = GROUP_SIZE, open_slot_label: str = OPEN_SLOT_LABEL):
+    def __init__(self, group_size: int = GROUP_SIZE, open_slot_label: str = OPEN_SLOT_LABEL,
+                 *, protect_next: bool = False):
         self.group_size = group_size
         self.open_slot_label = open_slot_label
+        self.protect_next = protect_next
 
     def _log(self, state: dict, message: str) -> None:
         state["logs"].append(message)
@@ -45,7 +47,16 @@ class QueueService:
             self._log(state, f"{user['display_name']} をNOWへ補充しました")
             return True
 
-        if state["priority_mode"] and len(state["waiting"]) >= self.group_size:
+        if state["priority_mode"] and self.protect_next:
+            # NOW is handled above. Never displace the three announced NEXT users;
+            # stable priority insertion is allowed only in the unannounced tail.
+            for index in range(self.group_size, len(state["waiting"])):
+                if state["waiting"][index]["participation_count"] > user["participation_count"]:
+                    state["waiting"].insert(index, user)
+                    self._log(state, f"初回参加優先: {user['display_name']} をNEXTより後ろへ追加しました")
+                    return True
+
+        if state["priority_mode"] and not self.protect_next and len(state["waiting"]) >= self.group_size:
             next_slice = state["waiting"][: self.group_size]
             candidates = [
                 (index, queued_user)

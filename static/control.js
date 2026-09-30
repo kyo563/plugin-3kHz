@@ -21,16 +21,18 @@ function formatDisplayName(user, withCount) {
 
 function participantItem(user, { draggable = false, listType = "", position = null } = {}) {
     const li = document.createElement("li");
+    const display = ['waiting', 'now'].includes(listType) ? window.controlListDisplay?.values : null;
+    const participant = user.user_id && !user.is_placeholder;
     const label = document.createElement('span');
     label.className = 'participant-label'; label.textContent = formatDisplayName(user, false); label.title = label.textContent;
-    if (position !== null) {
+    if (position !== null && (!display || display.order)) {
         const order = document.createElement('span');
         order.className = 'participant-order';
         order.textContent = `${position + 1}${position < 3 ? ' 次' : ''}`;
         order.title = position < 3 ? '次の対戦の参加者（NEXT）' : '待機順';
         li.appendChild(order);
     }
-    if (listType === 'waiting' && user.user_id && !user.is_placeholder) {
+    if (participant && (display ? display.avatar : listType === 'waiting')) {
         const avatar = document.createElement('span');
         avatar.className = 'participant-avatar'; avatar.textContent = '●';
         avatar.setAttribute('aria-hidden', 'true');
@@ -49,17 +51,32 @@ function participantItem(user, { draggable = false, listType = "", position = nu
         }
         li.appendChild(avatar);
     }
-    li.appendChild(label);
-    if (user.user_id && !user.is_placeholder && user.onecomme_memo != null) {
+    if (display && participant) {
+        const addField = (className, value, description) => {
+            const field = document.createElement('span');
+            field.className = className; field.textContent = value;
+            field.title = `${description}: ${value}`;
+            li.appendChild(field);
+        };
+        if (display.username) addField('participant-label', user.youtube_handle || user.display_name || '—', 'ユーザー名');
+        if (display.alias) addField('participant-alias', user.declared_player_name || user.youtube_nickname || '—', '申告名／ニックネーム');
+        if (display.memo) addField('participant-memo', user.onecomme_memo || '—', 'わんコメのメモ');
+        if (!display.username && !display.alias && !display.memo) {
+            const spacer = document.createElement('span'); spacer.className = 'participant-spacer'; li.appendChild(spacer);
+        }
+    } else {
+        li.appendChild(label);
+    }
+    if (!display && user.user_id && !user.is_placeholder && user.onecomme_memo != null) {
         const memo = document.createElement('span');
         memo.className = 'participant-memo';
         memo.textContent = ' / ' + (user.onecomme_memo || 'メモなし');
         memo.title = user.onecomme_memo;
         li.appendChild(memo);
     }
-    if (user.user_id && !user.is_placeholder && user.participation_count !== undefined) {
+    if (participant && user.participation_count !== undefined && (!display || display.count)) {
         const count = document.createElement('span'); count.className='participant-count';
-        count.textContent = `今回${latestState?.session_participation_counts?.[user.user_id] ?? 0}回／累計${user.participation_count}回`; count.title='今回：現在の配信の対戦済み回数。累計：過去の配信を含む対戦済み回数'; li.appendChild(count);
+        count.textContent = `今回${latestState?.session_participation_counts?.[user.user_id] ?? 0}回／累計${user.participation_count}回`; count.title=`${count.textContent}（今回：現在の配信、累計：過去の配信を含む対戦済み回数）`; li.appendChild(count);
     }
     li.dataset.userId = user.user_id || "";
     li.dataset.placeholder = user.is_placeholder ? "1" : "0";
@@ -109,7 +126,7 @@ function participantItem(user, { draggable = false, listType = "", position = nu
 }
 
 function renderList(selector, users, opts = {}) {
-    const el = q(selector); const signature = JSON.stringify([users, latestState?.session_participation_counts]);
+    const el = q(selector); const signature = JSON.stringify([users, latestState?.session_participation_counts, window.controlListDisplay?.values]);
     if (el.dataset.signature === signature) return;
     el.dataset.signature = signature; el.innerHTML = "";
     users.forEach((user, index) => el.appendChild(participantItem(user, {...opts, position: opts.listType === "waiting" ? index : null})));
@@ -133,7 +150,7 @@ function renderState(state){
     q('#toggle-priority').setAttribute('aria-pressed', String(state.priority_mode));
     q('#toggle-priority').textContent = state.priority_mode ? '✓ 初回参加優先モード：ON（クリックでOFF）' : '初回参加優先モード：OFF（クリックでON）';
     q('#toggle-priority').disabled = mutationPending;
-    renderList('#now',state.now_view,{ draggable: false });
+    renderList('#now',state.now_view,{ draggable: false, listType: 'now' });
     q("#waiting-count").textContent = `${state.waiting.length}人`;
     renderList('#waiting',state.waiting,{ draggable: true, listType: "waiting" });
     renderLogs(state.logs);
@@ -230,6 +247,7 @@ q("#context-menu").addEventListener("click", (e) => {
 document.addEventListener("click", () => hideContextMenu());
 q('#reconnect').addEventListener('click', refresh);
 window.controlFormatDisplayName = formatDisplayName;
+window.refreshControlDisplay = () => { if (latestState && !draggingParticipant) renderState(latestState); };
 poll();
 
 // Test controls are opt-in; a failed capability request leaves them hidden.

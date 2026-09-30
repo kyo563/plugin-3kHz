@@ -67,6 +67,14 @@ async function main() {
             }).on('error', reject);
         });
         assert.ok(html.includes('onecomme-stream')); assert.ok(!html.includes('youtube-key'));
+        stage = 'control-display';
+        assert.ok(html.includes('id="control-display-options"'));
+        for (const asset of ['control-display.js', 'control-display.css']) {
+            assert.equal((await fetch('http://127.0.0.1:18765/static/' + asset)).status, 200);
+        }
+        const display = {avatar: true, username: true, alias: true, memo: false, count: false, order: true};
+        assert.equal((await api('/api/settings/control-display')).memo, true);
+        assert.deepEqual(await api('/api/settings/control-display', display), display);
         stage = 'obs-named-drag';
         const obsSetup = await fetch('http://127.0.0.1:18765/obs-setup').then(r => r.text());
         const obsLink = obsSetup.match(/id="obs-drag-source"[^>]*href="([^"]+)"/)[1].replaceAll('&amp;', '&');
@@ -96,6 +104,7 @@ async function main() {
         assert.ok(settingsPage.includes('id="settings-bot-panel"'));
         assert.ok(settingsPage.includes('<small>' + plugin.version + '</small>'));
         assert.ok(settingsPage.includes('<h2>通知選択</h2>'));
+        assert.ok(settingsPage.includes('name="show_participation_number"'));
         assert.ok(!settingsPage.includes('Botを使わなくても'));
         let bot = await api('/api/bot');
         assert.equal(bot.settings.enabled, false);
@@ -125,9 +134,33 @@ async function main() {
         stage = 'overlay';
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name, '試験参加者');
         assert.ok(!JSON.stringify(await api('/api/overlay-state')).includes('PRIVATE MEMO'));
+        stage = 'overlay-number';
+        assert.equal((await api('/api/settings/overlay')).show_participation_number, false);
+        await api('/api/settings/overlay', {name_mode:'declared', show_participation_number:true});
+        assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');
+        assert.equal((await api('/api/overlay-state')).now_view[2].display_name, '参加者募集中');
         assert.equal(fs.readFileSync(sentinel, 'utf8'), 'unchanged');
         assert.equal(fs.existsSync(path.join(old, 'must-not-exist.sqlite3')), false);
         assert.ok(fs.existsSync(path.join(local, 'WaitingListAppOneComme', 'waiting_list.sqlite3')));
+        stage = 'control-display-restart';
+        plugin.destroy();
+        await until(() => child.exitCode !== null, 15000);
+        plugin.init({dir});
+        await until(async () => (await plugin.request({method: 'GET'})).response.ready, 30000);
+        assert.deepEqual(await api('/api/settings/control-display'), display);
+        assert.equal((await api('/api/state')).current.length, 2);
+        assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');
+        assert.equal((await api('/api/bot')).settings.enabled, false);
+        stage = 'protected-next';
+        for (let i = 0; i < 7; i++) await api('/api/control/add-user', {user_id:'priority-smoke-' + i, display_name:'Priority ' + i});
+        const beforePriority = await api('/api/state');
+        if (!beforePriority.priority_mode) await api('/api/control/toggle-priority');
+        for (const user of beforePriority.waiting) await api('/api/control/correct-count', {user_id:user.user_id, participation_count:9});
+        await api('/api/control/add-user', {user_id:'priority-new', display_name:'New'});
+        const afterPriority = await api('/api/state');
+        assert.deepEqual(afterPriority.current.map(u=>u.user_id), beforePriority.current.map(u=>u.user_id));
+        assert.deepEqual(afterPriority.waiting.slice(0,3).map(u=>u.user_id), beforePriority.waiting.slice(0,3).map(u=>u.user_id));
+        assert.equal(afterPriority.waiting[3].user_id, 'priority-new');
     } finally {
         plugin.destroy();
         if (child) await until(() => child.exitCode !== null, 15000);
@@ -135,6 +168,6 @@ async function main() {
     let listening = false;
     try { await fetch('http://127.0.0.1:18765/control', {signal: AbortSignal.timeout(1000)}); listening = true; } catch (_) {}
     assert.equal(listening, false);
-    console.log(JSON.stringify({ok: true, packaged_worker: true, plugin_lifecycle: true, management_page: true, obs_named_drag: true, template_download: true, thumbnail: true, join: true, isolated_data: true, stopped: true}));
+    console.log(JSON.stringify({ok: true, packaged_worker: true, plugin_lifecycle: true, management_page: true, control_display_restart: true, protected_next: true, overlay_number: true, obs_named_drag: true, template_download: true, thumbnail: true, join: true, isolated_data: true, stopped: true}));
 }
 main().catch(() => { console.error('OneComme prototype smoke failed at ' + stage); process.exitCode = 1; });

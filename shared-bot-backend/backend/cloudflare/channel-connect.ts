@@ -133,7 +133,10 @@ export class ChannelConnections {
     if (!row || row.browserKey !== digest(key) || row.status !== 'new' || Number(row.expiresAt) <= this.clock()) throw denied();
     if (r.method === 'GET') {
       const nonce = random();
-      return html(`<h1>配信するチャンネルを接続</h1><p>プラグインの確認番号が ${id.slice(0, 8)} であることを確認してください。他人から届いたリンクでは接続しないでください。</p><p>自分の配信チャンネルで認証します。共通Bot用アカウントではありません。読み取り専用で所有チャンネルを確認します。</p><form method="post"><input type="hidden" name="csrf" value="${nonce}"><button>Googleでチャンネルを確認する</button></form>`, { 'Set-Cookie': `${COOKIE}=${nonce}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600` });
+      // Native form POST must retain its same-origin Origin header. no-referrer
+      // serializes it as "null" and our strict boundary correctly rejects that.
+      // Do not forward the pairing URL to Google: redirects retain no-referrer.
+      return html(`<h1>配信するチャンネルを接続</h1><p>プラグインの確認番号が ${id.slice(0, 8)} であることを確認してください。他人から届いたリンクでは接続しないでください。</p><p>自分の配信チャンネルで認証します。共通Bot用アカウントではありません。読み取り専用で所有チャンネルを確認します。</p><form method="post"><input type="hidden" name="csrf" value="${nonce}"><button>Googleでチャンネルを確認する</button></form>`, { 'Set-Cookie': `${COOKIE}=${nonce}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`, 'Referrer-Policy': 'same-origin' });
     }
     const fields = new URLSearchParams(await boundedText(r, 1024));
     if ([...fields.keys()].length !== 1 || !cookie(r) || fields.get('csrf') !== cookie(r)) throw denied();

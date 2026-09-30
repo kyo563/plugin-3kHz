@@ -35,8 +35,19 @@
         const settings = Object.fromEntries(new FormData(form));
         for (const key of ['width','height','font_size']) settings[key] = Number(settings[key]);
         for (const select of fontFields) delete settings[select.name];
+        const participation = form.elements.namedItem('show_participation_number');
+        if (participation) settings.show_participation_number = participation.checked;
         settings.fonts = fontValues();
         return settings;
+    }
+    function applyFields(settings) {
+        for (const [key, value] of Object.entries(settings)) {
+            if (key === 'fonts') continue;
+            const field = form.elements.namedItem(key);
+            if (!field) continue;
+            if (field.type === 'checkbox') field.checked = value === true;
+            else field.value = value;
+        }
     }
     function preview() {
         if (!loaded || !form.checkValidity()) return;
@@ -63,7 +74,7 @@
             if (settings.layout === 'custom') { settings.layout = 'vertical'; settings.vertical_text = settings.custom_text; }
             try { const fonts = await fetch('/api/fonts', {signal:AbortSignal.timeout(5000)}); if(fonts.ok) library = await fonts.json(); } catch (_) {}
             populateFonts(settings.fonts);
-            for (const [key,value] of Object.entries(settings)) if(key !== 'fonts' && key !== 'name_mode') form.elements.namedItem(key).value = value;
+            applyFields(settings);
             let nameMode = settings.name_mode;
             if(!nameMode) { const r = await fetch('/api/state',{signal:AbortSignal.timeout(5000)}); if(!r.ok) throw new Error(); nameMode = (await r.json()).show_declared_player_name_on_overlay ? 'youtube_declared' : 'youtube'; }
             form.elements.namedItem('name_mode').value = nameMode;
@@ -121,7 +132,7 @@
             const settings = await r.json();
             if (settings.layout === 'custom') { settings.layout = 'vertical'; settings.vertical_text = settings.custom_text; }
             populateFonts(settings.fonts);
-            for (const [key, value] of Object.entries(settings)) if (key !== 'fonts') form.elements.namedItem(key).value = value;
+            applyFields(settings);
             loaded = true; preview();
             message.textContent = '初期設定を保存しました。';
             window.AppFonts.apply(settings.fonts);

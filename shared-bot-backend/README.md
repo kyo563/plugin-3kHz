@@ -1,7 +1,9 @@
-# JoinQueue shared backend 0.1.2
+# JoinQueue shared backend
 
 Server-only Cloudflare Worker. Never include this folder in the Windows plugin ZIP.
 Bot OAuth secrets and encrypted refresh tokens remain in Cloudflare. No credential files belong in this repository.
+
+2026-09-30 / 0.1.4: the streamer GET /connect landing page now uses Referrer-Policy: same-origin. With no-referrer, a native form POST sends Origin: null and is rejected with NOT_FOUND by the exact-origin boundary. Callback and redirect responses still use no-referrer; invalid/missing origins and invalid CSRF remain rejected. TypeScript checking, 39 backend tests (including the real Worker/DO runtime) and bundle build passed. Quick Edit deployed production version `a26512e6`, bundle SHA256 `625ef7b863fa91d021cea944cbf3a491b1d7bfdf8e2ffb60d1c99a0098b078dc`. Verified live health, a disposable pairing, landing same-origin policy and rejection of Origin:null. A native Chrome form submission reached Google's account selection page without NOT_FOUND; no account was selected or Google consent completed. Revoked the disposable pairing and verified status rejection, then removed its local temporary keys. Existing OAuth secrets, Durable Object binding and posting configuration were retained. Actual streamer OAuth completion and YouTube chat posting remain unverified.
 
 `pnpm install --frozen-lockfile` then `pnpm check` verifies contracts, rate limits, OAuth and runtime persistence with mocked Google responses. `pnpm worker:dry-run` does not upload.
 

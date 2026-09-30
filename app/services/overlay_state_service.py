@@ -13,17 +13,24 @@ class OverlayStateService:
         if mode == 'declared_youtube' and declared and declared != account: return f"{declared}（{account}）"
         return account
 
-    def _to_overlay_user(self, user: dict, mode: str) -> dict:
+    def _to_overlay_user(self, user: dict, mode: str, session_counts: dict | None = None) -> dict:
         overlay_user = {"display_name": self._display_name(user, mode)}
-        if user.get("is_placeholder"): overlay_user["is_placeholder"] = True
+        if user.get("is_placeholder"):
+            overlay_user["is_placeholder"] = True
+        elif session_counts is not None:
+            number = session_counts.get(user.get('user_id'), 0) + 1
+            overlay_user['display_name'] += f" *{number}回目"
         return overlay_user
 
     def build_overlay_state(self, view_state: dict) -> dict:
         show_declared = (view_state.get("overlay_settings") or {}).get("name_mode") or ("youtube_declared" if view_state.get("show_declared_player_name_on_overlay", False) else "youtube")
+        session_counts = (view_state.get('session_participation_counts', {})
+                          if (view_state.get('overlay_settings') or {}).get('show_participation_number', False)
+                          else None)
         return {
             "is_open": view_state["is_open"],
-            "now_view": [self._to_overlay_user(user, show_declared) for user in view_state["now_view"]],
-            "next_view": [self._to_overlay_user(user, show_declared) for user in view_state["next_view"]],
+            "now_view": [self._to_overlay_user(user, show_declared, session_counts) for user in view_state["now_view"]],
+            "next_view": [self._to_overlay_user(user, show_declared, session_counts) for user in view_state["next_view"]],
             "queue_count": view_state["queue_count"],
             "queue_group_count": view_state["queue_group_count"],
             "total_waiting_count": view_state["total_waiting_count"],

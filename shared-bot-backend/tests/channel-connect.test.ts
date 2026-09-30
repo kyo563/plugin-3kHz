@@ -35,10 +35,12 @@ function fixture() {
   const start = async () => {
     const res = await api('start'); assert.equal(res.status, 200); const data = await res.json() as any;
     const landing = await auth().handle(new Request(data.authorizationUrl));
+    assert.equal(landing.headers.get('referrer-policy'), 'same-origin');
     const html = await landing.text(); const cookie = landing.headers.get('set-cookie')!.split(';')[0]!;
     const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1]!;
     const begin = await auth().handle(new Request(data.authorizationUrl, { method: 'POST', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf }) }));
     assert.equal(begin.status, 303);
+    assert.equal(begin.headers.get('referrer-policy'), 'no-referrer');
     const google = new URL(begin.headers.get('location')!);
     assert.equal(google.origin, 'https://accounts.google.com'); assert.equal(google.searchParams.get('scope'), CHANNEL_SCOPE);
     assert.equal(google.searchParams.get('access_type'), 'online'); assert.equal(google.searchParams.has('include_granted_scopes'), false);
@@ -57,6 +59,30 @@ test('operator posting approval: explicit configuration only, a restart or repla
     applyPostingApproval(f.driver, 'true', id, true); store.assertEnabled(); store.setEnabled(false);
     applyPostingApproval(f.driver, 'true', id, true); assert.throws(() => store.assertEnabled());
     applyPostingApproval(f.driver, 'true', '87654321-1111-4111-8111-111111111111', true); store.assertEnabled();
+  } finally { f.db.close(); }
+});
+
+test('channel form preserves strict Origin and CSRF checks while allowing native same-origin submission', async () => {
+  const f = fixture();
+  try {
+    const start = await f.api('start');
+    const link = (await start.json() as any).authorizationUrl;
+    const page = await f.auth().handle(new Request(link));
+    assert.equal(page.headers.get('referrer-policy'), 'same-origin');
+    const cookie = page.headers.get('set-cookie')!.split(';')[0]!;
+    const csrf = /name="csrf" value="([^"]+)"/.exec(await page.text())![1]!;
+    for (const origin of [undefined, 'null', 'https://evil.invalid']) {
+      const headers = new Headers({Cookie:cookie, 'Content-Type':'application/x-www-form-urlencoded'});
+      if (origin !== undefined) headers.set('Origin', origin);
+      const rejected = await f.auth().handle(new Request(link, {method:'POST', headers, body:new URLSearchParams({csrf})}));
+      assert.equal(rejected.status, 404);
+    }
+    const headers = {Origin:AUTH_ORIGIN, Cookie:cookie, 'Content-Type':'application/x-www-form-urlencoded'};
+    assert.equal((await f.auth().handle(new Request(link, {method:'POST', headers, body:new URLSearchParams({csrf:'invalid'})}))).status, 403);
+    const result = await f.auth().handle(new Request(link, {method:'POST', headers, body:new URLSearchParams({csrf})}));
+    assert.equal(result.status, 303);
+    assert.equal(result.headers.get('referrer-policy'), 'no-referrer');
+    assert.deepEqual(f.counts(), {lookups:0, checks:0, exchanges:0});
   } finally { f.db.close(); }
 });
 

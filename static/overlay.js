@@ -56,9 +56,11 @@ async function refresh() {
 }
 function sampleState(appearance = {}) {
     const mode = appearance.name_mode || 'youtube';
-    const named = (account, declared) => ({display_name: mode === 'declared' ? declared : mode === 'youtube_declared' ? `${account}（${declared}）` : mode === 'declared_youtube' ? `${declared}（${account}）` : account});
+    const named = (account, declared, number = 1) => ({display_name:
+        (mode === 'declared' ? declared : mode === 'youtube_declared' ? `${account}（${declared}）` : mode === 'declared_youtube' ? `${declared}（${account}）` : account)
+        + (appearance.show_participation_number ? ` *${number}回目` : '')});
     return {is_open:true, appearance,
-      now_view:[named('@sample_aoi','サンプル：あおい'),named('@sample_long_name_for_preview','サンプル：長い名前の表示確認'),{display_name:'参加者募集中',is_placeholder:true}],
+      now_view:[named('@sample_aoi','サンプル：あおい',2),named('@sample_long_name_for_preview','サンプル：長い名前の表示確認'),{display_name:'参加者募集中',is_placeholder:true}],
       next_view:[named('@sample_next_a','サンプル：次の方A'),named('@sample_next_b','サンプル：次の方B'),named('@sample_next_c','サンプル：次の方C')],
       total_waiting_count:5,total_waiting_group_count:2};
 }

@@ -27,6 +27,11 @@ def control_page(request: Request):
         html = html.replace('/static/youtube.js', '/static/onecomme.js')
         html = html.replace('<h1>待機列管理</h1>', '<p><a href="/settings?tab=bot">Bot設定</a></p><h1>待機列管理</h1>')
         html = html.replace('<h1>待機列管理</h1>', '<h1>待機列整理アプリ</h1>')
+        html = html.replace('<body>', '<body data-onecomme="true">')
+        html = html.replace('</head>', '<link rel="stylesheet" href="/static/control-display.css"></head>')
+        controls = (STATIC_DIR / 'control-display.html').read_text(encoding='utf-8')
+        html = html.replace('<div class="grid">', controls + '<div class="grid">', 1)
+        html = html.replace('<script src="/static/control.js">', '<script src="/static/control-display.js"></script><script src="/static/control.js">')
         return HTMLResponse(branded_page(html))
     return FileResponse(STATIC_DIR / "control.html")
 
@@ -41,7 +46,9 @@ def settings_page(request: Request):
     if request.app.state.onecomme_mode:
         html = (STATIC_DIR / "settings.html").read_text(encoding="utf-8")
         html = html.replace('<body>', '<body data-onecomme="true">')
-        html = html.replace('<h1>設定画面</h1>', '<h1>設定画面 <small>0.1.3</small></h1>')
+        html = html.replace('<h1>設定画面</h1>', '<h1>設定画面 <small>0.1.4</small></h1>')
+        html = html.replace('<!-- ONECOMME_PARTICIPATION_NUMBER -->',
+                            '<label><input type="checkbox" name="show_participation_number"> 名前の後ろに今回の配信での参加回数を表示する（例：プレイヤー名 *2回目）</label>')
         start = html.index('    <section class="panel fixed"')
         end = html.index('</section>', start) + len('</section>')
         html = html[:start] + html[end:]

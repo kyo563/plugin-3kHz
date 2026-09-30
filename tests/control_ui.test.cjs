@@ -188,6 +188,50 @@ test('waiting avatars are lazy, private and reject foreign URLs', () => {
     assert.equal(bad.children.find(c=>c.className==='participant-avatar').children.length,0);
 });
 
+test('OneComme rows split ordered fields and hide only selected information', () => {
+    const h = harness(async()=>reply(state(1)));
+    const values = {avatar:true, username:true, alias:true, memo:true, count:true, order:true};
+    h.sandbox.window.controlListDisplay = {values};
+    const user = {user_id:'alice', display_name:'Alice', youtube_handle:'@alice', youtube_nickname:'Nickname',
+        declared_player_name:'Declared', onecomme_memo:'<img src=x>\n長いメモ', participation_count:7};
+    const row = h.sandbox.participantItem(user, {listType:'waiting', position:0});
+    assert.deepEqual(row.children.slice(0,6).map(c=>c.className),
+        ['participant-order','participant-avatar','participant-label','participant-alias','participant-memo','participant-count']);
+    assert.equal(row.children[2].textContent, '@alice');
+    assert.equal(row.children[3].textContent, 'Declared');
+    assert.equal(row.children[4].textContent, user.onecomme_memo);
+    assert.equal(row.children[4].innerHTML, undefined);
+    assert.ok(row.children[4].title.includes(user.onecomme_memo));
+    const fallback = h.sandbox.participantItem({...user, declared_player_name:null}, {listType:'now'});
+    assert.equal(fallback.children.find(c=>c.className==='participant-alias').textContent, 'Nickname');
+    assert.ok(fallback.children.some(c=>c.className==='participant-avatar'));
+    for (const key of ['avatar','alias','memo','count','order']) values[key] = false;
+    const minimal = h.sandbox.participantItem(user, {listType:'waiting',position:0});
+    assert.deepEqual(minimal.children.slice(0,-2).map(c=>c.className), ['participant-label']);
+    assert.equal(minimal.children.at(-1).className, 'remove-participant');
+    values.username = false;
+    const empty = h.sandbox.participantItem(user, {listType:'waiting'});
+    assert.equal(empty.children[0].className, 'participant-spacer');
+    const placeholder = h.sandbox.participantItem({display_name:'参加者募集中', is_placeholder:true}, {listType:'now'});
+    assert.equal(placeholder.children[0].textContent, '参加者募集中');
+});
+
+test('visibility change invalidates cached rows but keeps identities and dragging', () => {
+    const h = harness(async()=>reply(state(1)));
+    const values = {avatar:true, username:true, alias:true, memo:true, count:true, order:true};
+    h.sandbox.window.controlListDisplay = {values};
+    const waiting = [{user_id:'opaque-user',display_name:'Name',onecomme_memo:'note'}];
+    h.sandbox.renderState({...state(1),waiting});
+    const before = h.element('#waiting').dataset.signature;
+    values.memo = false;
+    h.sandbox.window.refreshControlDisplay();
+    assert.notEqual(h.element('#waiting').dataset.signature, before);
+    const row = h.element('#waiting').children.at(-1);
+    assert.equal(row.dataset.userId, 'opaque-user');
+    assert.equal(row.draggable, true);
+    assert.ok(!row.children.some(c=>c.className==='participant-memo'));
+});
+
 
 test('participant counts show current stream separately and refresh at a new stream', () => {
     const h=harness(async()=>reply(state(1)));

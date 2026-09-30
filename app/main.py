@@ -40,6 +40,7 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
         )
         application.state.youtube = YouTubeChat(application.state.services)
         if onecomme:
+            application.state.services.queue_service.protect_next = True
             from app.services.onecomme import OneCommeBridge
             application.state.onecomme = OneCommeBridge(application.state.services)
             from app.services.bot import AnnouncementBot, BotStore, UnavailableBotStore
@@ -76,6 +77,8 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
     application.include_router(pages_router)
     application.include_router(font_router)
     if onecomme:
+        from app.routes.control_display_api import router as control_display_router
+        application.include_router(control_display_router)
         from app.routes.onecomme_api import router as onecomme_router
         application.include_router(onecomme_router)
         from app.routes.bot_api import router as bot_router

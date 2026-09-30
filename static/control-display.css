@@ -1,0 +1,33 @@
+/* Only loaded by the OneComme management page; OBS and standalone stay unchanged. */
+body[data-onecomme] .wrap { width:100%; max-width:none; min-height:100dvh; }
+#control-display-options { display:flex; flex-wrap:wrap; gap:6px 16px; margin:10px 0 0; padding:6px 10px 10px; border:1px solid #3b4f75; border-radius:6px; min-width:0; }
+#control-display-options legend { font-weight:700; }
+#control-display-options label { display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+#control-display-options input { margin:0; accent-color:#9ac5ff; }
+#control-display-status { font-size:11px; color:#b8c5d6; margin:4px 0; }
+body[data-onecomme] #now li, body[data-onecomme] #waiting li { flex-wrap:nowrap; height:36px; min-height:36px; }
+body[data-onecomme] .participant-label,
+body[data-onecomme] .participant-alias,
+body[data-onecomme] .participant-memo,
+body[data-onecomme] .participant-count { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:28px; }
+body[data-onecomme] .participant-label, body[data-onecomme] .participant-alias { flex:1 1 0; }
+body[data-onecomme] .participant-alias { color:#e0e9f7; }
+body[data-onecomme] .participant-memo { flex:1.5 1 0; }
+body[data-onecomme] .participant-count { flex:0.9 1 0; max-width:12em; }
+body[data-onecomme] .participant-order { min-width:28px; white-space:nowrap; }
+body[data-onecomme] .participant-spacer { flex:1; }
+body[data-onecomme] #waiting { max-height:60vh; max-height:60dvh; overflow-y:auto; scrollbar-gutter:stable; }
+body[data-onecomme] #now li button, body[data-onecomme] #waiting li button { white-space:nowrap; }
+body[data-onecomme] .match-progress { margin-top:8px; padding-top:8px; }
+@media (max-width:480px) {
+    body[data-onecomme] #now li, body[data-onecomme] #waiting li { gap:3px; }
+    body[data-onecomme] .participant-order { min-width:24px; }
+    body[data-onecomme] .participant-avatar { width:24px; height:24px; flex-basis:24px; }
+    body[data-onecomme] .participant-avatar img { width:24px; height:24px; }
+    body[data-onecomme] #now li button, body[data-onecomme] #waiting li button { padding:2px 4px; font-size:11px; }
+}
+@media (min-width:640px) {
+    body[data-onecomme] .status { grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 12px; }
+    body[data-onecomme] .actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    body[data-onecomme] #development-actions { grid-column:1 / -1; }
+}

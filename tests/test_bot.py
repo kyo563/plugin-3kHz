@@ -247,7 +247,7 @@ def test_api_local_auth_legacy_endpoint_removed_and_disconnect_confirmation(tmp_
         assert c.post('/api/bot/disconnect', json={}).status_code == 422
         assert c.post('/api/bot/connection', json={'action':'stop','url':'https://evil.invalid'}).status_code == 422
         html = c.get('/bot').text
-        assert '0.1.3' in html and 'id="bot-client"' not in html
+        assert '0.1.4' in html and 'id="bot-client"' not in html
         assert c.get('/bot', follow_redirects=False).headers['location'] == '/settings?tab=bot'
         assert 'role="tablist"' in html and 'aria-controls="settings-bot-panel"' in html
         assert '<h2>通知選択</h2>' in html and html.count('id="bot-form"') == 1

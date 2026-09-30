@@ -1,5 +1,6 @@
 """Separate OneComme release artifact. Does not touch standalone release files."""
 import hashlib
+import argparse
 import importlib.metadata as metadata
 import json
 from pathlib import Path
@@ -9,16 +10,20 @@ import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.1.3'
+VERSION = '0.1.4'
 
 
 def main():
-    output = ROOT / 'dist' / f'onecomme-release-{VERSION}'
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--worker-dir', type=Path, default=ROOT / 'dist' / f'onecomme-worker-{VERSION}')
+    parser.add_argument('--output-dir', type=Path, default=ROOT / 'dist' / f'onecomme-release-{VERSION}')
+    args = parser.parse_args()
+    output = args.output_dir.resolve()
     target = output / 'sankagata-seiretsu'
-    target.mkdir(parents=True, exist_ok=True)
-    source = ROOT / 'dist' / f'onecomme-worker-{VERSION}' / 'runtime'
+    source = args.worker_dir.resolve() / 'runtime'
     if not (source / 'QueueWorker.exe').is_file():
         raise RuntimeError('Build onecomme-worker.spec first')
+    target.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, target / 'runtime', dirs_exist_ok=True)
     for name in ('plugin.js', 'index.html', 'open.js', 'README.txt'):
         shutil.copyfile(ROOT / 'onecomme' / name, target / name)
