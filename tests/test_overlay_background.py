@@ -18,6 +18,8 @@ def client(tmp_path):
     {'background_transparency':50.5}, {'background_color':'#fff'},
     {'background_color':'red;opacity:0'}, {'auto_fit_font':'false'},
     {'font_size':11}, {'font_size':97},
+    {'text_bold':'false'}, {'text_shadow':'true'},
+    {'text_bold':0}, {'text_shadow':1}, {'text_shadow':None},
 ])
 def test_invalid_background_or_font_never_mutates_settings(client, change):
     before = client.get('/api/settings/overlay').json()
@@ -29,10 +31,12 @@ def test_background_and_font_persist_backup_restore_reset_and_etag(client, tmp_p
     initial = client.get('/api/settings/overlay').json()
     assert initial['background_transparency'] == 100
     assert initial['auto_fit_font'] is True
+    assert initial['text_bold'] is True
+    assert initial['text_shadow'] is True
     client.post('/api/control/add-user', json={'user_id':'keep','display_name':'Keep'})
     queue = client.get('/api/state').json()['current']
     before = client.get('/api/overlay-state')
-    settings = {**initial, 'background_color':'#12aBcD', 'background_transparency':35, 'font_size':56, 'auto_fit_font':False}
+    settings = {**initial, 'background_color':'#12aBcD', 'background_transparency':35, 'font_size':56, 'auto_fit_font':False, 'text_bold':False, 'text_shadow':False}
     assert client.post('/api/settings/overlay', json=settings).json() == settings
     response = client.get('/api/overlay-state', headers={'If-None-Match':before.headers['etag']})
     assert response.status_code == 200
@@ -44,11 +48,24 @@ def test_background_and_font_persist_backup_restore_reset_and_etag(client, tmp_p
     assert client.get('/api/settings/overlay').json() == initial
     assert client.get('/api/state').json()['current'] == queue
     legacy = deepcopy(backup)
-    for key in ('background_color','background_transparency','auto_fit_font'):
+    for key in ('background_color','background_transparency','auto_fit_font','text_bold','text_shadow'):
         legacy['state']['overlay_settings'].pop(key)
     for source in (legacy, backup):
         revision = client.get('/api/state').json()['revision']
         assert client.post('/api/control/restore', json={'backup':source, 'expected_revision':revision}).status_code == 200
         restored = client.get('/api/settings/overlay').json()
         assert restored['background_transparency'] == (100 if source is legacy else 35)
+        assert restored['text_bold'] is (source is legacy)
+        assert restored['text_shadow'] is (source is legacy)
     assert restored == settings
+
+
+@pytest.mark.parametrize('bold,shadow', [(False, False), (False, True), (True, False), (True, True)])
+def test_text_effects_independent_and_obs_only(client, bold, shadow):
+    initial = client.get('/api/settings/overlay').json()
+    settings = {**initial, 'text_bold':bold, 'text_shadow':shadow}
+    assert client.post('/api/settings/overlay', json=settings).json() == settings
+    assert client.get('/api/overlay-state').json()['appearance'] == settings
+    assert settings['fonts'] == initial['fonts']
+    assert 'name="text_bold"' in client.get('/settings').text
+    assert 'name="text_shadow"' in client.get('/settings').text

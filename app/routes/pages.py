@@ -47,6 +47,9 @@ def settings_page(request: Request):
         html = (STATIC_DIR / "settings.html").read_text(encoding="utf-8")
         html = html.replace('<!-- ONECOMME_FONT_PICKER -->', (STATIC_DIR / 'font-picker.html').read_text(encoding='utf-8'))
         html = html.replace('<!-- ONECOMME_FONT_DETAILS_END -->', '</details>')
+        html = html.replace('<!-- ONECOMME_TEXT_EFFECTS -->',
+            '<p><label><input name="text_bold" type="checkbox" checked> 太字で強調する</label></p>'
+            '<p><label><input name="text_shadow" type="checkbox" checked> 文字に影を付ける</label></p>')
         html = html.replace('<body>', '<body data-onecomme="true">')
         html = html.replace('<h1>設定画面</h1>', '<h1>設定画面 <small>0.1.4</small></h1>')
         html = html.replace('<!-- ONECOMME_PARTICIPATION_NUMBER -->',

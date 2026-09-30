@@ -177,7 +177,7 @@ dd {
 .font-picker { margin:18px 0; padding:14px; border:1px solid #526780; border-radius:8px; min-width:0; }
 .font-picker label { display:block; margin:8px 0; }
 .font-picker input, .font-picker select { width:100%; min-width:0; }
-body:not(.is-overlay) .obs-font-sample { font-family:var(--sample-font, sans-serif) !important; font-size:28px; font-weight:700; line-height:1.5; padding:14px; border-radius:6px; background:#0f1115; color:#fff; overflow-wrap:anywhere; }
+body:not(.is-overlay) .obs-font-sample { font-family:var(--sample-font, sans-serif) !important; font-size:28px; font-weight:var(--sample-weight, 700); text-shadow:var(--sample-shadow, 0 1px 3px #000); line-height:1.5; padding:14px; border-radius:6px; background:#0f1115; color:#fff; overflow-wrap:anywhere; }
 #font-details { margin:14px 0; }
 
 #save-commands { background:#facc15; color:#1f2937; font-weight:700; }

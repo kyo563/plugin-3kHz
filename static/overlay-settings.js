@@ -23,6 +23,9 @@
         const fonts = fontValues();
         const id = fonts.obs_all || fonts.all || 'default';
         document.getElementById('obs-font-sample').style.setProperty('--sample-font', window.AppFonts.family(id));
+        const sample = document.getElementById('obs-font-sample');
+        sample.style.setProperty('--sample-weight', form.elements.namedItem('text_bold').checked ? '700' : '400');
+        sample.style.setProperty('--sample-shadow', form.elements.namedItem('text_shadow').checked ? '0 1px 3px #000' : 'none');
         const count = obsFields.filter(key => fonts[key]).length;
         const absent = id.startsWith('system:') && !systemFonts.some(f => f.id === id);
         document.getElementById('obs-font-overrides').textContent =
@@ -61,6 +64,10 @@
         const participation = form.elements.namedItem('show_participation_number');
         if (participation) settings.show_participation_number = participation.checked;
         settings.auto_fit_font = form.elements.namedItem('auto_fit_font').checked;
+        for (const key of ['text_bold', 'text_shadow']) {
+            const field = form.elements.namedItem(key);
+            if (field) settings[key] = field.checked;
+        }
         settings.fonts = fontValues();
         return settings;
     }

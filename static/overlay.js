@@ -28,6 +28,8 @@ function renderOverlay(state) {
     const rgb = [1, 3, 5].map(index => parseInt(background.slice(index, index + 2), 16));
     panel.style.setProperty('--background-color', `rgba(${rgb.join(', ')}, ${(100 - transparency) / 100})`);
     panel.dataset.fontFit = appearance.auto_fit_font === false ? 'fixed' : 'auto';
+    panel.style.setProperty('--text-weight', appearance.text_bold === false ? '400' : '700');
+    panel.style.setProperty('--text-shadow', appearance.text_shadow === false ? 'none' : '0 1px 3px #000');
     panel.style.setProperty('--text-color', /^#[0-9a-fA-F]{6}$/.test(appearance.text_color || '') ? appearance.text_color : '#ffffff');
     panel.dataset.layout = appearance.layout || "vertical";
     const output = q('#custom-output');

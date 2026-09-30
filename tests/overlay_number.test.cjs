@@ -20,15 +20,15 @@ test('sample preview shows session ordinals for every name mode, never for place
 
 async function settingsHarness(onecomme = true) {
   const defaults = {width:480, height:600, font_size:28, layout:'vertical', name_mode:'youtube',
-    show_participation_number:false, auto_fit_font:true, background_color:'#000000', background_transparency:100, fonts:{all:'default'}};
+    show_participation_number:false, auto_fit_font:true, text_bold:true, text_shadow:true, background_color:'#000000', background_transparency:100, fonts:{all:'default'}};
   let stored = {...defaults, show_participation_number:true};
   const elements = {}, fields = {}, calls = [], previews = [];
   const element = () => ({events:{}, style:{setProperty(k,v){this[k]=v;}}, disabled:false, value:'', checked:false,
     options:[], replaceChildren(){this.options=[];}, add(option){this.options.push(option);},
     addEventListener(name, fn) {this.events[name] = fn;}, focus(){}, close(){}, showModal(){}});
   for (const [key, value] of Object.entries(defaults)) {
-    if (key === 'fonts' || (key === 'show_participation_number' && !onecomme)) continue;
-    fields[key] = {...element(), value:String(value), type:['show_participation_number','auto_fit_font'].includes(key) ? 'checkbox' : 'text'};
+    if (key === 'fonts' || (['show_participation_number','text_bold','text_shadow'].includes(key) && !onecomme)) continue;
+    fields[key] = {...element(), value:String(value), type:['show_participation_number','auto_fit_font','text_bold','text_shadow'].includes(key) ? 'checkbox' : 'text'};
   }
   const get = id => elements[id] ||= element();
   const fontKeys = ['all','ui_body','ui_heading','ui_controls','status','now_heading','next_heading','queue_heading','now_names','next_names','summary'];
@@ -112,6 +112,36 @@ test('standalone settings still load and save without the new checkbox', async (
   assert.equal(get('save-overlay-layout').disabled, false);
   await form.events.submit({preventDefault(){}});
   assert.equal(Object.hasOwn(calls.at(-1), 'show_participation_number'), false);
+  assert.equal(Object.hasOwn(calls.at(-1), 'text_bold'), false);
+  assert.equal(Object.hasOwn(calls.at(-1), 'text_shadow'), false);
+});
+
+test('text effects preview and persist independently, reload and reset to ON', async () => {
+  const {form, fields, get, calls, previews} = await settingsHarness();
+  assert.equal(fields.text_bold.checked, true);
+  assert.equal(fields.text_shadow.checked, true);
+  for (const bold of [false, true]) for (const shadow of [false, true]) {
+    fields.text_bold.checked = bold;
+    fields.text_shadow.checked = shadow;
+    form.events.input();
+    assert.equal(previews.at(-1).text_bold, bold);
+    assert.equal(previews.at(-1).text_shadow, shadow);
+    assert.equal(get('obs-font-sample').style['--sample-weight'], bold ? '700' : '400');
+    assert.equal(get('obs-font-sample').style['--sample-shadow'], shadow ? '0 1px 3px #000' : 'none');
+    await form.events.submit({preventDefault(){}});
+    assert.equal(calls.at(-1).text_bold, bold);
+    assert.equal(calls.at(-1).text_shadow, shadow);
+    fields.text_bold.checked = !bold;
+    fields.text_shadow.checked = !shadow;
+    await get('reload-overlay-layout').onclick();
+    assert.equal(fields.text_bold.checked, bold);
+    assert.equal(fields.text_shadow.checked, shadow);
+  }
+  fields.text_bold.checked = fields.text_shadow.checked = false;
+  await form.events.submit({preventDefault(){}});
+  await get('confirm-reset-settings').onclick();
+  assert.equal(fields.text_bold.checked, true);
+  assert.equal(fields.text_shadow.checked, true);
 });
 
 test('background and font settings preview, save typed values, reload and reset', async () => {

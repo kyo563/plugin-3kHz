@@ -132,3 +132,11 @@ Python 380件・JavaScript 41件成功。IABの分離保存先で、縦／横、
 Python 392件・JavaScript 47件成功（直前に追加した待機60人・メンバーフラグの回帰テストを含む）。隔離したブラウザーで327書体の列挙、日本語検索、游明朝の見本描画、保存・再読込復元を確認。実際のOBS描画は未検証。配布実行ファイルでもフォント一覧・設定保存・再起動復元と既存の起動終了・コメント・テンプレート取得試験が成功。ユーザーの実データ・導入済みプラグイン・公開リリース・Botサーバーは変更していない。
 
 候補ZIP: dist/onecomme-release-0.1.4-font-picker/Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip。SHA256: 8595285a311737ed0e04eb43d94dba7c4c3996e991564f08f819e098f4580637。202ファイルのアーカイブ検証成功。
+
+## OBSの太字・影切り替え（2026-09-30、未公開・未導入）
+
+「OBSの文字・背景・サイズ」に「太字で強調する」「文字に影を付ける」を追加。別々にON/OFFでき、保存前に文字見本とOBSプレビューで確認できる。text_bold / text_shadow は初期true、OFF時はfont-weight:400 / text-shadow:none。管理画面の文字装飾・フォント指定・背景色・透過度は変更しない。SQLite保存、再起動、バックアップ復元、旧バックアップの初期値補完、設定リセットに対応。独立版には新しいチェックボックスを表示しない。
+
+Python 401件・JavaScript 49件成功。隔離ブラウザーで縦横、太字のみON、影のみON、両方OFF、保存・再読込を確認。実行ファイルでも両方OFFの保存・再起動復元および既存機能のスモーク試験が成功。実際のOBS描画は未検証。ユーザーの実データ、導入済みプラグイン、GitHub公開版、Bot設定は変更していない。
+
+フォント選択の更新も含む候補ZIP: dist/onecomme-release-0.1.4-text-effects/Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip。SHA256: 6febcd3aa62bf278e648d3f156c43a4fb15cc7337f07208a8c35c0a8ea792f92。202ファイルのアーカイブ検証成功。

@@ -33,5 +33,18 @@ test('legacy settings and invalid preview colors safely fall back to transparenc
     context.renderOverlay({appearance});
     assert.equal(panel.style['--background-color'],'rgba(0, 0, 0, 0)');
     assert.equal(panel.dataset.fontFit,'auto');
+    assert.equal(panel.style['--text-weight'],'700');
+    assert.equal(panel.style['--text-shadow'],'0 1px 3px #000');
+  }
+});
+
+test('bold and shadow toggle independently on the existing panel in every layout', () => {
+  const {context, panel} = harness();
+  for (const layout of ['vertical','horizontal','custom']) {
+    for (const text_bold of [false,true]) for (const text_shadow of [false,true]) {
+      context.renderOverlay({appearance:{layout,text_bold,text_shadow}});
+      assert.equal(panel.style['--text-weight'], text_bold ? '700' : '400');
+      assert.equal(panel.style['--text-shadow'], text_shadow ? '0 1px 3px #000' : 'none');
+    }
   }
 });

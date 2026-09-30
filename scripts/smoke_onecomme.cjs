@@ -105,7 +105,7 @@ async function main() {
         assert.ok(settingsPage.includes('<small>' + plugin.version + '</small>'));
         assert.ok(settingsPage.includes('<h2>通知選択</h2>'));
         assert.ok(settingsPage.includes('name="show_participation_number"'));
-        for (const name of ['background_color','background_transparency','auto_fit_font']) assert.ok(settingsPage.includes('name="' + name + '"'));
+        for (const name of ['background_color','background_transparency','auto_fit_font','text_bold','text_shadow']) assert.ok(settingsPage.includes('name="' + name + '"'));
         assert.ok(!settingsPage.includes('Botを使わなくても'));
         let bot = await api('/api/bot');
         assert.equal(bot.settings.enabled, false);
@@ -141,7 +141,7 @@ async function main() {
         assert.ok(systemFonts.length > 0 && systemFonts.every(f => f.id.startsWith('system:')));
         assert.ok(settingsPage.includes('id="obs-font-select"'));
         const fontSettings = {all:'default', ui_body:'meiryo', obs_all:systemFonts[0].id};
-        await api('/api/settings/overlay', {name_mode:'declared', show_participation_number:true, background_color:'#123456', background_transparency:35, font_size:56, auto_fit_font:false, fonts:fontSettings});
+        await api('/api/settings/overlay', {name_mode:'declared', show_participation_number:true, background_color:'#123456', background_transparency:35, font_size:56, auto_fit_font:false, text_bold:false, text_shadow:false, fonts:fontSettings});
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');
         assert.equal((await api('/api/overlay-state')).now_view[2].display_name, '参加者募集中');
         assert.equal(fs.readFileSync(sentinel, 'utf8'), 'unchanged');
@@ -161,6 +161,8 @@ async function main() {
         assert.equal(appearance.background_transparency, 35);
         assert.equal(appearance.font_size, 56);
         assert.equal(appearance.auto_fit_font, false);
+        assert.equal(appearance.text_bold, false);
+        assert.equal(appearance.text_shadow, false);
         assert.equal(appearance.fonts.obs_all, fontSettings.obs_all);
         assert.equal(appearance.fonts.ui_body, 'meiryo');
         stage = 'protected-next';
