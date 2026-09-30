@@ -120,3 +120,5 @@ Python 380件・JavaScript 41件成功。IABの分離保存先で、縦／横、
 追加更新ZIP: `dist/onecomme-release-0.1.4-obs-style/Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip`、SHA256 `dcac28640dc8513a23a1cd3cbd031a6d1d67e30f22fc727aa4e7c8ae433b0a5b`。導入先201ファイルのハッシュ一致と元データ不変を確認。バックアップ: `%LOCALAPPDATA%/WaitingListAppOneComme-backups/release-0.1.4-obs-style-20260930`。GitHub添付の初回版は名前を変更して保管し、初回タグは移動せず、追加更新のソースコミットを公開説明に明記する。Botサーバー・Google・課金設定は変更しない。
 
 追加更新の公開完了: Release ID 400028895を正式版のまま更新。本体ZIP・SHA256SUMS.txtの通常名は追加更新版へ切替済み。初回本体は `Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64-initial.zip`、初回チェックサムは `SHA256SUMS-initial.txt` として削除せず保持。テンプレートZIPと初回タグは変更なし。更新ソースは `13522b3542a22cef7b79370eb12755395c04860b`。通常URLから匿名ダウンロードした本体ZIP・チェックサムがローカル成果物と一致することを確認。導入済みファイルでの試験後も元データのハッシュ不変を再確認。
+
+ユーザーの追加指示「差し替えてください。更新前のものはもう誰も使いません」に従い、上記の初回本体ZIP（asset 600884978）と初回チェックサム（asset 600885063）を公開添付から削除。公開説明から保管用添付の案内を除いた。正式版0.1.4には更新版本体ZIP・テンプレートZIP・SHA256SUMS.txtの3添付のみ残り、本体のSHA256が検証済み追加更新版と一致することを再確認。ローカルの初回配布ファイル・バックアップ、既存タグ、他のリリースは変更していない。
