@@ -142,6 +142,34 @@ test('backend: 異なる接続IDでも同じチャンネルの制限を共有す
   } finally { f.store.close(); }
 });
 
+test('backend: two creators route independently; foreign connection, own limit and revocation never cross tenants', async () => {
+  const f = fixture({userPerMinute: 1, channelPerMinute: 1, globalGapMs: 0, channelGapMs: 0});
+  try {
+    const token2 = randomBytes(32).toString('base64url'), auth2 = `Bearer ${token2}`;
+    f.store.provisionDevice(token2, {userId: 'user-2', deviceId: 'device-2'}, f.clock() + 3_600_000);
+    f.store.provisionVerifiedConnection({id: 'connection-2', userId: 'user-2', channelId: anotherChannel, verifiedAt: f.clock()});
+    const deliveries: Array<{chat: string; message: string}> = [];
+    f.gateway.resolveChat = async (video, owner) => { f.verified.push(`${owner}/${video}`); return `chat:${owner}`; };
+    f.gateway.post = async (chat, message) => { deliveries.push({chat, message}); };
+    const second = () => f.body({channelConnectionId: 'connection-2', videoId: 'lmnopqrstuv',
+      variables: {members: [{name: 'Creator B viewer', handle: '@viewerB'}], group: 2}});
+    assert.equal((await f.submit(second())).body.error?.code, 'CHANNEL_NOT_LINKED');
+    assert.equal((await f.submit(f.body(), auth2)).body.error?.code, 'CHANNEL_NOT_LINKED');
+    assert.deepEqual(f.verified, []);
+    assert.equal((await f.submit()).body.status, 'sent');
+    assert.equal((await f.submit(f.body({eventId: 'own-limit'}))).body.error?.code, 'RATE_LIMITED');
+    // Equal event IDs belong to separate authenticated principals.
+    assert.equal((await f.submit(second(), auth2)).body.status, 'sent');
+    assert.deepEqual(deliveries.map(d => d.chat), [`chat:${channel}`, `chat:${anotherChannel}`]);
+    assert.ok(deliveries[0]!.message.includes('@taro') && !deliveries[0]!.message.includes('@viewerB'));
+    assert.ok(deliveries[1]!.message.includes('@viewerB') && !deliveries[1]!.message.includes('@taro'));
+    f.store.revokeConnection('connection-1'); f.advance(61_000);
+    assert.equal((await f.submit(f.body({eventId: 'revoked', createdAt: f.clock()}))).body.error?.code, 'CHANNEL_NOT_LINKED');
+    assert.equal((await f.submit({...second(), eventId: 'b-still-active'}, auth2)).body.status, 'sent');
+    assert.equal(deliveries.length, 3); assert.equal(deliveries[2]!.chat, `chat:${anotherChannel}`);
+  } finally { f.store.close(); }
+});
+
 test('backend: 別イベントIDで同じ文面を連投しても拒否', async () => {
   const f = fixture();
   try {

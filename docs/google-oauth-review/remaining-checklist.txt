@@ -1,0 +1,77 @@
+JoinQueue — Google OAuth申請・一般提供までの残作業
+更新: 2026-10-01 / 作者・運営: kyo563
+状態: 申請準備中。Google審査の提出・承認は未完了。
+
+完了した準備
+- 共通Bot方式、わんコメ受信、ローカル待機列、OBS表示の責務を分離。
+- 共通BotのGoogle秘密情報はバックエンドのみで保持。
+- ホーム、プライバシーポリシー、利用規約を公開。
+- ホームとOAuthコールバックの正確なホストのSearch Console所有確認。
+- Googleのブランド名・公開連絡先・URL・敏感な2スコープを確認。
+- 認証開始前のポリシー同意をサーバー側で検証。
+- 保存期限・サーバー記録削除を実装・テスト。ただし本番は無効。
+- 配信者間の投稿先、制限、接続解除の分離テストを追加。
+- 最新コードからローカル配布候補を作成。公開リリースへの差替えは未実施。
+
+1. データ・認証解除の運用確定 [提出前に解決]
+  本番のBOT_DATA_LIFECYCLE_ENABLEDは、利用者の指示により無効のまま。
+  有効化の許可は改めて必要。一般公開で削除済みと説明してはならない。
+  さらに、配信者のGoogleトークンを所有確認後に破棄する現状では、
+  アプリからの解除時にGoogleトークンを直ちに失効させる処理と、
+  Google側からの解除を定期確認する処理を満たすことが未確認。
+  29日保存期限だけを有効にしても、この認証解除の問題は解決しない。
+  詳細と設計候補: operations-runbook.txt。
+
+2. Googleのドメイン・ブランド確認 [未完了]
+  プロジェクト: joinqueue-bot-dev。現状はExternal / Testing。
+  承認済みドメイン: kyo563.github.io / joinqueue.workers.dev。
+  exact callback-hostの所有確認と親ドメインの最終審査受理は別。
+  Googleの最終検査で受理されるか確認し、拒否の場合のみ代替を検討。
+  有料独自ドメイン購入・課金設定は承認なく行わない。
+  Testing画面では最終ブランド確認の導線が表示されていない。
+  Productionへの切替はアクセス範囲を広げるため実行直前の承認が必要。
+
+3. 実認証・実投稿・撮影 [配信者本人の操作と試験配信が必要]
+  公開の試験ライブと試験用参加者を準備し、OneCommeで受信する。
+  配信者本人のGoogle同意、チャンネル所有確認、Botの標準モデレーター
+  登録、接続確認、確認付き固定文投稿、3通知を実機で確認する。
+  Bot運営OAuthも審査動画で実証する。保存済みトークンの存在だけでは
+  OAuth同意画面からの操作動画の代わりにならない。
+  運営用OAuth入口は現在閉じている。撮影時のみ別途承認して開き、
+  認証後すぐ閉じる。既存の秘密情報を画面や録画に出さない。
+  English narration / 操作手順: demo-runbook.txt。
+  メンバー限定配信のBot投稿は未検証。初期提供範囲に含めて保証しない。
+
+4. 配布候補・公開資料の最終一致 [候補作成済み、公開前に再確認]
+  配布候補、サーバー設定、ポリシー、申請の権限説明、動画での操作を
+  同じ実装・運用に揃える。未有効機能や審査済みの表示をしない。
+  自動テスト: Python 435 / JavaScript 76 / backend 51 = 562件成功。
+  TypeScript型検査、ZIP整合性・秘密ファイル除外、隔離実行も成功。
+  実Google認証・OBSの実描画・Bot実投稿の証明ではない。
+  新配布候補SHA256:
+  90f24c293fc7b6ccc390821afa32021e4b094a20b54dccf3f72b4999154acec7
+  dist/onecomme-release-0.1.4-oauth-prep-20261001/
+  Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip
+  既存インストール・GitHub公開添付・タグ・ローカル待機列は未変更。
+
+5. 運用確認 [一般提供前]
+  個別制限に加えて共通Bot全体のAPI割当量を確認する。
+  現コードの投稿予算は24時間窓8,000 units、1要求52 unitsとして予約。
+  接続確認やOAuth関連呼出しなどは別途Google側の実消費も点検する。
+  OAuth審査はYouTube API割当量の増加申請とは別。
+  連続失敗・Google割当量障害による停止を監視し、原因確認後にのみ復旧。
+  投稿承認IDを再生成して停止を無断解除しない。
+  問合せ・削除依頼の受付を実際に運用できることを確認する。
+
+6. 一般公開・審査提出 [未実行]
+  上記の不足を解決し、実操作動画の限定公開URLと説明を揃える。
+  Google画面の現在の導線に沿い、ブランド確認・公開・Data Accessの
+  sensitive scopes審査を進める。最終確認の宣言・同意は事実と一致させる。
+  Productionへの切替は審査承認ではない。未確認警告や利用者上限が
+  残る可能性があり、「万人が登録可能」と先に宣言しない。
+  Googleの返信対応、承認状態確認、実機最終検証後に一般提供を案内する。
+
+公式資料
+https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification
+https://developers.google.com/identity/verification/authentication-verification
+https://developers.google.com/youtube/terms/developer-policies

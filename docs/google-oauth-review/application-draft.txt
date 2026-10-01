@@ -121,6 +121,26 @@ Outstanding inputs / evidence before submission
    publishing verified branding as part of the current submission flow.
    Do not record those actions as completed without verifying the console.
 
+2026-10-01 follow-up preflight
+- Official requirements rechecked. Published/verified branding is a prerequisite
+  for sensitive Data Access review; real English grant-flow video evidence is
+  required. Production publishing status alone is not verification approval.
+- An additional gap is recorded: discarding the creator token prevents the
+  current app from immediately revoking Google's grant on in-app disconnect
+  and directly rechecking authorization after external revocation. A 29-day
+  data TTL alone does not establish compliance. Do not declare the application
+  policy-compliant until this lifecycle design and operation are resolved.
+- See remaining-checklist.txt, demo-runbook.txt and operations-runbook.txt.
+- Latest checks: Python 435, JavaScript 76, backend 51 passed (562 total),
+  TypeScript type check passed. Two-creator routing, foreign-connection denial,
+  individual rate limits and revocation isolation are explicitly tested.
+- Fresh Windows 0.1.4 local candidate: 208 ZIP entries, integrity/checksum passed,
+  packaged executable start/restart, persisted preferences/queue, OneComme
+  fixture comments, OBS data/drag URL and template ZIP passed in isolated storage.
+  No real Google authorization or YouTube posting occurred. Existing installed
+  plugin, release assets, server configuration and user data were not replaced.
+  Candidate SHA256: 90f24c293fc7b6ccc390821afa32021e4b094a20b54dccf3f72b4999154acec7.
+
 Official preparation reference
 https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification
 

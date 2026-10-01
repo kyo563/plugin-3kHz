@@ -1,0 +1,90 @@
+JoinQueue OAuth review demonstration — recording plan, NOT completed evidence
+Owner: kyo563 / Project: joinqueue-bot-dev / Prepared: 2026-10-01
+
+Before recording
+Use a dedicated clean browser window, a test public livestream and invented
+viewer names. Close personal tabs, email, Cloudflare secrets and terminal logs.
+Do not record passwords, auth codes, pairing links/keys, device tokens, client
+secrets, refresh/access tokens or unrelated account names. The OAuth client
+ID is public and should remain visible with the app name as Google requests.
+Display language and narration: English. Put a checked recording on an
+Unlisted YouTube video. A screenshot or simulated local screen is not proof
+of real OAuth/API functionality. Do not claim the recording already exists.
+The two scopes serve different audiences; demonstrate both separately.
+
+Part A — Creator channel ownership (youtube.readonly)
+1. Show public home/privacy/terms and the Windows OneComme plugin's Bot tab.
+2. Explain @JoinQueueBot moderator registration in the creator's YouTube Studio.
+3. Start a NEW creator connection, verify the displayed comparison number,
+   open the authorization page without recording its pairing key or URL.
+4. Show the privacy/terms links and consent checkbox. The human creator accepts
+   the agreement and Google consent; the agent does not silently accept it.
+5. Show Google app name, public OAuth client ID and the read-only permission.
+   Select the actual streaming channel. Hide personal account identifiers;
+   keep the app, scope, client ID and required grant-flow steps verifiable.
+6. Complete the callback. Show the connected creator's test channel and target
+   live video in the plugin, not a token or internal response.
+7. Explain that channels.list(part=id,mine=true) verifies channel control.
+
+Suggested narration
+"JoinQueue is a queue management plugin for OneComme. Incoming comments are
+provided by OneComme, not fetched by our bot backend. The creator grants
+YouTube read-only access so our server can verify the channel they control.
+This creator flow does not request permission to post as the creator."
+
+Part B — Dedicated operator Bot (youtube.force-ssl)
+1. Obtain authorization before temporarily opening the operator OAuth entry.
+   Do not revoke or replace the currently working Bot credentials just to film.
+2. Show the separate operator grant flow, its app/client ID and write scope.
+   The human operator authorizes the dedicated @JoinQueueBot channel.
+3. Show only the safe success page: Bot identity matched and server storage.
+   Close the operator entry immediately after the authorized operation.
+4. Explain the same current OAuth client supports the separate operator flow;
+   ordinary creators never receive the Bot refresh credential/write scope.
+
+Suggested narration
+"The service operator separately authorizes the dedicated JoinQueueBot
+channel. YouTube's liveChatMessages.insert endpoint needs write permission.
+The encrypted Bot credential stays on the server. Creators install the plugin
+and connect their channel; they do not create their own Bot accounts."
+
+Part C — Real features on the test live
+1. Get explicit approval for actual visible chat test posts on that test live.
+2. Receive invented join comments through OneComme; show local NOW/NEXT/QUEUE
+   and the OBS text display. No automatic join or withdrawal reply is expected.
+3. Confirm the connection without posting. Confirm the optional fixed-message
+   post; verify YouTube displays "JoinQueueBot 接続テスト" from the common Bot.
+4. Enable the three independent checkboxes. Advance to the next group and
+   show a single three-person NOW call. Initial NOW filling must not announce.
+5. Have a waiting test viewer address @JoinQueueBot. Show that viewer's own
+   waiting order/group reply. A second immediate request should not repeat.
+6. Show the first-delay selector (15/30/45/60 min) and interval (15/30 min).
+   Wait for a real scheduled count notice. Edit the video for waiting time
+   without implying a simulated notice was a real API post.
+7. Turn each feature off and confirm no corresponding automatic post occurs.
+8. Verify a wrong/ended target is rejected without posting to another live.
+   Do not trigger enough failures to exhaust the common Bot or test strangers.
+
+Suggested narration
+"Requests contain a fixed notification type and queue variables. The server
+authenticates the device, checks channel ownership and the active live chat,
+applies per-user, per-channel and shared limits, and then posts with the common
+Bot. These messages show next-group calls, personal queue-position replies
+and periodic waiting counts. Local settings and queues stay on each PC."
+
+Part D — Lifecycle and release
+Do NOT record deletion/retention as available while production disables it.
+After the lifecycle and Google grant-revocation design is approved, implemented
+and active, record the real disconnect/revoke/deletion path and policy links.
+Show local queue/display settings remain intact and another creator is unaffected.
+Use an isolated test connection; deleting real user records needs separate approval.
+
+Before upload and submission
+- Human reviews the whole recording for names, keys, codes and private data.
+- Both sensitive scopes and their actual features are demonstrated in English.
+- The final privacy operation, video and release match the submitted code.
+- Upload only after confirming the checked video and its Unlisted audience.
+- Record URL and Google submission state; never infer approval from upload.
+
+Official video requirements
+https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification

@@ -114,6 +114,9 @@ async function main() {
         assert.ok(settingsPage.includes('フォント一括設定'));
         assert.ok(settingsPage.includes('OBSに表示される文言は以下のとおりです。'));
         assert.ok(settingsPage.includes('id="bot-initial-delay"'));
+        assert.ok(settingsPage.includes('id="bot-erase-open" type="button" disabled'));
+        assert.ok(settingsPage.includes('id="bot-erase-dialog"'));
+        assert.ok(settingsPage.includes('id="bot-erase-confirm" type="button" disabled'));
         assert.ok(!settingsPage.includes('確認用の状態です'));
         assert.ok(settingsPage.includes('name="show_participation_number"'));
         for (const name of ['background_color','background_transparency','auto_fit_font','text_bold','text_shadow']) assert.ok(settingsPage.includes('name="' + name + '"'));
@@ -122,6 +125,7 @@ async function main() {
         assert.equal(bot.settings.enabled, false);
         assert.equal(bot.settings.interval_minutes, 30);
         assert.equal(bot.authenticated, false);
+        assert.equal(bot.deletion_available, false);
         assert.equal(bot.settings.initial_delay_minutes, 30);
         bot = await api('/api/bot/settings', {enabled: false, announce_now: false, reply_position: true, periodic: false, interval_minutes: 15, initial_delay_minutes:45});
         assert.equal(bot.settings.initial_delay_minutes, 45);
