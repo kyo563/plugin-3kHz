@@ -21,7 +21,8 @@ def test_variant_isolation_auth_and_pages(tmp_path):
             assert c.get('/api/onecomme/status').status_code == (200 if variant else 404)
             assert c.get('/api/youtube/status').status_code == (404 if variant else 200)
             assert ('id="youtube-key"' in c.get('/control').text) != variant
-            assert ('id="onecomme-stream"' in c.get('/control').text) == variant
+            assert ('id="onecomme-stream"' in c.get('/settings').text) == variant
+            assert 'id="onecomme-stream"' not in c.get('/control').text
 
 
 def test_onecomme_cross_site_navigation_does_not_relax_api_or_iframe_security(tmp_path):

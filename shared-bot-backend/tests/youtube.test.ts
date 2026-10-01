@@ -29,6 +29,17 @@ test('YouTube: Bot本人・配信所有者・稼働チャットを検証して�
   assert.deepEqual(JSON.parse(String(f.calls[2]!.init?.body)), { snippet: { liveChatId: 'verified-chat', type: 'textMessageEvent', textMessageDetails: { messageText: '@taro さん、順番です。' } } });
 });
 
+test('YouTube: verified Bot profile is acquired without extra OAuth scopes and foreign icons are dropped', async () => {
+  for (const icon of ['https://yt3.ggpht.com/test','https://foreign.invalid/test']) {
+    const f=apiFixture([{items:[{id:bot,snippet:{title:'JoinQueue Test',thumbnails:{default:{url:icon}}}}]},{items:[video]}]);
+    await f.api.resolveChat(video.id,owner);
+    assert.equal(f.api.profile()?.id,bot);
+    assert.equal(f.api.profile()?.name,'JoinQueue Test');
+    assert.equal(f.api.profile()?.icon,icon.includes('foreign')?'':icon);
+    assert.equal(new URL(f.calls[0]!.url).searchParams.get('part'),'id,snippet');
+  }
+});
+
 test('YouTube: Botアカウント違い・所有者違い・開始前・終了済み・チャットなしは拒否', async () => {
   const wrongBot = apiFixture([{ items: [{ id: owner }] }]);
   await assert.rejects(wrongBot.api.resolveChat(video.id, owner), fault('BOT_UNAVAILABLE'));

@@ -23,7 +23,7 @@ def settings(payload: BotSettings, request: Request):
 
 class Command(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    action: Literal['connect', 'status', 'check', 'start', 'stop']
+    action: Literal['connect', 'status', 'check', 'start', 'stop', 'test']
 
 
 @router.post('/api/bot/connection')

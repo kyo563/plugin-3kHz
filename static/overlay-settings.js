@@ -135,8 +135,8 @@
     frame.addEventListener('load', preview);
     window.addEventListener('resize', preview);
     document.getElementById('reload-overlay-layout').onclick = load;
-    form.addEventListener('submit', async event => {
-        event.preventDefault(); if (!loaded) return;
+    window.saveOverlaySettings = async () => {
+        if (!loaded || save.disabled || !form.checkValidity()) return false;
         save.disabled = true; resetButton.disabled = true;
         const submitted = values();
         try {
@@ -145,9 +145,11 @@
             window.AppFonts.apply(submitted.fonts);
             localStorage.setItem('app-font-settings', String(Date.now()));
             message.textContent = '保存しました。管理画面とOBS表示に反映されます。';
-        } catch (_) { message.textContent = '保存を確認できません。入力値と接続を確認してください。'; }
+            return true;
+        } catch (_) { message.textContent = '保存を確認できません。入力値と接続を確認してください。'; return false; }
         finally { save.disabled = false; resetButton.disabled = !loaded; }
-    });
+    };
+    form.addEventListener('submit', async event => { event.preventDefault(); return window.saveOverlaySettings(); });
     resetButton.onclick = () => { resetDialog.showModal(); document.getElementById('cancel-reset-settings').focus(); };
     document.getElementById('cancel-reset-settings').onclick = () => resetDialog.close();
     resetDialog.addEventListener('cancel', event => { if (resetting) event.preventDefault(); });

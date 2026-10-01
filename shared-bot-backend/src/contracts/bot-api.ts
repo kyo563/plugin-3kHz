@@ -1,5 +1,5 @@
 /** Shared public types only. Google credentials must never be added here. */
-export type BotTemplate = 'called' | 'position' | 'announcement';
+export type BotTemplate = 'called' | 'position' | 'announcement' | 'connection-test';
 export interface BotName { name: string; handle?: string }
 /** Server validates an exact field set for each template. Never arbitrary chat text. */
 export interface BotVariables {

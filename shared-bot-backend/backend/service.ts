@@ -3,6 +3,7 @@ import { assertFresh, BotFault, digest, failure, parsePost, renderPost, type Api
 import { SqlBotStore, DEFAULT_LIMITS, type Limits } from './sql-store';
 
 export interface YouTubeGateway {
+  profile?(): {id:string; name:string; icon:string} | null;
   /** Confirms the authenticated bot identity and validates live video's owner. */
   resolveChat(videoId: string, ownerChannelId: string): Promise<string>;
   post(chatId: string, message: string): Promise<void>;

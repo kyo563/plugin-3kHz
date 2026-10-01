@@ -42,7 +42,9 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
         if onecomme:
             application.state.services.queue_service.protect_next = True
             from app.services.onecomme import OneCommeBridge
-            application.state.onecomme = OneCommeBridge(application.state.services)
+            from app.services.setup_preferences import SetupStore
+            application.state.setup_store = SetupStore(selected_db)
+            application.state.onecomme = OneCommeBridge(application.state.services, application.state.setup_store)
             from app.services.bot import AnnouncementBot, BotStore, UnavailableBotStore
             try:
                 bot_store = BotStore(Path(selected_db).with_name('bot.sqlite3'))
@@ -81,6 +83,8 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
         application.include_router(control_display_router)
         from app.routes.onecomme_api import router as onecomme_router
         application.include_router(onecomme_router)
+        from app.routes.setup_api import router as setup_router
+        application.include_router(setup_router)
         from app.routes.bot_api import router as bot_router
         application.include_router(bot_router)
     else:

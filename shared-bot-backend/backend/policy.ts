@@ -39,7 +39,7 @@ export function parsePost(value: unknown): BotPostRequest {
   const eventId = text(p.eventId, 600);
   const videoId = text(p.videoId, 11);
   if (!/^[\w-]{11}$/.test(videoId) || !Number.isSafeInteger(p.createdAt) || (p.createdAt as number) < 0 ||
-      !['called', 'position', 'announcement'].includes(p.templateId as string)) throw new BotFault('INVALID_MESSAGE');
+      !['called', 'position', 'announcement', 'connection-test'].includes(p.templateId as string)) throw new BotFault('INVALID_MESSAGE');
   const v = object(p.variables);
   const number = (value: unknown, min: number, max: number): number => {
     if (!Number.isSafeInteger(value) || (value as number) < min || (value as number) > max) throw new BotFault('INVALID_MESSAGE');
@@ -53,7 +53,11 @@ export function parsePost(value: unknown): BotPostRequest {
     return { name, ...(handle ? { handle } : {}) };
   };
   let variables: BotVariables;
-  if (p.templateId === 'called') {
+  if (p.templateId === 'connection-test') {
+    keys(v, []);
+    if (p.recipient !== undefined) throw new BotFault('INVALID_MESSAGE');
+    variables = {};
+  } else if (p.templateId === 'called') {
     keys(v, ['members', 'group']);
     if (!Array.isArray(v.members) || !v.members.length || v.members.length > 10 || p.recipient !== undefined) throw new BotFault('INVALID_MESSAGE');
     variables = { group: number(v.group, 1, 1_000_000), members: v.members.map(m => { const member = object(m); keys(member, ['name', 'handle']); return person(member); }) };
@@ -90,6 +94,7 @@ export function assertFresh(post: BotPostRequest, now: number): void {
 export function renderPost(post: BotPostRequest): string {
   const name = post.variables.handle ?? post.variables.name;
   switch (post.templateId) {
+    case 'connection-test': return 'JoinQueueBot 接続テスト';
     case 'called': return `NOW（第${post.variables.group}グループ）：${post.variables.members!.map(m => `${m.handle ?? m.name} さん`).join('、')}。参加の準備をお願いします。`;
     case 'position': return post.variables.state === 'waiting'
       ? `${name} さん、現在の待機順は${post.variables.position}番目、第${post.variables.group}グループです（NOWを除く）。`

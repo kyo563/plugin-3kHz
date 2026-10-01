@@ -157,10 +157,13 @@ class AnnouncementBot:
         self.storage_error = bool(self.error)
         # Old Google credentials are never read, reused, uploaded or deleted.
         self.connection = self.authorization_url = self.confirmation = self.checked = None
+        self.bot_profile = {'id': BOT_ID, 'name': 'JoinQueueBot', 'handle': BOT_HANDLE}
+        self.test_available = False
         self.running, self.active_video = False, ''
         self.queue = deque(maxlen=20)
         self.seen, self.reply_times, self.now_events = OrderedDict(), OrderedDict(), OrderedDict()
         self.last_sent, self.next_guide, self.last_result = -100.0, None, ''
+        self.last_test = -100.0
         self.generation, self.thread = 0, None
 
     def start(self):
@@ -185,7 +188,7 @@ class AnnouncementBot:
     def status(self):
         with self.lock:
             return {'settings': self.settings.model_dump(),
-                    'account': {'id': BOT_ID, 'name': 'JoinQueueBot', 'handle': BOT_HANDLE},
+                    'account': self.bot_profile.copy(), 'test_available': self.test_available,
                     'authenticated': self.connection is not None, 'ready': self.running,
                     'channel_id': self.connection['channelId'] if self.connection else None,
                     'error': self.error, 'last_result': self.last_result, 'pending': len(self.queue),
@@ -271,13 +274,13 @@ class AnnouncementBot:
                             raise
                 self.store.write('shared_device', None)
                 self.device = self.connection = self.authorization_url = self.confirmation = None
-            elif action in ('status', 'check', 'start'):
+            elif action in ('status', 'check', 'start', 'test'):
                 if action != 'status' and not video:
                     raise BotError('LIVE_NOT_ACTIVE')
                 with self.lock:
                     if action == 'start' and self.running and self.active_video == video:
                         return self.status()
-                if action == 'start' and self.checked and self.checked[0] == video and self.clock() - self.checked[1] < 60:
+                if action in ('start', 'test') and self.checked and self.checked[0] == video and self.clock() - self.checked[1] < 60:
                     data = self.checked[2]
                 else:
                     data = self._api('/v1/connections/' + ('status' if action == 'status' else 'check'), {'videoId': video or None})
@@ -291,9 +294,41 @@ class AnnouncementBot:
                             or not re.fullmatch(r'[a-f0-9-]{36}', str(data.get('connectionId', '')))):
                         raise BotError()
                     self.connection = {k: data[k] for k in ('channelId', 'connectionId')}
+                    self.test_available = isinstance(data.get('features'), dict) and data['features'].get('connectionTest') is True
+                    profile = data.get('bot')
+                    if isinstance(profile, dict) and profile.get('id') == BOT_ID:
+                        from app.schemas.avatar import normalize_avatar_url
+                        name = profile.get('name')
+                        if isinstance(name, str) and 0 < len(name) <= 200:
+                            self.bot_profile = {'id':BOT_ID, 'name':name, 'handle':BOT_HANDLE,
+                                                'icon':normalize_avatar_url(profile.get('icon'))}
                     self.authorization_url = self.confirmation = None
                     if action != 'status':
                         self.checked = (video, self.clock(), data)
+                    if action == 'test':
+                        if not self.test_available:
+                            raise ValueError('接続テストはサーバー側の更新待ちです。通常のBot通知は引き続き利用できます。')
+                        if data.get('serviceEnabled') is not True:
+                            raise BotError('SERVICE_DISABLED')
+                        if current['selected'] != video or not current['connected']:
+                            raise BotError('LIVE_NOT_ACTIVE')
+                        if self.clock() - self.last_test < 60 or self.clock() - self.last_sent < 10:
+                            raise BotError('RATE_LIMITED')
+                        if not self.send_lock.acquire(blocking=False):
+                            raise ValueError('投稿処理中です。少し待ってから再試行してください。')
+                        try:
+                            self.last_test = self.last_sent = self.clock()
+                            result = self._api('/v1/bot/posts', {'channelConnectionId':self.connection['connectionId'],
+                                'eventId':str(uuid4()), 'videoId':video, 'createdAt':int(time.time()*1000),
+                                'templateId':'connection-test', 'variables':{}})
+                            if result.get('status') != 'sent':
+                                raise BotError('DELIVERY_UNKNOWN')
+                            self.last_result = '接続テストを投稿しました。配信チャットで確認してください。'
+                        except BotError:
+                            self.pause()
+                            raise
+                        finally:
+                            self.send_lock.release()
                     if action == 'start':
                         if data.get('serviceEnabled') is not True:
                             raise BotError('SERVICE_DISABLED')

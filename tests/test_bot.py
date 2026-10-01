@@ -38,7 +38,7 @@ def setup_bot(tmp_path):
         if request.url.path.endswith('/start'):
             return httpx.Response(200, json={'authorizationUrl': BOT_ORIGIN + '/connect?session=test', 'confirmation': '1234abcd', 'expiresAt': 2000000000000})
         return httpx.Response(200, json={'status': 'connected', 'channelId': 'UC' + '9'*22,
-                            'connectionId': '11111111-1111-4111-8111-111111111111', 'serviceEnabled': True})
+                            'connectionId': '11111111-1111-4111-8111-111111111111', 'serviceEnabled': True, 'features':{'connectionTest':True}})
     now = [100.0]
     bot = AnnouncementBot(services, bridge, MemoryStore(), client=httpx.Client(transport=httpx.MockTransport(transport)), clock=lambda: now[0])
     services.bot = bridge.bot = bot
@@ -47,6 +47,45 @@ def setup_bot(tmp_path):
 
 def activate(bot):
     bot.command('connect'); bot.command('status'); bot.command('start')
+
+
+def test_optional_connection_test_works_while_stopped_and_is_throttled(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.command('connect'); bot.command('status')
+    before = services.build_view_state()
+    assert sent == []
+    result = bot.command('test')
+    assert result['ready'] is False
+    assert sent[0]['templateId'] == 'connection-test'
+    assert sent[0]['variables'] == {}
+    assert services.build_view_state() == before
+    with pytest.raises(BotError, match='間隔'):
+        bot.command('test')
+    assert len(sent) == 1
+    now[0] += 60
+    bridge.select('')
+    with pytest.raises(BotError): bot.command('test')
+    assert len(sent) == 1
+
+
+def test_connection_test_disabled_on_older_server_and_unknown_delivery_not_retried(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    bot.checked[2].pop('features')
+    with pytest.raises(ValueError, match='更新待ち'): bot.command('test')
+    assert not sent
+    bot.checked[2]['features'] = {'connectionTest':True}
+    bot.http.close()
+    attempts=[]
+    def timeout(request):
+        attempts.append(request)
+        raise httpx.ReadTimeout('PRIVATE')
+    bot.http=httpx.Client(transport=httpx.MockTransport(timeout))
+    with pytest.raises(BotError): bot.command('test')
+    assert not bot.running and len(attempts)==1
+    now[0]+=120
+    bot.tick()
+    assert len(attempts)==1 and 'PRIVATE' not in str(bot.status())
 
 
 def test_start_is_idempotent_preserving_timer_queue_and_generation(setup_bot):

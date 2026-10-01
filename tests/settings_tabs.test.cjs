@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 test('settings tabs retain form state, use accessible controls, and restore URL selection', () => {
   const elements = {};
-  for (const name of ['general', 'bot']) for (const part of ['tab', 'panel']) {
+  for (const name of ['general', 'obs', 'bot']) for (const part of ['tab', 'panel']) {
     elements[`settings-${name}-${part}`] = {events:{}, attributes:{}, hidden:false,
       setAttribute(k,v) { this.attributes[k]=v; }, addEventListener(k,v) {this.events[k]=v;}, focus() {this.focused=true;}};
   }
@@ -22,6 +22,9 @@ test('settings tabs retain form state, use accessible controls, and restore URL 
   assert.equal(panel.hidden,true);
   assert.equal(location.search,'');
   general.events.keydown({key:'ArrowRight', preventDefault(){}});
+  assert.equal(elements['settings-obs-tab'].focused,true);
+  assert.equal(location.search,'?tab=obs');
+  elements['settings-obs-tab'].events.keydown({key:'ArrowRight', preventDefault(){}});
   assert.equal(bot.focused,true);
   assert.equal(panel.hidden,false);
   assert.equal(panel.unsavedInput,'retained');

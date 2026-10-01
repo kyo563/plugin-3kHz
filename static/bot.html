@@ -1,4 +1,4 @@
-<section class="panel"><h2>通知選択</h2>
+<section class="panel" id="bot-notifications" hidden><h2>通知選択</h2>
 <form id="bot-form">
 <label><input id="bot-now" type="checkbox"> 次の対戦へ進んだとき、NOWの3名をまとめて呼び出す</label>
 <label><input id="bot-reply" type="checkbox"> @JoinQueueBotへの呼びかけに本人の待機順・グループを返信する</label>
@@ -7,17 +7,23 @@
 
 <button type="submit">Bot設定を保存</button><p id="bot-save-result" role="status"></p></form></section>
 <section class="panel"><h2>チャンネル接続と起動</h2>
-<p>① <a href="https://www.youtube.com/@JoinQueueBot" target="_blank" rel="noopener noreferrer">@JoinQueueBot</a> をモデレーターに登録<br>② 自分の配信チャンネルを接続<br>③ 管理画面のライブ連携で配信を選択し、Botを起動</p>
+<div id="bot-account"><img id="bot-icon" hidden alt="Botチャンネルのアイコン" referrerpolicy="no-referrer"><strong id="bot-name">共通Bot：JoinQueueBot</strong><a href="https://www.youtube.com/@JoinQueueBot" target="_blank" rel="noopener noreferrer">チャンネルを見る</a></div>
+<details><summary>接続方法・認証できないとき</summary><ol><li>@JoinQueueBot を自分のチャンネルのモデレーターに登録します。</li><li>普段配信するGoogleアカウントでチャンネルを認証します。Bot用アカウントではありません。</li><li>基本設定で配信を選び、接続確認後にBotを起動します。</li></ol><p>Googleのテストユーザー制限・審査状況によって認証できない場合は運営側の対応が必要です。OBSドック内で認証できない場合は、認証リンクを通常ブラウザーで開いてください。</p></details>
 
 <p id="bot-status" role="status">確認中…</p><p id="bot-last"></p><p id="bot-next"></p>
-<button id="bot-connect" type="button">チャンネルを接続</button>
+<button id="bot-connect" type="button">配信チャンネルを接続</button>
 <button id="bot-status-check" type="button">認証結果を確認</button>
 <p><a id="bot-login-link" hidden target="_blank" rel="noopener noreferrer">ブラウザーでチャンネルを認証する</a> <span id="bot-confirmation"></span></p>
 <button id="bot-check" type="button">接続確認（投稿なし）</button>
 <button id="bot-start" type="button">Botを起動</button>
 <button id="bot-stop" type="button">Botを停止</button><p id="bot-login-result" role="status"></p>
-<p>再起動時は停止状態です。停止・設定変更時に未送信通知を破棄します。送信済み・送信中の投稿は取り消せません。配信変更や接続切断時も停止します。実配信での接続・投稿確認は未完了です。</p>
-<details><summary>チャンネル接続を解除</summary><p>待機列・履歴は保持します。サーバーで接続を失効できない場合はキーを残し、通信復旧後にやり直します。</p>
+<button id="bot-test" type="button">接続テスト（チャットへ投稿）</button>
+<p id="bot-test-availability"></p>
+<details><summary>停止・再起動時の動作</summary><p>再起動時は停止状態です。停止・設定変更時に未送信通知を破棄します。送信済み・送信中の投稿は取り消せません。配信変更や接続切断時も停止します。</p></details>
+<details><summary>配信チャンネルの変更・接続解除</summary><p>変更する場合は解除後に別の配信チャンネルを接続してください。共通Bot自体は変更しません。待機列・履歴は保持します。サーバーで接続を失効できない場合はキーを残し、通信復旧後にやり直します。</p>
 <label><input id="bot-disconnect-confirm" type="checkbox"> 接続を解除することを確認しました</label>
 <button id="bot-disconnect" type="button" disabled>接続を解除</button></details>
 </section>
+<dialog id="bot-test-dialog" aria-labelledby="bot-test-title"><h2 id="bot-test-title">配信チャットに投稿しますか？</h2>
+<p>選択中の配信に「JoinQueueBot 接続テスト」を1件投稿します。登録の必須手順ではありません。投稿は取り消せません。</p>
+<button id="bot-test-cancel" type="button" autofocus>キャンセル</button><button id="bot-test-confirm" type="button">テストコメントを投稿する</button></dialog>

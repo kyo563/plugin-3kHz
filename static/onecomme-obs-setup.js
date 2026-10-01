@@ -34,3 +34,17 @@ document.getElementById('copy-control').addEventListener('click', async () => {
         result.textContent = 'コピーしました。';
     } catch (_) { result.textContent = 'コピーできませんでした。Edgeで開いて再度お試しください。'; }
 });
+
+document.getElementById('copy-overlay-url')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(document.getElementById('obs-display-url').value); document.getElementById('obs-drag-result').textContent = '表示用URLをコピーしました。'; }
+    catch (_) { document.getElementById('obs-drag-result').textContent = '上の表示用URLを選択してコピーしてください。'; }
+});
+document.getElementById('obs-check')?.addEventListener('click', async () => {
+    const result = document.getElementById('obs-check-result');
+    try {
+        const r = await fetch('/api/obs-status', {signal:AbortSignal.timeout(5000)});
+        if (!r.ok) throw new Error();
+        const s = await r.json();
+        result.textContent = s.last_access_seconds !== null && s.last_access_seconds < 10 ? '表示ページからのアクセスあり（OBS実画面はOBSで確認）' : 'アプリは利用可能です。表示ページは未接続です。OBSソースを追加・再読込してください。';
+    } catch (_) { result.textContent = '確認できません。わんコメでプラグインを有効にして再試行してください。'; }
+});

@@ -8,6 +8,8 @@ const obj = (v: unknown): Record<string, any> => v !== null && typeof v === 'obj
 
 /** Server-only transport. Not used by the locked development runner. No comment retrieval. */
 export class YouTubeApi implements YouTubeGateway {
+  private botProfile: {id:string; name:string; icon:string} | null = null;
+  profile() { return this.botProfile; }
   constructor(private readonly tokens: ServerTokenProvider, private readonly botChannelId: string, private readonly request: Fetch = fetch) {
     if (!/^UC[\w-]{22}$/.test(botChannelId)) throw new Error('Bot channel ID required');
   }
@@ -39,8 +41,12 @@ export class YouTubeApi implements YouTubeGateway {
   }
   async resolveChat(videoId: string, ownerChannelId: string): Promise<string> {
     if (!/^[\w-]{11}$/.test(videoId) || !/^UC[\w-]{22}$/.test(ownerChannelId)) throw new BotFault('INVALID_MESSAGE');
-    const mine = await this.call('channels?part=id&mine=true');
+    const mine = await this.call('channels?part=id,snippet&mine=true');
     if (!Array.isArray(mine.items) || mine.items.length !== 1 || obj(mine.items[0]).id !== this.botChannelId) throw new BotFault('BOT_UNAVAILABLE', 503);
+    const snippet = obj(obj(mine.items[0]).snippet);
+    const icon = obj(obj(snippet.thumbnails).default).url;
+    this.botProfile = {id:this.botChannelId, name:typeof snippet.title === 'string' ? snippet.title.slice(0,200) : 'JoinQueueBot',
+      icon:typeof icon === 'string' && /^https:\/\/([\w-]+\.)?(ggpht\.com|googleusercontent\.com)\//.test(icon) ? icon : ''};
     const data = await this.call(`videos?part=snippet,liveStreamingDetails&id=${encodeURIComponent(videoId)}`);
     if (!Array.isArray(data.items) || data.items.length !== 1 || obj(data.items[0]).id !== videoId) throw new BotFault('LIVE_NOT_ACTIVE');
     const video = obj(data.items[0]); const live = obj(video.liveStreamingDetails);

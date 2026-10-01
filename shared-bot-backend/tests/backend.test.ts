@@ -13,6 +13,19 @@ import type { BotPostRequest } from '../src/contracts/bot-api';
 
 const channel = `UC${'a'.repeat(22)}`;
 const anotherChannel = `UC${'b'.repeat(22)}`;
+test('connection test only accepts a fixed message and uses existing authorization and limits', async () => {
+  const f = fixture();
+  try {
+    const post = f.body({templateId:'connection-test',variables:{}});
+    assert.equal(renderPost(parsePost(post)), 'JoinQueueBot 接続テスト');
+    assert.throws(()=>parsePost({...post,variables:{text:'arbitrary'}}));
+    assert.throws(()=>parsePost({...post,recipient:{service:'youtube',userId:'a'}}));
+    assert.equal((await f.submit(post, '')).body.error?.code,'UNAUTHENTICATED');
+    assert.equal((await f.submit(post)).body.status,'sent');
+    assert.deepEqual(f.sent,['JoinQueueBot 接続テスト']);
+    assert.equal((await f.submit({...post,eventId:'different'})).body.error?.code,'RATE_LIMITED');
+  } finally { f.store.close(); }
+});
 test('plugin safe display names fit a full three-person call and opaque recipients', () => {
   const base = {channelConnectionId:'connection',videoId:'abcdefghijk',eventId:'test',createdAt:1000000};
   const call = parsePost({...base, templateId:'called',variables:{group:1000000,members:[{name:'名'.repeat(45)},{name:'😀'.repeat(22)},{name:'Player： A／ｗｗｗ．example.com'}]}});

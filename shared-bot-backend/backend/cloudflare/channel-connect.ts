@@ -123,7 +123,8 @@ export class ChannelConnections {
         await this.youtube.resolveChat(body.videoId, connection.channelId);
         this.store.authenticate(r.headers.get('Authorization')!, this.clock()); this.store.connection(connection.id, principal.userId); this.store.assertEnabled();
       }
-      return json({ status: 'connected', channelId: connection.channelId, connectionId: connection.id, serviceEnabled });
+      return json({ status: 'connected', channelId: connection.channelId, connectionId: connection.id, serviceEnabled,
+        features:{connectionTest:true}, bot:this.youtube.profile?.() ?? null });
     } catch (e) { return rejected(e instanceof BotFault ? e : new BotFault('BOT_UNAVAILABLE', 503)); }
   }
   private async browser(r: Request): Promise<Response> {

@@ -138,6 +138,20 @@ function renderLogs(logs) {
 
 async function fetchState(){ try{ const r=await fetch('/api/state', {signal:AbortSignal.timeout(5000)}); if(!r.ok) throw new Error(`HTTP ${r.status}`); setConnectionError('管理APIに接続済み'); return await r.json(); }catch(e){console.error(e); setConnectionError('状態取得に失敗しました'); return null;}}
 
+let waitingExpanded = false;
+function renderWaiting(state) {
+    const toggle = document.body?.dataset.onecomme === 'true' ? q('#waiting-expand') : null;
+    if (!toggle) { renderList('#waiting',state.waiting,{draggable:true,listType:'waiting'}); return; }
+    const maximum = Math.min(128, state.waiting.length);
+    renderList('#waiting',state.waiting.slice(0, waitingExpanded ? maximum : 20),{draggable:true,listType:'waiting'});
+    toggle.hidden = maximum <= 20;
+    toggle.textContent = waitingExpanded ? '20人までに折りたたむ' : `残り${maximum - 20}人を表示`;
+    toggle.setAttribute('aria-expanded', String(waitingExpanded));
+    toggle.disabled = mutationPending || draggingParticipant;
+    toggle.onclick = () => { if (mutationPending || draggingParticipant) return; waitingExpanded = !waitingExpanded; renderWaiting(latestState); };
+    q('#waiting-overflow').textContent = state.waiting.length > 128 ? `ほか${state.waiting.length-128}人待機中（129人目以降も順番・呼び出しの対象です）` : '';
+}
+
 function renderState(state){
     latestState = state;
     q("#total-matches").textContent = `総対戦回数：${state.total_match_count ?? 0}回`;
@@ -152,7 +166,7 @@ function renderState(state){
     q('#toggle-priority').disabled = mutationPending;
     renderList('#now',state.now_view,{ draggable: false, listType: 'now' });
     q("#waiting-count").textContent = `${state.waiting.length}人`;
-    renderList('#waiting',state.waiting,{ draggable: true, listType: "waiting" });
+    renderWaiting(state);
     renderLogs(state.logs);
 }
 

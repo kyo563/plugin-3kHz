@@ -140,3 +140,93 @@ Python 392件・JavaScript 47件成功（直前に追加した待機60人・メ�
 Python 401件・JavaScript 49件成功。隔離ブラウザーで縦横、太字のみON、影のみON、両方OFF、保存・再読込を確認。実行ファイルでも両方OFFの保存・再起動復元および既存機能のスモーク試験が成功。実際のOBS描画は未検証。ユーザーの実データ、導入済みプラグイン、GitHub公開版、Bot設定は変更していない。
 
 フォント選択の更新も含む候補ZIP: dist/onecomme-release-0.1.4-text-effects/Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip。SHA256: 6febcd3aa62bf278e648d3f156c43a4fb15cc7337f07208a8c35c0a8ea792f92。202ファイルのアーカイブ検証成功。
+
+## 導入・設定の再設計（2026-10-01、ローカル実装・未導入・未公開）
+
+### 調査結果と変更分類
+
+| 対象 | 既存構造・保存先 | 今回の扱い |
+| --- | --- | --- |
+| 管理画面 /control | JSからFastAPIを2秒間隔で取得。SQLiteの待機列を描画 | UI変更。接続操作を設定へ移動、一覧20/128人 |
+| 設定 /settings、/bot | 既存は一般・Botタブ。Bot URLは既に転送 | 3タブへ整理、フォームとAPIは再利用 |
+| OBS導入 /obs-setup | ドラッグ追加、ZIP取得、管理URLコピー | OBS設定へ統合、旧URLは307転送 |
+| 表示 /overlay、/onecomme-overlay | 同じ表示サービス・読取専用データ | 維持。管理用URLと分離 |
+| 設定・参加者・履歴 | waiting_list.sqlite3のapp_state等、フォント・管理表示は専用テーブル | 維持。新しい端末用setup_preferencesテーブルのみ追加 |
+| わんコメ接続 | plugin.js filterComment→ローカル認証付きAPI→OneCommeBridge | 取得処理は維持。選択配信の保存・復元と除外理由カウンターを追加 |
+| 待機列/NOW/NEXT/優先・スキップ・Undo | ApplicationServices・QueueService。NOW3人、waiting先頭3人がNEXT | ロジック変更なし。全件の順序情報を保持 |
+| Bot認証・識別 | サーバーOAuth。Bot channels.list(mine=true)の固定ID照合。配信者はreadonly OAuth | 維持。個人Bot方式に変更しない |
+| Bot投稿 | ローカルbot.sqlite3の通知設定とDPAPI端末キー→共通サーバー→YouTube | 固定文テストと検証済みBotプロフィール取得を追加 |
+| 初回案内 | 独立版desktop_configの案内はOneComme起動では利用されない | 専用ウィザードを追加 |
+| メンバー限定 | メンバーフラグ・公開区分を理由に除外する条件は見つからない | 診断追加。実障害原因・実配信対応は未確定 |
+
+廃止した待機列機能はない。専用画面の役割だけを集約した。実装順は画面統合→セットアップ→Bot拡張→表示制限→OBS案内・受信診断→回帰試験。
+
+### 1. 変更したファイル / 2. 各ファイルの変更内容
+
+- app/main.py: OneComme起動時の設定ストア・ルーター接続。
+- app/routes/pages.py: 既存HTMLフォームを保持したタブ構成・初回案内・旧URL転送。
+- app/routes/setup_api.py（新規）: 管理者のみの初回設定GET/POST。
+- app/services/setup_preferences.py（新規）: 厳密な型検証とSQLite保存。
+- app/services/onecomme.py: 選択配信の再起動復元、受信の除外理由と件数。
+- app/routes/bot_api.py、app/services/bot.py: 任意テスト操作、サーバー対応確認、連投防止、失敗時停止、プロフィール検証。
+- static/settings-tabs.html、settings-tabs.js: 基本/OBS/Botの3タブ、キーボード操作維持。
+- static/setup-general.html、setup-wizard.html、setup-wizard.js、setup-launch.js、setup.css（新規）: 初回導線・途中保存・確認・再実行・長文の詳細表示。
+- static/obs-settings.html（新規）、onecomme-obs-setup.js: OBS導入画面の統合、表示URLコピー・アクセス確認。
+- static/overlay-settings.js: 既存保存処理をウィザードでも再利用。
+- static/bot.html、bot.js: 未接続時の簡略表示、共通Bot名・アイコン、再接続案内、二段階の投稿確認、通知保存の再利用。
+- static/onecomme-panel.html、onecomme.js: 設定側の接続操作、管理側は状態のみ、除外理由と対処案内。
+- static/control.js: 20人/128人の描画制御。並べ替え要求では非表示の末尾も保持。
+- shared-bot-backend/src/contracts/bot-api.ts、backend/policy.ts: connection-test固定テンプレートと自由文拒否。
+- shared-bot-backend/backend/service.ts、backend/youtube.ts、backend/cloudflare/channel-connect.ts: 検証済みBotプロフィールと対応機能を接続応答へ追加。
+- tests/test_setup_redesign.py、tests/setup_wizard.test.cjs（新規）: 保存・再起動・初回フロー・20/21/128/129/150人の回帰。
+- tests/test_onecomme.py、test_bot.py、control_ui.test.cjs、settings_tabs.test.cjs、shared-bot-backend/tests/backend.test.ts、youtube.test.ts: 既存動作・新UI・固定投稿・旧サーバー互換・取得プロフィールの検証。
+- scripts/smoke_onecomme.cjs: 配布実行ファイルでも新ページ・初回設定・選択配信の復元を確認。
+- AGENTS.md、本書: 仕様と検証範囲の記録。
+
+### 3. 新しく追加した機能
+
+5段階セットアップ（接続、文言、任意Bot、任意OBS、確認）、途中保存・後回し・再実行、20人以降の折り畳み、128人超の残人数、受信診断、任意のBot投稿テスト、Bot表示名・画像の自動取得。
+
+### 4. 変更した既存機能
+
+配信選択を基本設定へ移動し再起動時に復元。設定のタブ切替でも未保存入力を保持。Bot通知3種類の処理、キーワード判定、履歴、優先順位、NOW/NEXT保護、ドラッグ順序変更、取消・Undoは維持。自然言語全般を解析する機能は元々なく、問い合わせ応答は従来どおり@JoinQueueBotへの呼びかけを受けて本人の位置を返す。
+
+### 5. 削除・統合した画面
+
+OneComme版/obs-setupを/settings?tab=obsへ統合。/botは従来どおり/settings?tab=botへ転送。独立版のページは保持。OBS表示専用ページは削除しない。
+
+### 6. 設定データへの影響
+
+待機列・参加者・履歴・表示設定の形式を変えず、初回案内と選択配信を同じDB内の別テーブルへ保存。キューのUndo/リセット/JSONバックアップには端末の初回状態を含めない。既存利用者も新しい初回案内は一度表示されるが、保存済みの文言・OBS・Bot設定を読み込み再入力は不要。「あとで」で通常運用へ戻れる。Bot認証・Googleトークンの移行はしない。
+
+### 7. OAuth関連の変更
+
+ユーザー確認により共通@JoinQueueBotを維持。Bot自身のOAuth、配信者のreadonly OAuth、コールバック、スコープは変更なし。サーバーの既存Bot本人照合でchannels.listのsnippetも取得し名称・許可ドメインの画像を返す。Bot登録のためのコメントは不要。テスト投稿は任意で、固定文のみ・既存認証/チャンネル照合/レート制限を通す。旧サーバーはfeatures.connectionTestを返さないためボタンを無効にし、通常通知は保持。**今回のサーバーソースは未配置。Google公開・審査・テストユーザー設定も変更していない。**
+
+### 8. OBS関連の変更
+
+表示用の公開URLと管理ドック用の秘密付きURLを区別してコピーできる。既存のドラッグ追加とZIPを移動・再利用。管理画面は同一オリジンHTTPポーリングなので専用WebSocketは不要、わんコメ受信経路も変わらない。管理キーはURLフラグメントからsessionStorageへ取り込みURL表示から除く既存方式。OBSと通常ブラウザーは別セッションであり、OBSに保存する管理URLは秘密として扱う。ドックを開くだけでは停止中のworkerは起動できず、先にわんコメのプラグインを有効にする必要がある。
+
+[OBS公式実装](https://github.com/obsproject/obs-browser)でBrowser Docksを確認。構造上はローカル管理ページを載せられるが、実OBSのドック内ドラッグ・ファイル操作・セッション復元は未確認。Google認証は[OAuthポリシー](https://developers.google.com/identity/protocols/oauth2/policies)に従い通常の外部ブラウザーで実施する。埋込ブラウザーの制限を回避しない。「接続確認」は表示ページへの最近のアクセスを示すだけで実OBS描画の保証ではない。
+
+### 9. メンバー限定配信対応状況
+
+「わんコメには表示されるが待機列に入らない」という実障害の根因は、現在の実イベントを取得できておらず未確定。コードに公開配信だけを許可する条件はなく、メンバーフラグ付き通常コメントは試験で受理される。再起動で選択配信が失われる一般的な不具合を修正したが、それをメンバー限定の原因と断定しない。
+
+切り分けは基本設定の接続/対象配信/受信件数/除外理由を見る。unselectedなら対象配信を選択、history/invalid_timestampなら取得時刻・履歴イベントを確認、ignoredならキーワード、droppedなら必須フィールドや転送件数を確認する。プラグインは公式フィールドの文字列id/liveId/userId/name/timestampを前提とする。実データで異なる形式なら、その匿名化した1イベントに基づき修正する。
+
+Bot投稿は別経路。共通Botの権限でvideoIdの所有者・activeLiveChatIdを検証するため、配信者のわんコメが読めてもBotが参照できるとは限らない。[YouTube API](https://developers.google.com/youtube/v3/live/docs/liveChatMessages/insert)は権限不足・チャット無効/終了等を区別して失敗する。メンバー資格が必須か、モデレーター登録だけで十分かは当該配信で未確認。権限不足を回避してアクセスする実装はしない。[公開→メンバー限定へ切替える配信は別動画](https://support.google.com/youtube/answer/16399635?hl=en)となるため、新しい配信をわんコメで取得後に選び直す必要がある。旧配信の選択を復元するだけで自動追従するわけではない。
+
+### 10. 既知の問題・検証範囲
+
+- Python全体411件、JavaScript58件、共通バックエンド41件と型チェック成功。Google/YouTube応答はモック、Cloudflareは隔離ランタイムで検証。
+- 隔離ブラウザーで初回未接続ガイド、キーワード保存、Botなし選択、OBS設定保存、確認・完了、再読込で案内が繰り返されないことを確認。3タブ・既存フォーム表示も確認。
+- 150人待機のブラウザー実描画で20→128→20人、残り22人の表示を確認。OBS設定の折り畳みを開き直しても480×600px・scale(1)のプレビューを維持。配布実行ファイルの隔離スモーク試験で起動/終了/再起動、初回設定・選択配信の保存、コメント受信、NEXT保護、OBSデータ、テンプレートZIP取得が成功。
+- 公開配信/メンバー限定配信の実受信、実Googleでの登録/変更/解除、Bot実投稿、OBS実機の描画/ドックは今回未確認。元データ・導入済み本体・公開Release・本番Cloudflareを変更していない。
+- 投稿テスト・動的Bot画像はバックエンド新版配置が必要。Googleの公開範囲制限はアプリ更新だけで解消しない。既存依存ライブラリの非推奨警告2件あり、試験失敗ではない。
+
+### 11. 今後改善できる点
+
+実メンバー限定配信で除外理由を確認し、必要なら匿名化イベント1件で再現試験を追加する。OBSドック実機試験と外部ブラウザー認証導線を確認し、その後バックエンドの段階配置・任意テスト投稿を行う。Googleの一般公開準備は最後に実施する。別PC移行時の端末設定の扱い、128人超の検索による直接操作、旧HTMLの文字列結合のテンプレート化は別の小さな改修候補。
+
+最終ローカル候補: `dist/onecomme-release-0.1.4-redesign-final/Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip`。208ファイル、22,842,294 bytes、SHA256 `39746adefd113b80372625e89ef5cadad4cd7da329e7ae167aaa3fa773ba5653`。旧候補の再ビルドでWindowsのファイル置換が拒否されたため、新しい出力フォルダへ構築。公開・導入対象にする場合はこのfinal候補を使用する。ブラウザー検証用サーバーは停止済み。

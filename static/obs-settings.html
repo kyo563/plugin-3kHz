@@ -1,0 +1,11 @@
+<section class="panel"><h2>OBSに待機列を追加</h2>
+<a id="obs-drag-source" class="obs-drag-source" draggable="true" href="http://127.0.0.1:18765/onecomme-overlay?layer-name=%E5%BE%85%E6%A9%9F%E5%88%97%E8%A1%A8%E7%A4%BA&amp;layer-width=1200&amp;layer-height=600">OBSへドラッグして追加</a>
+<p>ソース名：待機列表示 ／ 幅1200 × 高さ600px</p><p id="obs-drag-result" role="status"></p>
+<label>OBS表示用URL<input id="obs-display-url" type="text" readonly value="http://127.0.0.1:18765/onecomme-overlay"></label><button id="copy-overlay-url" type="button">表示用URLをコピー</button>
+<details><summary>追加方法・表示されない場合</summary><p>先にわんコメとプラグインを起動し、上のボタンをOBSのプレビューへドラッグしてください。OBSを先に開いた場合は、ソースのプロパティで「現在のページのキャッシュを更新」を押してください。</p>
+<p>ドラッグできない場合はEdgeで設定画面を開き、OBSを管理者として起動していないか確認してください。古いindex.htmlは自動置換されません。新しいソースを確認後、古いソースを非表示にしてください。</p>
+<button id="download-template" type="button">表示テンプレートZIPを保存</button><p id="template-result" role="status"></p><p>ZIPをわんコメのテンプレート一覧へドラッグし、「ここをドラッグしてOBSに入れる」から追加できます。この方法の初期ソース名はindex.htmlです。</p></details></section>
+<section class="panel"><h2>OBSから管理する（ブラウザドック）</h2>
+<button id="copy-control" type="button">OBSドック用URLをコピー</button><p id="connection-result" role="status"></p>
+<button id="obs-check" type="button">表示ページの接続を確認</button><p id="obs-check-result" role="status"></p>
+<details><summary>ドックの追加方法と注意点</summary><ol><li>わんコメでプラグインを有効にします。</li><li>OBSの「ドック」→「カスタムブラウザドック」を開きます。</li><li>名前を「待機列管理」、URLをコピーした内容にして追加します。</li></ol><p>管理用URLには操作権限が含まれます。配信画面や他人に共有せず、表示用ソースには使わないでください。OBSのプロファイルを共有する場合もURLを除いてください。</p><p>OBSドックだけではアプリを起動できません。わんコメとプラグインの起動が必要です。通常ブラウザーとは認証セッションが別です。Googleのチャンネル認証は外部の通常ブラウザーで行ってください。</p><p>接続確認は表示ページからのアクセスの有無です。OBS実画面の見え方はOBS側で確認してください。</p></details></section>

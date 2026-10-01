@@ -9,7 +9,7 @@ function harness(fetcher) {
     let modal = false, created = 0;
     const element = key => {
         if (!elements.has(key)) elements.set(key, {textContent:'', value:'', dataset:{}, style:{},
-            children:[],appendChild(child){this.children.push(child);},attributes:{},setAttribute(name,value){this.attributes[name]=value;},disabled:false, checked:false, hidden:false, addEventListener(){}, append(){},
+            children:[],set innerHTML(value){this.children=[];},appendChild(child){this.children.push(child);},attributes:{},setAttribute(name,value){this.attributes[name]=value;},disabled:false, checked:false, hidden:false, addEventListener(){}, append(){},
             replaceChildren(){}, closest(){return {open:false};}, focus(){}, files:[]});
         return elements.get(key);
     };
@@ -203,6 +203,25 @@ test('waiting avatars are lazy, private and reject foreign URLs', () => {
     assert.equal(img.referrerPolicy,'no-referrer');
     const bad = h.sandbox.participantItem({...user,avatar_url:'https://localhost/private'},{listType:'waiting'});
     assert.equal(bad.children.find(c=>c.className==='participant-avatar').children.length,0);
+});
+
+for (const count of [20,21,128,129,150]) test(`OneComme ${count} waiting rows collapse at 20, cap at 128 without losing reorder tail`, async () => {
+    const bodies=[];
+    const h=harness(async (url,options)=>{if(options?.method==='POST') bodies.push(JSON.parse(options.body));return reply(state(2));});
+    h.sandbox.document.body={dataset:{onecomme:'true'}};
+    const waiting=Array.from({length:count},(_,i)=>({user_id:`u${i}`,display_name:`User${i}`,participation_count:0}));
+    h.sandbox.renderState({...state(1),waiting});
+    assert.equal(h.element('#waiting').children.length,20);
+    assert.equal(h.element('#waiting-expand').hidden,count<=20);
+    h.element('#waiting-expand').onclick();
+    assert.equal(h.element('#waiting').children.length,Math.min(128,count));
+    assert.equal(h.element('#waiting-expand').attributes['aria-expanded'],'true');
+    if(count>128) assert.match(h.element('#waiting-overflow').textContent,new RegExp(`ほか${count-128}人`));
+    h.element('#waiting-expand').onclick();
+    assert.equal(h.element('#waiting').children.length,20);
+    await h.sandbox.reorderWaitingWithDrag('u19','u0');
+    assert.equal(bodies[0].ordered_user_ids.length,count);
+    assert.deepEqual(bodies[0].ordered_user_ids.slice(20),waiting.slice(20).map(u=>u.user_id));
 });
 
 test('OneComme rows split ordered fields and hide only selected information', () => {

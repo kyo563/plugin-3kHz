@@ -66,7 +66,11 @@ async function main() {
                 let text = ''; r.setEncoding('utf8'); r.on('data', part => text += part); r.on('end', () => resolve(text));
             }).on('error', reject);
         });
-        assert.ok(html.includes('onecomme-stream')); assert.ok(!html.includes('youtube-key'));
+        assert.ok(html.includes('onecomme-status')); assert.ok(!html.includes('youtube-key'));
+        assert.ok(html.includes('waiting-expand'));
+        const setup = {completed:true,deferred:false,step:4,use_bot:false,use_obs:true};
+        assert.equal((await api('/api/setup')).completed,false);
+        assert.deepEqual(await api('/api/setup',setup),setup);
         stage = 'control-display';
         assert.ok(html.includes('id="control-display-options"'));
         for (const asset of ['control-display.js', 'control-display.css']) {
@@ -102,6 +106,9 @@ async function main() {
         stage = 'bot-settings';
         const settingsPage = await fetch('http://127.0.0.1:18765/settings?tab=bot', {headers: {Authorization: 'Bearer ' + key}}).then(r => r.text());
         assert.ok(settingsPage.includes('id="settings-bot-panel"'));
+        assert.ok(settingsPage.includes('id="settings-obs-panel"'));
+        assert.ok(settingsPage.includes('id="onecomme-stream"'));
+        assert.ok(settingsPage.includes('id="setup-wizard"'));
         assert.ok(settingsPage.includes('<small>' + plugin.version + '</small>'));
         assert.ok(settingsPage.includes('<h2>通知選択</h2>'));
         assert.ok(settingsPage.includes('name="show_participation_number"'));
@@ -153,6 +160,8 @@ async function main() {
         plugin.init({dir});
         await until(async () => (await plugin.request({method: 'GET'})).response.ready, 30000);
         assert.deepEqual(await api('/api/settings/control-display'), display);
+        assert.deepEqual(await api('/api/setup'),setup);
+        assert.equal((await api('/api/onecomme/status')).selected,'test-stream');
         assert.equal((await api('/api/state')).current.length, 2);
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');
         assert.equal((await api('/api/bot')).settings.enabled, false);
