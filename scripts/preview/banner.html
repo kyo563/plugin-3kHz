@@ -1,9 +1,18 @@
 <aside id="visual-review" aria-label="確認用画面の操作">
-  <strong>目視確認用｜本番と同じ画面コード</strong>
+  <strong>目視確認用｜実際のアプリ画面</strong>
   <span>サンプルデータのみ・Bot接続と投稿は無効</span>
+  <label>サンプル配信 <select id="review-stream"><option value="none">未接続</option><option value="upcoming">第1回・開始前</option><option value="live">第1回・配信中</option><option value="next">同じ枠で第2回へ</option><option value="third">同じ枠で第3回へ</option><option value="multiple">別の枠も接続</option><option value="missing">記憶した枠がない</option></select></label>
   <label>待機人数 <select id="review-count"><option value="0">0人</option><option value="6">6人</option><option value="20">20人</option><option value="37" selected>37人</option><option value="128">128人</option><option value="150">150人</option></select></label>
   <button id="review-load" type="button">サンプルを入れ直す</button>
   <a href="/onecomme-overlay" target="_blank" rel="noopener">OBS表示を見る</a>
   <a href="/settings?setup=1">初回設定を見る</a>
+  <details><summary>Bot接続をシミュレーション（外部通信なし）</summary>
+    <p>Google審査承認後の利用手順を確認します。実際の審査・認証・モデレーター登録・チャット投稿は行いません。</p>
+    <button type="button" id="review-bot-begin">シミュレーションを開始・やりなおす</button>
+    <button type="button" id="review-bot-moderator">標準モデレーター登録済みを再現</button>
+    <button type="button" id="review-bot-approve">Google認証で許可した結果を再現</button>
+    <button type="button" id="review-bot-cancel">Google認証のキャンセルを再現</button>
+    <p id="review-bot-result" role="status">未開始。開始後、ページ内の接続ボタンと上の再現ボタンを順に操作します。</p>
+  </details>
   <span id="review-result" role="status"></span>
 </aside>

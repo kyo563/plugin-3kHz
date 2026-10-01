@@ -1,7 +1,11 @@
 from pathlib import Path
+from html import escape
+import json
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
+from app.schemas.command_settings import CommandSettings
+from app.schemas.overlay_settings import OverlaySettings
 
 router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -53,7 +57,6 @@ def settings_page(request: Request):
             '<p><label><input name="text_bold" type="checkbox" checked> 太字で強調する</label></p>'
             '<p><label><input name="text_shadow" type="checkbox" checked> 文字に影を付ける</label></p>')
         html = html.replace('<body>', '<body data-onecomme="true">')
-        html = html.replace('<h1>設定画面</h1>', '<h1>設定画面 <small>0.1.4</small></h1>')
         html = html.replace('<!-- ONECOMME_PARTICIPATION_NUMBER -->',
                             '<label><input type="checkbox" name="show_participation_number"> 名前の後ろに今回の配信での参加回数を表示する（例：プレイヤー名 *2回目）</label>')
         start = html.index('    <section class="panel fixed"')
@@ -69,6 +72,41 @@ def settings_page(request: Request):
         end = html.index('</dialog>', start) + len('</dialog>')
         overlay += html[start:end]
         html = html[:start] + html[end:]
+        # Keep the standalone edition's guidance unchanged; simplify OneComme copy.
+        start = overlay.index('      <p>保存するとOBSに自動反映されます。')
+        end = overlay.index('      <div id="layout-preview-shell">', start)
+        overlay = overlay[:start] + '      <p>OBSに表示される文言は以下のとおりです。</p>\n' + overlay[end:]
+        overlay = overlay.replace('      <p>チェック模様は透過確認用です。OBSには表示されません。大きなサイズは縮小してプレビューします。</p>', '')
+        overlay = overlay.replace('を初期値に戻して保存します。待機列・参加回数・総対戦回数・参加者名・追加済みフォント・コメントの制限時間・参加辞退の判定文言は残ります。', 'を初期値に戻します。')
+        # Share the actual OBS controls with the basic/setup page, not copies.
+        labels = []
+        label_defaults = {}
+        overlay_defaults = OverlaySettings()
+        for key in ('open_label', 'now_label', 'next_label', 'queue_label'):
+            start = overlay.index('<label>', overlay.rfind('\n', 0, overlay.index(f'name="{key}"')))
+            end = overlay.index('</label>', start) + len('</label>')
+            field_id = f'setup-label-{key}'
+            labels.append(overlay[start:end].replace('<input ', f'<input id="{field_id}" form="overlay-layout-form" '))
+            label_defaults[field_id] = getattr(overlay_defaults, key)
+            overlay = overlay[:start] + overlay[end:]
+        def reset_button(button_id, defaults):
+            values = escape(json.dumps(defaults, ensure_ascii=False), quote=True)
+            return f'<button type="button" class="setup-wording-reset" id="{button_id}" data-defaults="{values}">リセットしてやりなおす</button>'
+
+        command_defaults = CommandSettings()
+        html = html.replace('<p id="commands-result"', reset_button('setup-reset-commands', {
+            'join-commands': '\n'.join(command_defaults.join),
+            'cancel-commands': '\n'.join(command_defaults.cancel),
+        }) + '<p id="commands-result"', 1)
+        label_panel = ('<section class="panel setup-commands" aria-labelledby="display-labels-title">'
+                       '<h2 id="display-labels-title">OBSの表示文言</h2><p>表示文言が変更できます</p>'
+                       '<div class="layout-fields">' + ''.join(labels) + '</div>'
+                       '<button type="submit" form="overlay-layout-form" id="save-display-labels" disabled>表示文言を保存して反映</button>'
+                       + reset_button('setup-reset-labels', label_defaults) +
+                       '<p id="display-labels-result" role="status"></p>'
+                       '<p class="setting-note">※OBS表示用のフォントや透過度の変更は設定画面から可能です</p></section>')
+        end = html.index('</section>', html.index('<form id="command-settings-form">')) + len('</section>')
+        html = html[:end] + label_panel + html[end:]
         general = (STATIC_DIR / 'setup-general.html').read_text(encoding='utf-8').replace('<!-- CONNECTION -->', (STATIC_DIR / 'onecomme-panel.html').read_text(encoding='utf-8'))
         wizard = (STATIC_DIR / 'setup-wizard.html').read_text(encoding='utf-8')
         html = html.replace('</header>', '</header>' + wizard, 1)
@@ -86,7 +124,6 @@ def settings_page(request: Request):
         html = html.replace('href="/obs-setup"', 'href="/settings?tab=obs"')
         html = html.replace('OBSの「ソース」一覧で対象のブラウザソースを右クリック →「プロパティ」→「幅」「高さ」を、下に表示される現在の幅・高さに合わせてください。', 'わんコメの「待機列整理アプリ」テンプレートをOBSに追加します。OBSの枠は縦横共通で幅1200・高さ600以上を推奨します。')
         html = html.replace('標準文字サイズ28pxの目安：縦480×600px、横1200×240px。適用後は「保存してOBSに反映」を押し、OBS側も同じ幅・高さにしてください。文字数・行数・フォントに合わせて調整できます。', '縦横を選ぶと、表示領域を縦480×600px・横1200×240pxに切り替えます。「保存してOBSに反映」でテンプレートも更新されます。文字数・行数に合わせた調整も可能です。')
-        html = html.replace('保存するとOBSに自動反映されます。幅・高さは縦横共通です。一度OBS側と合わせた後、配置レイアウトの切り替えだけならOBS側の変更は不要です。', '設定はここで一括管理します。通常の縦横切り替えではOBS側の操作は不要です。表示領域を1200×600pxより大きくする場合は、OBSの幅・高さも広げてください。')
         return HTMLResponse(branded_page(html))
     return FileResponse(STATIC_DIR / "settings.html")
 

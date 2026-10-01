@@ -20,7 +20,8 @@ test('sample preview shows session ordinals for every name mode, never for place
 
 async function settingsHarness(onecomme = true) {
   const defaults = {width:480, height:600, font_size:28, layout:'vertical', name_mode:'youtube',
-    show_participation_number:false, auto_fit_font:true, text_bold:true, text_shadow:true, background_color:'#000000', background_transparency:100, fonts:{all:'default'}};
+    show_participation_number:false, auto_fit_font:true, text_bold:true, text_shadow:true, background_color:'#000000', background_transparency:100,
+    open_label:'受付中',now_label:'NOW',next_label:'NEXT',queue_label:'QUEUE',fonts:{all:'default'}};
   let stored = {...defaults, show_participation_number:true};
   const elements = {}, fields = {}, calls = [], previews = [];
   const element = () => ({events:{}, style:{setProperty(k,v){this[k]=v;}}, disabled:false, value:'', checked:false,
@@ -49,7 +50,7 @@ async function settingsHarness(onecomme = true) {
       }
     }
   }
-  const context = {document:{body:{dataset:{onecomme:String(onecomme)}}, getElementById:id=>!onecomme && ['obs-font-select','obs-font-search'].includes(id) ? null : get(id)},
+  const context = {document:{body:{dataset:{onecomme:String(onecomme)}}, getElementById:id=>(!onecomme && ['obs-font-select','obs-font-search','save-display-labels','display-labels-result'].includes(id)) || (onecomme && id==='obs-dimensions') ? null : get(id)},
     Option:class {constructor(text,value){this.textContent=text;this.value=value;}},
     window:{addEventListener(){}, AppFonts:{apply(){},family:id=>id,systemName:()=>null}}, location:{origin:'http://127.0.0.1'},
     localStorage:{setItem(){}}, AbortSignal, FormData,

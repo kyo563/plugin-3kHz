@@ -1,13 +1,29 @@
         <details class="operator-tools" open>
-            <summary>ライブ連携・わんコメ</summary>
+            <summary>わんコメと連動中</summary>
             <p id="onecomme-status" role="status">わんコメとの接続を確認中</p>
-            <label>参加受付に使う配信<select id="onecomme-stream"><option value="">受信を停止</option></select></label>
-            <button id="onecomme-select" type="button">この配信から受信する</button>
-            <p>わんコメでコメントを受信すると配信を選べます。選択後の新しいコメントから反映します。YouTube配信に対応しています。</p>
-            <p>終了する場合は、わんコメでこのプラグインを無効にしてください。</p>
+            <p id="onecomme-target" role="status">対象配信を確認中…</p>
+            <p>その他表示の設定などは保存して次回の配信に引き継がれます</p>
+            <p id="onecomme-remembered"></p>
+            <details id="onecomme-reconnect"><summary>別の配信に連携し直す</summary>
+                <p>自動で選ばれた配信が異なる場合は、連携する配信を選び直してください。</p>
+                <label>連携する配信<select id="onecomme-stream"><option value="">配信を選択してください</option></select></label>
+                <p id="onecomme-choice-hint" role="status"></p>
+                <button id="onecomme-select" type="button">この配信に連携する</button>
+                <button id="onecomme-stop" type="button">連携を停止</button>
+                <p>選んだ接続は保存され、次回以降もわんコメの接続欄に合わせて更新されます。対象の配信がリストにない場合は、わんコメ側で再接続を行って再度立ち上げ直してください</p>
+            </details>
+            <section id="onecomme-transition" class="panel" hidden aria-label="配信切り替えの確認">
+                <h3>次の配信が見つかりました</h3>
+                <p id="onecomme-transition-summary"></p>
+                <p>前の配信の状態は保存します。設定・申告名・累計参加回数は引き継ぎます。</p>
+                <button id="onecomme-new-session" type="button">待機列を空にして新しく開始</button>
+                <button id="onecomme-carry-session" type="button">NOW・待機者をそのまま引き継ぐ</button>
+                <p>新規の配信では、今回の参加回数・対戦回数は最初から数えます。保存済みの配信に戻る場合は、その続きから再開します。選ぶまではコメント受付とBot通知を停止します。</p>
+            </section>
+            <p id="onecomme-action-result" role="status"></p>
             <details><summary>使い方・クレジット</summary>
                 <p id="onecomme-diagnostic" role="status"></p>
-                <p>参加希望が追加されない場合は、対象配信の選択、受付中かどうか、参加キーワード、連続操作制限を確認してください。PCの日時も正しく設定してください。古いコメントは再処理しません。</p>
+                <p>参加希望が追加されない場合は、表示された対象配信、受付中かどうか、参加キーワード、連続操作制限を確認してください。PCの日時も正しく設定してください。古いコメントは再処理しません。</p>
                 <p>わんコメ側で配信に接続してください。限定配信も、わんコメ側でコメントを受信できることが必要です。</p>
                 <p>無料版わんコメの利用時は、配信概要欄などに「配信者のためのコメントアプリ『わんコメ』https://onecomme.com」のクレジットを記載してください。</p>
                 <p>1.1.3とは別の保存先です。引き継ぐ場合は1.1.3でバックアップを保存し、この画面の「その他」から復元してください。</p>

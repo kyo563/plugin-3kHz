@@ -5,6 +5,11 @@
     const shell = document.getElementById('layout-preview-shell');
     const message = document.getElementById('layout-result');
     const save = document.getElementById('save-overlay-layout');
+    const labelSave = document.getElementById('save-display-labels');
+    const labelMessage = document.getElementById('display-labels-result');
+    // These controls belong to this form even when shown on the basic/setup tab.
+    const labelFields = ['open_label','now_label','next_label','queue_label'].map(key => form.elements.namedItem(key));
+    const labelStatus = text => { if (labelMessage) labelMessage.textContent = text; };
     const resetButton = document.getElementById('reset-settings');
     const resetDialog = document.getElementById('reset-settings-dialog');
     const resetMessage = document.getElementById('reset-settings-result');
@@ -93,12 +98,14 @@
         frame.style.width = `${settings.width}px`; frame.style.height = `${settings.height}px`;
         frame.style.transform = `scale(${scale})`;
         frame.contentWindow.postMessage({type:'overlay-preview', appearance:settings}, location.origin);
-        document.getElementById('obs-dimensions').textContent = onecomme
+        const dimensions = document.getElementById('obs-dimensions');
+        if (dimensions) dimensions.textContent = onecomme
             ? `OBSの共通枠：1200 × 600 px以上 ／ 表示領域：${settings.width} × ${settings.height} px${settings.width > 1200 || settings.height > 600 ? '（OBSの枠も広げてください）' : ''}`
             : `OBSブラウザソース：幅 ${settings.width} / 高さ ${settings.height}`;
     }
     async function load() {
         save.disabled = true; resetButton.disabled = true;
+        if (labelSave) labelSave.disabled = true;
         try {
             const r = await fetch('/api/settings/overlay', {signal:AbortSignal.timeout(5000)});
             if (!r.ok) throw new Error();
@@ -111,8 +118,9 @@
             if(!nameMode) { const r = await fetch('/api/state',{signal:AbortSignal.timeout(5000)}); if(!r.ok) throw new Error(); nameMode = (await r.json()).show_declared_player_name_on_overlay ? 'youtube_declared' : 'youtube'; }
             form.elements.namedItem('name_mode').value = nameMode;
             loaded = true; preview(); message.textContent = '保存済みの設定を表示しています。';
-        } catch (_) { message.textContent = '読み込めません。「保存済み設定を読み込む」で再試行してください。'; }
-        finally { save.disabled = !loaded; resetButton.disabled = !loaded || resetting; }
+            labelStatus('');
+        } catch (_) { message.textContent = '読み込めません。「保存済み設定を読み込む」で再試行してください。'; labelStatus('表示文言を読み込めません。ページを開き直してください。'); }
+        finally { save.disabled = !loaded; resetButton.disabled = !loaded || resetting; if (labelSave) labelSave.disabled = !loaded; }
     }
     document.getElementById('apply-layout-size').addEventListener('click', () => {
         if (!loaded) return;
@@ -132,12 +140,16 @@
         preview();
     });
     form.addEventListener('input', () => { preview(); message.textContent = 'プレビュー中（未保存）。「保存してOBSに反映」で保存します。'; });
+    if (labelSave) for (const field of labelFields) field.addEventListener('input', () => {
+        preview(); labelStatus('未保存です。保存するとOBSに反映されます。');
+    });
     frame.addEventListener('load', preview);
     window.addEventListener('resize', preview);
     document.getElementById('reload-overlay-layout').onclick = load;
     window.saveOverlaySettings = async () => {
         if (!loaded || save.disabled || !form.checkValidity()) return false;
         save.disabled = true; resetButton.disabled = true;
+        if (labelSave) labelSave.disabled = true;
         const submitted = values();
         try {
             const r = await fetch('/api/settings/overlay', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(submitted),signal:AbortSignal.timeout(5000)});
@@ -145,9 +157,10 @@
             window.AppFonts.apply(submitted.fonts);
             localStorage.setItem('app-font-settings', String(Date.now()));
             message.textContent = '保存しました。管理画面とOBS表示に反映されます。';
+            labelStatus('保存しました。OBS表示に反映されます。');
             return true;
-        } catch (_) { message.textContent = '保存を確認できません。入力値と接続を確認してください。'; return false; }
-        finally { save.disabled = false; resetButton.disabled = !loaded; }
+        } catch (_) { message.textContent = '保存を確認できません。入力値と接続を確認してください。'; labelStatus(message.textContent); return false; }
+        finally { save.disabled = false; resetButton.disabled = !loaded; if (labelSave) labelSave.disabled = !loaded; }
     };
     form.addEventListener('submit', async event => { event.preventDefault(); return window.saveOverlaySettings(); });
     resetButton.onclick = () => { resetDialog.showModal(); document.getElementById('cancel-reset-settings').focus(); };
@@ -159,6 +172,7 @@
         confirmReset.disabled = true;
         document.getElementById('cancel-reset-settings').disabled = true;
         save.disabled = true; resetButton.disabled = true; reloadButton.disabled = true;
+        if (labelSave) labelSave.disabled = true;
         try {
             // Omitted fields use the server schema defaults, including future settings.
             const r = await fetch('/api/settings/overlay', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name_mode:'youtube'}), signal:AbortSignal.timeout(5000)});
@@ -169,6 +183,7 @@
             applyFields(settings);
             loaded = true; preview();
             message.textContent = '初期設定を保存しました。';
+            labelStatus('初期設定を保存しました。');
             window.AppFonts.apply(settings.fonts);
             localStorage.setItem('app-font-settings', String(Date.now()));
             resetMessage.textContent = '設定を初期値に戻して保存しました。';
@@ -177,6 +192,7 @@
             resetting = false; confirmReset.disabled = false;
             document.getElementById('cancel-reset-settings').disabled = false;
             save.disabled = !loaded; resetButton.disabled = !loaded; reloadButton.disabled = false;
+            if (labelSave) labelSave.disabled = !loaded;
             resetDialog.close(); resetButton.focus();
         }
     };

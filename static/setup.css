@@ -6,6 +6,10 @@
 .setup-active[data-setup-step="1"] #settings-general-panel > :not(.setup-commands),
 .setup-active[data-setup-step="4"] [role="tabpanel"] { display:none; }
 #setup-summary { white-space:pre-line; }
+.setup-active[data-setup-step="1"] #save-display-labels,
+.setup-active[data-setup-step="1"] #save-commands { display:none; }
+.setup-wording-reset { display:none; }
+.setup-active[data-setup-step="1"] .setup-wording-reset { display:inline-block; }
 .panel details { margin:12px 0; }
 .panel summary { cursor:pointer; color:#9de4da; }
 #bot-account { display:flex; align-items:center; gap:12px; }

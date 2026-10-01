@@ -10,4 +10,11 @@
 #bot-last { overflow-wrap: anywhere; }
 #settings-bot-panel a { color: #8fc4ff; }
 #bot-disconnect { margin-top: 12px; }
+.bot-steps { padding-left:24px; line-height:1.8; }
+.bot-steps li { margin-bottom:10px; }
+.bot-channel-url { display:block; box-sizing:border-box; width:100%; margin:8px 0 16px; padding:10px; }
+#bot-stream-picker .panel { margin:16px 0; }
+#bot-notification-fields { display:flex; flex-direction:column; gap:14px; border:0; padding:0; margin:0; min-width:0; }
+#bot-notification-fields legend { margin-bottom:12px; }
+#bot-notification-fields:disabled { opacity:.6; }
 #settings-bot-panel textarea, #settings-bot-panel select { background: #101923; color: #f1f5fa; border: 1px solid #53657b; border-radius: 6px; padding: 10px; font: inherit; }

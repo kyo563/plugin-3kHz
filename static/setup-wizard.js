@@ -1,12 +1,12 @@
 (() => {
   const el = id => document.getElementById(id);
   const tabs = ['general','general','bot','obs','general'];
-  const titles = ['わんコメ・配信を接続','参加キーワードを設定','Botの利用を選択','OBS表示の利用を選択','設定内容を確認'];
-  const instructions = ['わんコメで配信コメントを受信し、対象配信を選んでください。配信前ならスキップできます。',
-    '参加・辞退に使う文言を確認してください。「次へ」で保存します。',
-    '使用する場合は配信者自身のチャンネルを認証してください。共通Bot用のGoogleアカウントは不要です。',
-    '使用する場合はOBSへ追加し、必要なら表示設定を保存してください。',
-    '未接続の項目は後から設定できます。待機列・履歴はそのまま残ります。'];
+  const titles = ['対象配信を確認','参加キーワード・表示文言を設定','Botの設定を進めます。','OBS表示の利用を選択','設定内容を確認'];
+  const instructions = ['わんコメでYouTube配信に接続すると、下に対象が自動表示されます。表示内容を確認して「次へ」を押してください。',
+    '参加・辞退に使う文言と、OBSの表示文言を確認してください。「次へ」で保存します。',
+    'Botを標準モデレーターに設定し、対象の配信を選択することで利用可能になります。',
+    'OBS表示用の設定を編集します。',
+    '設定内容を確認し、「次へ」でセットアップを完了してください。'];
   let prefs, busy = false;
   async function api(path, value) {
     const r = await fetch(path, {signal:AbortSignal.timeout(10000), ...(value === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)})});
@@ -14,6 +14,30 @@
     return r.json();
   }
   const persist = async next => { prefs = await api('/api/setup', next); };
+  function placeConnection(inBot) {
+    // Move the existing controls, retaining their event handlers and selected stream.
+    if (inBot) el('bot-stream-picker').append(el('setup-connection'));
+    else el('settings-general-panel').prepend(el('setup-connection'));
+    el('bot-stream-settings-link').hidden = inBot;
+  }
+  for (const [buttonId, statusId, saveId] of [
+    ['setup-reset-commands','commands-result','save-commands'],
+    ['setup-reset-labels','display-labels-result','save-display-labels'],
+  ]) {
+    el(buttonId).onclick = () => {
+      if (busy || prefs?.step !== 1) return;
+      if (el(saveId).disabled) {
+        el(statusId).textContent = '設定を読み込み中です。読み込めない場合はページを開き直してください。';
+        return;
+      }
+      // Reset only this section's draft. Persist with Next, never clear operational data.
+      for (const [id, value] of Object.entries(JSON.parse(el(buttonId).dataset.defaults))) {
+        el(id).value = value;
+        el(id).dispatchEvent(new Event('input', {bubbles:true}));
+      }
+      el(statusId).textContent = '初期値に戻しました。「次へ」で保存します。';
+    };
+  }
   function optionalPanel() {
     if (prefs?.step === 2) el('settings-bot-panel').hidden = !el('setup-use-bot').checked;
     if (prefs?.step === 3) {
@@ -37,12 +61,12 @@
     el('setup-use-bot').checked = prefs.use_bot;
     el('setup-use-obs').checked = prefs.use_obs;
     el('setup-back').disabled = prefs.step === 0;
-    el('setup-next').textContent = prefs.step === 4 ? 'セットアップを完了する' : '次へ';
-    el('setup-skip').hidden = ![0,2,3].includes(prefs.step);
+    el('setup-next').textContent = '次へ';
     el('setup-summary').hidden = prefs.step !== 4;
     window.selectSettingsTab(tabs[prefs.step]);
+    placeConnection(prefs.step === 2);
     optionalPanel();
-    el('setup-obs-details').open = false;
+    el('setup-obs-details').open = true;
     el('setup-title').focus();
     if (prefs.step === 4) {
       el('setup-summary').textContent = '状態を確認中…';
@@ -51,51 +75,42 @@
       }).catch(e => {el('setup-summary').textContent = e.message;});
     }
   }
-  function close() {
-    document.body.classList.remove('setup-active');
-    el('setup-wizard').hidden = true;
-    const url = new URL(location.href); url.searchParams.delete('setup');
-    history.replaceState(null, '', url.pathname + url.search);
-    el('setup-state').textContent = prefs.completed ? 'セットアップ完了。いつでも再設定できます。' : 'あとで再開できます。';
-    window.selectSettingsTab('general');
-    el('setup-obs-details').open = true;
-  }
   async function run(action) {
     if (busy || !prefs) return;
     busy = true;
-    for (const id of ['setup-next','setup-back','setup-skip','setup-later','setup-restart']) el(id).disabled = true;
+    for (const id of ['setup-next','setup-back','setup-restart']) el(id).disabled = true;
     el('setup-result').textContent = '';
     try { await action(); }
     catch(e) { el('setup-result').textContent = e.message; }
     finally {
       busy = false;
-      for (const id of ['setup-next','setup-skip','setup-later','setup-restart']) el(id).disabled = false;
+      for (const id of ['setup-next','setup-restart']) el(id).disabled = false;
       el('setup-back').disabled = prefs.step === 0;
     }
   }
   el('setup-restart').onclick = () => run(async () => {await persist({...prefs, step:0}); show();});
   el('setup-back').onclick = () => run(async () => {await persist({...prefs,step:Math.max(0,prefs.step-1)}); show();});
-  el('setup-later').onclick = () => run(async () => {await persist({...prefs,deferred:true}); close();});
-  async function next(skip = false) {
+  async function next() {
     let nextPrefs = {...prefs};
-    if (prefs.step === 0 && !skip) {
+    if (prefs.step === 0) {
       const s = await api('/api/onecomme/status');
-      if (!s.connected || !s.selected) throw new Error('配信を選んで「この配信から受信する」を押してください。配信前なら「スキップ」で続行できます。');
+      if (!s.connected || !s.selected) throw new Error('わんコメで配信に接続してください。対象が自動表示されない場合は「別の配信に連携し直す」から選択してください。');
     }
     if (prefs.step === 1) {
       if (el('join-commands').disabled || el('cancel-commands').disabled) throw new Error('設定を読み込み中です。読み込めない場合はページを開き直してください。');
       const lines = id => el(id).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
       await api('/api/settings/commands', {join:lines('join-commands'),cancel:lines('cancel-commands')});
       el('commands-result').textContent = '保存しました。';
+      if (!(await window.saveOverlaySettings())) throw new Error('表示文言を保存できません。読み込み状態・入力値を確認して再試行してください。');
     }
     if (prefs.step === 2) {
-      nextPrefs.use_bot = !skip && el('setup-use-bot').checked;
-      if (nextPrefs.use_bot && !(await api('/api/bot')).authenticated) throw new Error('チャンネルを接続し「認証結果を確認」を押してください。後から設定する場合はスキップできます。');
+      nextPrefs.use_bot = el('setup-use-bot').checked;
+      if (nextPrefs.use_bot && !(await api('/api/bot')).authenticated) throw new Error('チャンネルを接続し「認証結果を確認」を押してください。Botを使用しない場合はチェックを外して「次へ」を押してください。');
       if (nextPrefs.use_bot && !(await window.saveBotSettings())) throw new Error('Bot通知設定を保存できません。しばらく待ってから再試行してください。');
       if (!nextPrefs.use_bot) await api('/api/bot/connection', {action:'stop'});
     }
     if (prefs.step === 3) {
-      nextPrefs.use_obs = !skip && el('setup-use-obs').checked;
+      nextPrefs.use_obs = el('setup-use-obs').checked;
       if (nextPrefs.use_obs && !(await window.saveOverlaySettings())) throw new Error('OBS表示設定を保存できません。入力値を確認して再試行してください。');
     }
     if (prefs.step === 4) {
@@ -105,7 +120,6 @@
     await persist({...nextPrefs,step:prefs.step+1}); show();
   }
   el('setup-next').onclick = () => run(() => next());
-  el('setup-skip').onclick = () => run(() => next(true));
   // Explanations remain available, but no longer obscure everyday controls.
   for (const panel of document.querySelectorAll('#settings-general-panel section, #settings-obs-panel section, #settings-bot-panel section')) {
     for (const p of [...panel.querySelectorAll('p')]) {

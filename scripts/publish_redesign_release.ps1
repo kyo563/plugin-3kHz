@@ -1,6 +1,7 @@
+param([string]$ReleaseDirectory = 'dist\onecomme-release-0.1.4-redesign-final')
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$candidate = Join-Path $repoRoot 'dist\onecomme-release-0.1.4-redesign-final'
+$candidate = Join-Path $repoRoot $ReleaseDirectory
 $backup = Join-Path $repoRoot ('dist\release-backup-redesign-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $backup | Out-Null
 $env:GIT_TERMINAL_PROMPT = '0'

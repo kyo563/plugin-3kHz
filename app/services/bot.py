@@ -48,6 +48,14 @@ class BotSettings(BaseModel):
     reply_position: StrictBool = True
     periodic: StrictBool = True
     interval_minutes: int = 30
+    initial_delay_minutes: int = 30
+
+    @field_validator('initial_delay_minutes', mode='before')
+    @classmethod
+    def initial_delay(cls, value):
+        if type(value) is not int or value not in (15, 30, 45, 60):
+            raise ValueError('15・30・45・60分のいずれかを指定してください')
+        return value
 
     @field_validator('interval_minutes', mode='before')
     @classmethod
@@ -163,6 +171,7 @@ class AnnouncementBot:
         self.queue = deque(maxlen=20)
         self.seen, self.reply_times, self.now_events = OrderedDict(), OrderedDict(), OrderedDict()
         self.last_sent, self.next_guide, self.last_result = -100.0, None, ''
+        self.first_guide_pending = True
         self.last_test = -100.0
         self.generation, self.thread = 0, None
 
@@ -211,7 +220,10 @@ class AnnouncementBot:
                 self.pause()
             elif not settings.periodic:
                 self.next_guide = None
-            elif not old.periodic or old.interval_minutes != settings.interval_minutes:
+            elif not old.periodic or old.initial_delay_minutes != settings.initial_delay_minutes:
+                self.first_guide_pending = True
+                self.next_guide = self.clock() + settings.initial_delay_minutes * 60
+            elif not self.first_guide_pending and old.interval_minutes != settings.interval_minutes:
                 self.next_guide = self.clock() + settings.interval_minutes * 60
         return self.status()
 
@@ -338,7 +350,8 @@ class AnnouncementBot:
                         self.queue.clear()
                         self.running, self.active_video = True, video
                         self.settings = self.settings.model_copy(update={'enabled': True})
-                        self.next_guide = self.clock() + self.settings.interval_minutes * 60 if self.settings.periodic else None
+                        self.first_guide_pending = True
+                        self.next_guide = self.clock() + self.settings.initial_delay_minutes * 60 if self.settings.periodic else None
             else:
                 raise ValueError('未対応の接続操作です。')
             self.error = ''
@@ -455,6 +468,7 @@ class AnnouncementBot:
             with self.lock:
                 if self.settings.periodic and self.next_guide is not None and now >= self.next_guide:
                     late = now - self.next_guide
+                    self.first_guide_pending = False
                     self.next_guide = now + self.settings.interval_minutes * 60
                     if late <= 60:
                         self._enqueue('announcement', None)

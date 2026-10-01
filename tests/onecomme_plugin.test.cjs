@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {EventEmitter} = require('node:events');
 const {PassThrough} = require('node:stream');
-const {convert, createPlugin} = require('../onecomme/plugin.js');
+const {convert, createPlugin, serviceFrame} = require('../onecomme/plugin.js');
 function comment() {
     return {service: 'youtube', name: '配信', data: {id: 'message', liveId: 'stream', userId: 'UC' + 'a'.repeat(22), name: 'User', screenName: '@handle', comment: '参加希望 『Name』', timestamp: new Date().toISOString()}};
 }
@@ -24,6 +24,40 @@ test('membership flag does not exclude ordinary participation comments', () => {
     c.data.isMember = true;
     assert.equal(convert(c).comment.message, c.data.comment);
     assert.equal(convert(c).comment.userKey, c.data.userId);
+});
+
+test('public service metadata resolves scheduled videos without leaking account fields', () => {
+    const s={id:'row',name:'枠',enabled:true,url:'https://www.youtube.com/@channel/live',meta:{url:'https://www.youtube.com/watch?v=abcdefghijk',title:'開始前',startTime:Date.now()+60000,loggedName:'private',loggedIn:true}};
+    const f=serviceFrame(s);
+    assert.equal(f.id,'abcdefghijk'); assert.equal(f.state,'upcoming'); assert.equal(f.name,'開始前');
+    assert.equal(JSON.stringify(f).includes('private'),false);
+    assert.equal(serviceFrame({...s,url:'https://youtu.be/lmnopqrstuv'}).id,'lmnopqrstuv');
+    assert.equal(serviceFrame({...s,url:'https://youtube.com.evil.test/watch?v=abcdefghijk',meta:{}}),null);
+    assert.equal(serviceFrame({...s,meta:{}}).id,'');
+    assert.equal(serviceFrame({...s,enabled:'true'}),null);
+});
+
+test('initial services and updates arrive before comments; service removal clears snapshot', async () => {
+    const worker=new EventEmitter();
+    worker.stdin=new PassThrough(); worker.stdout=new PassThrough(); worker.stderr=new PassThrough(); worker.exitCode=null;
+    const calls=[];
+    const p=createPlugin({spawnWorker:()=>worker,http:async(url,opts)=>{calls.push([url,JSON.parse(opts.body)]);return {ok:true};}});
+    const s={id:'row',name:'枠',enabled:true,url:'https://www.youtube.com/watch?v=abcdefghijk'};
+    p.init({dir:'C:/plugin'},{services:[s]});
+    assert.ok(p.permissions.includes('services')); assert.ok(p.permissions.includes('meta'));
+    worker.stdout.write(JSON.stringify({base:'http://127.0.0.1:18765',control:'http://127.0.0.1:18765/control#key='+'a'.repeat(43),ingest:'b'.repeat(43)})+'\n');
+    p.filterComment(comment());
+    await new Promise(r=>setImmediate(r));
+    assert.ok(calls[0][0].endsWith('/heartbeat')); assert.equal(calls[0][1].services[0].id,'abcdefghijk');
+    assert.ok(calls[1][0].endsWith('/comment'));
+    p.subscribe('meta',{type:'youtube',service:s,data:{title:'新タイトル',isLive:true}});
+    await new Promise(r=>setImmediate(r));
+    assert.equal(calls.at(-1)[1].services[0].name,'新タイトル');
+    assert.equal(calls.at(-1)[1].services[0].state,'live');
+    p.subscribe('services',[]);
+    await new Promise(r=>setImmediate(r));
+    assert.deepEqual(calls.at(-1)[1].services,[]);
+    p.destroy(); worker.exitCode=0; worker.emit('exit',0);
 });
 
 test('memo uses matching official UserNameData, retaining absent vs explicit empty', () => {

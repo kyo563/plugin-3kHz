@@ -2,11 +2,13 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 import sys
+import asyncio
+from typing import Literal
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from fastapi import Request
+from fastapi import Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 import uvicorn
@@ -40,7 +42,31 @@ def create_preview(directory=DIRECTORY):
     directory.mkdir(parents=True, exist_ok=True)
     app = create_app(db_path=str(directory / 'review.sqlite3'), desktop=True, onecomme=True)
     app.state.access_keys.admin = KEY
+    app.state.bot_simulation = False
     original = app.router.lifespan_context
+
+    def preview_stream():
+        state = app.state.setup_store.read('review_stream', 'none')
+        if state == 'none':
+            app.state.onecomme.heartbeat(services=[])
+            app.state.onecomme.heartbeat_at = 0
+            return
+        frames = [{'service_id':'sample-row','service_name':'いつもの麻雀配信','id':'demoLive001','name':'第1回 麻雀参加型配信（サンプル）',
+                   'enabled':True,'url':'https://www.youtube.com/watch?v=demoLive001',
+                   'start_time':None,'state':'live' if state == 'live' else 'upcoming'}]
+        if state in ('next','third'):
+            video, title = ('demoLive002','第2回') if state == 'next' else ('demoLive003','第3回')
+            frames[0].update(id=video, name=f'{title} 麻雀参加型配信（サンプル）',url='https://www.youtube.com/watch?v='+video)
+        if state == 'multiple':
+            frames.append({**frames[0],'service_id':'sample-row-2','id':'demoLive002','name':'別の配信（確認用サンプル）','url':'https://www.youtube.com/watch?v=demoLive002'})
+        if state == 'missing':
+            frames = [{**frames[0],'service_id':'different-row','id':'demoLive004','name':'別の枠の配信','url':'https://www.youtube.com/watch?v=demoLive004'}]
+        app.state.onecomme.heartbeat(services=frames)
+
+    async def stream_loop():
+        while True:
+            preview_stream()
+            await asyncio.sleep(1.5)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -51,14 +77,22 @@ def create_preview(directory=DIRECTORY):
                 seed(app, 37)
                 app.state.setup_store.write('review_seeded', True)
                 app.state.setup_store.write('setup', {'completed':True,'deferred':False,'step':4,'use_bot':False,'use_obs':True})
-            yield
+            task = asyncio.create_task(stream_loop())
+            try:
+                yield
+            finally:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
     app.router.lifespan_context = lifespan
 
     @app.middleware('http')
     async def isolate(request: Request, call_next):
         if request.url.path == '/api/onecomme/template':
             return JSONResponse({'detail':'確認用画面ではテンプレートを配布しません。'}, status_code=409)
-        if request.method != 'GET' and request.url.path.startswith('/api/bot/'):
+        if request.method != 'GET' and request.url.path.startswith('/api/bot/') and not app.state.bot_simulation:
             safe_stop = False
             if request.method == 'POST' and request.url.path == '/api/bot/connection':
                 try:
@@ -92,7 +126,42 @@ def create_preview(directory=DIRECTORY):
 
     @app.get('/preview-status')
     def preview_status():
-        return {'preview':'joinqueue-isolated-visual-review','bot_posting':False}
+        return {'preview':'joinqueue-isolated-visual-review','bot_posting':False,
+                'bot_simulation':app.state.bot_simulation,
+                'stream':app.state.setup_store.read('review_stream','none')}
+
+    class BotSimulationAction(BaseModel):
+        action: Literal['begin','moderator','approve','cancel']
+
+    @app.post('/api/preview/bot')
+    def simulate_bot(payload: BotSimulationAction):
+        from scripts.preview.bot_simulation import PreviewBot
+        if payload.action == 'begin':
+            app.state.bot.stop()
+            bot = PreviewBot(app.state.onecomme)
+            app.state.bot = app.state.services.bot = app.state.onecomme.bot = bot
+            app.state.bot_simulation = True
+        elif not app.state.bot_simulation:
+            raise HTTPException(409, '先にシミュレーションを開始してください。')
+        elif payload.action == 'moderator':
+            app.state.bot.moderator = True
+        elif not app.state.bot.requested:
+            raise HTTPException(409, '先に「配信チャンネルを接続」を押してください。')
+        elif payload.action == 'approve':
+            app.state.bot.approved = True
+        elif payload.action == 'cancel':
+            app.state.bot.approved = False
+            app.state.bot.error = '認証がキャンセルされました（シミュレーション）。接続解除後にやり直してください。'
+        return {'simulation':True, 'bot_posting':False}
+
+    class PreviewStream(BaseModel):
+        state: Literal['none','upcoming','live','multiple','next','third','missing']
+
+    @app.post('/api/preview/stream')
+    def stream(payload: PreviewStream):
+        app.state.setup_store.write('review_stream',payload.state)
+        preview_stream()
+        return {'ok':True}
 
     @app.post('/api/preview/scenario')
     def scenario(payload: Scenario):

@@ -198,7 +198,7 @@ def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
 def test_three_switches_all_combinations(setup_bot, mask):
     bot, bridge, services, now, sent, calls = setup_bot
     activate(bot)
-    bot.configure(BotSettings(enabled=True, announce_now=bool(mask & 1), reply_position=bool(mask & 2), periodic=bool(mask & 4), interval_minutes=15))
+    bot.configure(BotSettings(enabled=True, announce_now=bool(mask & 1), reply_position=bool(mask & 2), periodic=bool(mask & 4), interval_minutes=15, initial_delay_minutes=15))
     for i in range(6): services.receive_comment(comment(i))
     services.move_next(); bot.tick()
     now[0] += 10; bot.receive(comment(4, '@JoinQueueBot')); bot.tick()
@@ -214,12 +214,57 @@ def test_timer_counts_interval_off_on_sleep_stop_and_disconnect(setup_bot):
     assert sent[-1]['variables'] == {'waitingCount':4,'groupCount':2,'groupSize':3}
     bot.configure(BotSettings(enabled=True, periodic=False, interval_minutes=15))
     now[0] += 1800; bot.tick(); assert len(sent) == 1 and bot.running
-    bot.configure(BotSettings(enabled=True, periodic=True, interval_minutes=15))
+    bot.configure(BotSettings(enabled=True, periodic=True, interval_minutes=15, initial_delay_minutes=15))
     bot.tick(); now[0] += 899; bot.tick(); assert len(sent) == 1
     now[0] += 1; bot.tick(); assert len(sent) == 2
     now[0] += 5400; bot.tick(); assert len(sent) == 2
     bridge.heartbeat_at = 0; bot.tick(); assert not bot.running
     now[0] += 900; bot.tick(); assert len(sent) == 2
+
+@pytest.mark.parametrize('delay', [15, 30, 45, 60])
+def test_initial_delay_is_saved_and_independent_of_repeat_interval(setup_bot, delay):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.configure(BotSettings(initial_delay_minutes=delay, interval_minutes=15))
+    assert bot.store.data['shared_settings']['initial_delay_minutes'] == delay
+    restored = AnnouncementBot(services, bridge, bot.store,
+        client=httpx.Client(transport=httpx.MockTransport(lambda r: pytest.fail('network'))))
+    assert restored.settings.initial_delay_minutes == delay and not restored.running
+    restored.stop()
+    activate(bot)
+    now[0] += delay * 60 - 1
+    bot.tick(); assert not sent
+    now[0] += 1
+    bot.tick(); assert len(sent) == 1
+    now[0] += 899
+    bot.tick(); assert len(sent) == 1
+    now[0] += 1
+    bot.tick(); assert len(sent) == 2
+
+
+def test_initial_delay_edit_restarts_from_save_but_unrelated_save_preserves_deadline(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    deadline = bot.next_guide
+    now[0] += 120
+    bot.configure(BotSettings(enabled=True, interval_minutes=15, reply_position=False))
+    assert bot.next_guide == deadline
+    bot.configure(BotSettings(enabled=True, initial_delay_minutes=45, interval_minutes=15))
+    assert bot.next_guide == now[0] + 2700
+    now[0] += 100
+    deadline = bot.next_guide
+    bot.configure(bot.settings)
+    assert bot.next_guide == deadline
+    bot.command('stop')
+    assert bot.next_guide is None
+    bot.command('start')
+    assert bot.next_guide == now[0] + 2700
+
+
+@pytest.mark.parametrize('delay', [0, 10, 90, True, '30', 30.0])
+def test_invalid_initial_delay_is_rejected(delay):
+    with pytest.raises(ValueError):
+        BotSettings(initial_delay_minutes=delay)
+
 
 def test_no_replay_after_switch_off_and_no_old_google_auth_read(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
@@ -286,10 +331,10 @@ def test_api_local_auth_legacy_endpoint_removed_and_disconnect_confirmation(tmp_
         assert c.post('/api/bot/disconnect', json={}).status_code == 422
         assert c.post('/api/bot/connection', json={'action':'stop','url':'https://evil.invalid'}).status_code == 422
         html = c.get('/bot').text
-        assert '0.1.4' in html and 'id="bot-client"' not in html
+        assert '<h1>設定画面</h1>' in html and 'id="bot-client"' not in html
         assert c.get('/bot', follow_redirects=False).headers['location'] == '/settings?tab=bot'
         assert 'role="tablist"' in html and 'aria-controls="settings-bot-panel"' in html
-        assert '<h2>通知選択</h2>' in html and html.count('id="bot-form"') == 1
+        assert '<h2>4. 通知選択</h2>' in html and html.count('id="bot-form"') == 1
         assert html.count('id="overlay-layout-form"') == 1
         for removed in ('通知を選ぶ', 'Botを使わなくても', 'チェックの変更は保存後', '利用者ごとのBotアカウント', '人数・待機順はNOWを除きます'):
             assert removed not in html

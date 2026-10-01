@@ -53,6 +53,8 @@ class SQLitePersistenceService:
     def _initialize_schema(self) -> None:
         with self._connect() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS control_display (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)")
+            conn.execute("CREATE TABLE IF NOT EXISTS onecomme_sessions (video_id TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            conn.execute("CREATE TABLE IF NOT EXISTS onecomme_active (id INTEGER PRIMARY KEY CHECK(id=1), video_id TEXT NOT NULL)")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS app_state (
                     key TEXT PRIMARY KEY,
@@ -187,11 +189,13 @@ class SQLitePersistenceService:
             "logs": [row["message"] for row in reversed(logs)],
         }
 
-    def set_state(self, state: dict) -> None:
+    def set_state(self, state: dict, *, transaction=None) -> None:
         with self._lock:
             timestamp = self._now()
             with self._connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
+                if transaction:
+                    transaction(conn)
                 row = conn.execute("SELECT value FROM app_state WHERE key='revision'").fetchone()
                 next_revision = max(self.revision, int(row["value"]) if row else 0) + 1
                 conn.execute("DELETE FROM app_state")
@@ -232,6 +236,53 @@ class SQLitePersistenceService:
 
             self.revision = next_revision
             self._undo = None
+
+    # Only live-operation data belongs to a video. Names, cumulative counts,
+    # appearance, keywords, fonts and connection credentials remain shared.
+    SESSION_FIELDS = ('current', 'waiting', 'total_match_count',
+                      'participation_history', 'logs', 'user_action_locks')
+
+    def active_video(self):
+        with self._lock, self._connect() as conn:
+            row = conn.execute('SELECT video_id FROM onecomme_active WHERE id=1').fetchone()
+            return row[0] if row else ''
+
+    def adopt_video(self, video_id):
+        """Associate legacy state once without clearing any existing people."""
+        with self._lock, self._connect() as conn:
+            conn.execute('INSERT OR IGNORE INTO onecomme_active VALUES(1,?)', (video_id,))
+
+    def switch_video(self, video_id, carry=False, expected_revision=None):
+        with self._lock:
+            if expected_revision is not None and expected_revision != self.revision:
+                raise ValueError('確認中に待機列が変わりました。人数を確認してもう一度選択してください。')
+            previous = self.active_video()
+            if previous == video_id:
+                return
+            if not previous:
+                self.adopt_video(video_id)
+                return
+            state = self.get_state()
+            archived = {key: deepcopy(state[key]) for key in self.SESSION_FIELDS}
+            with self._connect() as conn:
+                row = conn.execute('SELECT value FROM onecomme_sessions WHERE video_id=?', (video_id,)).fetchone()
+            if row:
+                if carry:
+                    raise ValueError('この配信には保存済みの待機列があります。「保存済みの状態に戻る」を選んでください。')
+                state.update(json.loads(row[0]))
+            else:
+                state.update(current=state['current'] if carry else [], waiting=state['waiting'] if carry else [],
+                             total_match_count=0, participation_history=[], user_action_locks={}, logs=[])
+            state['logs'].append('配信を切り替えました（前の配信の状態は保存済み）')
+            def commit(conn):
+                conn.execute('INSERT OR REPLACE INTO onecomme_sessions VALUES(?,?)',
+                             (previous, json.dumps(archived, ensure_ascii=False)))
+                conn.execute('INSERT OR REPLACE INTO onecomme_active VALUES(1,?)', (video_id,))
+            self.set_state(state, transaction=commit)
+
+    def has_saved_video(self, video_id):
+        with self._lock, self._connect() as conn:
+            return conn.execute('SELECT 1 FROM onecomme_sessions WHERE video_id=?', (video_id,)).fetchone() is not None
 
     def reset_state(self) -> dict:
         with self._lock:

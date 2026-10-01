@@ -109,8 +109,12 @@ async function main() {
         assert.ok(settingsPage.includes('id="settings-obs-panel"'));
         assert.ok(settingsPage.includes('id="onecomme-stream"'));
         assert.ok(settingsPage.includes('id="setup-wizard"'));
-        assert.ok(settingsPage.includes('<small>' + plugin.version + '</small>'));
-        assert.ok(settingsPage.includes('<h2>通知選択</h2>'));
+        assert.ok(settingsPage.includes('<h1>設定画面</h1>'));
+        assert.ok(settingsPage.includes('<h2>4. 通知選択</h2>'));
+        assert.ok(settingsPage.includes('フォント一括設定'));
+        assert.ok(settingsPage.includes('OBSに表示される文言は以下のとおりです。'));
+        assert.ok(settingsPage.includes('id="bot-initial-delay"'));
+        assert.ok(!settingsPage.includes('確認用の状態です'));
         assert.ok(settingsPage.includes('name="show_participation_number"'));
         for (const name of ['background_color','background_transparency','auto_fit_font','text_bold','text_shadow']) assert.ok(settingsPage.includes('name="' + name + '"'));
         assert.ok(!settingsPage.includes('Botを使わなくても'));
@@ -118,7 +122,9 @@ async function main() {
         assert.equal(bot.settings.enabled, false);
         assert.equal(bot.settings.interval_minutes, 30);
         assert.equal(bot.authenticated, false);
-        bot = await api('/api/bot/settings', {enabled: false, announce_now: false, reply_position: true, periodic: false, interval_minutes: 15});
+        assert.equal(bot.settings.initial_delay_minutes, 30);
+        bot = await api('/api/bot/settings', {enabled: false, announce_now: false, reply_position: true, periodic: false, interval_minutes: 15, initial_delay_minutes:45});
+        assert.equal(bot.settings.initial_delay_minutes, 45);
         assert.equal(bot.settings.announce_now, false);
         assert.equal(bot.settings.interval_minutes, 15);
         function event(id, message) { return {service: 'youtube', name: '試験配信', data: {id, liveId: 'test-stream', userId: 'UC' + 'a'.repeat(22), name: '試験参加者', timestamp: new Date().toISOString(), comment: message}}; }
@@ -165,6 +171,7 @@ async function main() {
         assert.equal((await api('/api/state')).current.length, 2);
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');
         assert.equal((await api('/api/bot')).settings.enabled, false);
+        assert.equal((await api('/api/bot')).settings.initial_delay_minutes, 45);
         const appearance = (await api('/api/overlay-state')).appearance;
         assert.equal(appearance.background_color, '#123456');
         assert.equal(appearance.background_transparency, 35);

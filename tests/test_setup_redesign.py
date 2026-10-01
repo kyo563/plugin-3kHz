@@ -36,8 +36,40 @@ def test_redesigned_pages_have_unique_ids_and_legacy_redirects(tmp_path):
             if 'id' in values: self.ids.append(values['id'])
     with TestClient(create_app(db_path=str(tmp_path/'db'),desktop=True,onecomme=True),base_url='http://127.0.0.1') as c:
         page = c.get('/settings').text
+        assert '<h1>設定画面</h1>' in page
+        assert '<h1>設定画面 <small>' not in page
         parsed=Ids(); parsed.feed(page)
         assert len(parsed.ids) == len(set(parsed.ids))
+        assert 'setup-skip' not in parsed.ids and 'setup-later' not in parsed.ids
+        assert '<details id="setup-obs-details" open>' in page
+        assert 'フォント一括設定' in page and 'OBS全体のフォント' not in page
+        assert 'OBSに表示される文言は以下のとおりです。' in page
+        for removed in ('設定はここで一括管理します', 'obs-dimensions', '自動縮小がONの場合',
+                        '待機人数はNOWを除き', 'プレビュー（サンプル', 'チェック模様は透過確認用'):
+            assert removed not in page
+        assert 'この画面の表示設定（名前の表示方式・配置・文言・文字サイズ・背景色と透過度・自動縮小・自由編集・フォント指定）を初期値に戻します。' in page
+        assert '表示文言が変更できます' in page
+        assert '※OBS表示用のフォントや透過度の変更は設定画面から可能です' in page
+        assert page.index('cancel-commands') < page.index('display-labels-title') < page.index('settings-obs-panel" role=')
+        for key in ('open_label', 'now_label', 'next_label', 'queue_label'):
+            assert page.count(f'name="{key}"') == 1
+            assert f'<input id="setup-label-{key}" form="overlay-layout-form" name="{key}" maxlength="40">' in page
+        assert page.count('リセットしてやりなおす</button>') == 2
+        bot_steps = ['bot-moderator-step', 'bot-auth-step', 'bot-stream-step', 'bot-notifications', 'bot-start-step']
+        positions = [page.index(f'id="{key}"') for key in bot_steps]
+        assert positions == sorted(positions)
+        assert page.count('id="onecomme-stream"') == 1
+        assert 'bot-stream-picker' in parsed.ids
+        assert 'bot-notification-fields' in parsed.ids
+        for instruction in ('左側メニューの「設定」をクリック', '「コミュニティの管理」→「ユーザー管理」を開く',
+                            '「標準モデレーター」欄にBotのURLを貼り付ける', '「保存」をクリック', 'このプラグインの画面に戻る'):
+            assert instruction in page
+        assert page.count('別の配信に連携し直す</summary>') == 1
+        assert 'いつも使う枠を変更する' not in page
+        assert '対象配信を手動で変更' not in page
+        assert 'onecomme-row' not in parsed.ids
+        assert 'onecomme-remember' not in parsed.ids
+        assert 'onecomme-stop' in parsed.ids
         for key in ('settings-general-panel','settings-obs-panel','settings-bot-panel','setup-wizard','onecomme-stream','copy-control','obs-check','bot-test-dialog'):
             assert key in parsed.ids
         assert 'waiting-expand' in c.get('/control').text

@@ -1,6 +1,10 @@
+param(
+    [string]$ReleaseDirectory = 'dist\onecomme-release-0.1.4-redesign-final',
+    [string]$ExpectedHash = '39746adefd113b80372625e89ef5cadad4cd7da329e7ae167aaa3fa773ba5653'
+)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$candidate = Join-Path $repoRoot 'dist\onecomme-release-0.1.4-redesign-final\sankagata-seiretsu'
+$candidate = Join-Path (Join-Path $repoRoot $ReleaseDirectory) 'sankagata-seiretsu'
 $archive = Join-Path (Split-Path -Parent $candidate) 'Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip'
 $plugins = Join-Path $env:APPDATA 'onecomme\plugins'
 $target = Join-Path $plugins 'sankagata-seiretsu'
@@ -8,7 +12,7 @@ $data = Join-Path $env:LOCALAPPDATA 'WaitingListAppOneComme'
 $backupRoot = Join-Path $env:LOCALAPPDATA 'WaitingListAppOneComme-backups'
 $backup = Join-Path $backupRoot ('redesign-20261001-' + (Get-Date -Format 'HHmmss'))
 if ((Get-Process | Where-Object { $_.ProcessName -match 'onecomme|QueueWorker' }) -or (Get-NetTCPConnection -LocalPort 18765 -State Listen -ErrorAction SilentlyContinue)) { throw 'Close OneComme and its worker first.' }
-if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLower() -ne '39746adefd113b80372625e89ef5cadad4cd7da329e7ae167aaa3fa773ba5653') { throw 'Candidate hash mismatch' }
+if ($ExpectedHash -notmatch '^[a-f0-9]{64}$' -or (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLower() -ne $ExpectedHash) { throw 'Candidate hash mismatch' }
 if (-not (Test-Path -LiteralPath $target -PathType Container)) { throw 'Existing installation not found' }
 # Resolve exact source/destination before moving this one plugin directory.
 $target = (Resolve-Path -LiteralPath $target).Path

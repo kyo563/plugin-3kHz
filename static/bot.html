@@ -1,24 +1,60 @@
-<section class="panel" id="bot-notifications" hidden><h2>通知選択</h2>
-<form id="bot-form">
+<section class="panel" id="bot-moderator-step"><h2>1. 標準モデレーターに登録する</h2>
+<div id="bot-account"><img id="bot-icon" hidden alt="Botチャンネルのアイコン" referrerpolicy="no-referrer"><strong id="bot-name">共通Bot：JoinQueueBot</strong><a href="https://www.youtube.com/@JoinQueueBot" target="_blank" rel="noopener noreferrer">チャンネルを見る</a></div>
+<ol class="bot-steps">
+<li><strong>配信するチャンネルのYouTube Studioを開く</strong><br><a href="https://studio.youtube.com/" target="_blank" rel="noopener noreferrer">YouTube Studioを開く（別タブ）</a>。普段配信しているGoogleアカウントでログインし、設定対象が自分の配信チャンネルであることを確認します。</li>
+<li><strong>左側メニューの「設定」をクリック</strong><br>YouTube Studioの左下にある歯車マークの「設定」を開きます。</li>
+<li><strong>「コミュニティの管理」→「ユーザー管理」を開く</strong><br>設定画面内の「コミュニティの管理」を選び、「ユーザー管理」タブを開きます。</li>
+<li><strong>「標準モデレーター」欄にBotのURLを貼り付ける</strong><br>「管理モデレーター」ではなく「標準モデレーター」の入力欄を使います。下のURLをコピーして貼り付け、候補に表示されたJoinQueueBot（@JoinQueueBot）を選択します。
+<label>コピーするBotのチャンネルURL<input class="bot-channel-url" value="https://www.youtube.com/@JoinQueueBot" readonly></label></li>
+<li><strong>「保存」をクリック</strong><br>JoinQueueBotが標準モデレーター欄に追加されていることを確認し、設定画面の「保存」を押します。URLを入力しただけでは完了しません。</li>
+<li><strong>このプラグインの画面に戻る</strong><br>下の「2. 配信チャンネルを認証する」へ進みます。モデレーター登録だけではBotは起動しません。</li>
+</ol>
+<p>登録済みの場合は、そのまま次の項目へ進んでください。</p>
+<a href="https://support.google.com/youtube/answer/9826490?hl=ja" target="_blank" rel="noopener noreferrer">YouTube公式の登録ガイド</a>
+</section>
+<section class="panel" id="bot-auth-step"><h2>2. 配信チャンネルを認証する</h2>
+<ol class="bot-steps">
+<li>「配信チャンネルを接続」を押すと、認証リンクと照合番号が表示されます。</li>
+<li>「ブラウザーでチャンネルを認証する」を開き、照合番号を確認します。</li>
+<li>開いたページの「Googleでチャンネルを確認する」を押し、普段配信するGoogleアカウントとチャンネルを選びます。Googleの同意画面でアプリ名・要求される権限を確認して許可します。</li>
+<li>認証が完了したらこの画面へ戻り、「認証結果を確認」を押します。</li>
+</ol>
+<button id="bot-connect" type="button">配信チャンネルを接続</button>
+<p><a id="bot-login-link" hidden target="_blank" rel="noopener noreferrer">ブラウザーでチャンネルを認証する</a> <span id="bot-confirmation"></span></p>
+<button id="bot-status-check" type="button">認証結果を確認</button>
+<p id="bot-auth-result" role="status"></p>
+<p id="bot-status" role="status">確認中…</p>
+<p>配信チャンネルの確認にはYouTubeの読み取り専用権限を使用します。チャット投稿は共通Botが行います。</p>
+<details><summary>認証できないとき</summary><p>普段配信しているアカウント・チャンネルを選んだか確認してください。認証の取消やリンクの期限切れが起きた場合は、下の「配信チャンネルの変更・接続解除」から解除し、もう一度接続してください。アクセスが拒否される場合は、表示されたエラーを運営へお知らせください。OBSドック内で認証できない場合は、認証リンクを通常ブラウザーで開いてください。</p></details>
+</section>
+<section class="panel" id="bot-stream-step"><h2>3. 対象の配信に接続する</h2>
+<ol class="bot-steps">
+<li>わんコメで対象のYouTube配信に接続します。</li>
+<li>下の対象配信を確認します。異なる場合は「別の配信に連携し直す」を開き、配信を選んで「この配信に連携する」を押します。</li>
+<li>認証したチャンネルの配信であることを確認し、「接続を確認」を押します。</li>
+</ol>
+<div id="bot-stream-picker"></div>
+<p id="bot-stream-settings-link"><a href="/settings?tab=general">基本設定で接続先の配信を確認・変更する</a></p>
+<p>配信前で接続確認が通らない場合は、チャンネル認証まで済ませておき、配信時に再確認してください。</p>
+<button id="bot-check" type="button">接続を確認</button>
+<p id="bot-login-result" role="status"></p>
+</section>
+<section class="panel" id="bot-notifications"><h2>4. 通知選択</h2>
+<p id="bot-notifications-hint">チャンネル認証が完了すると通知を選択できます。</p>
+<form id="bot-form"><fieldset id="bot-notification-fields" disabled><legend>使用する通知</legend>
 <label><input id="bot-now" type="checkbox"> 次の対戦へ進んだとき、NOWの3名をまとめて呼び出す</label>
 <label><input id="bot-reply" type="checkbox"> @JoinQueueBotへの呼びかけに本人の待機順・グループを返信する</label>
 <label><input id="bot-periodic" type="checkbox"> 待機人数・待機グループ数を定期案内する</label>
 <label>案内間隔<select id="bot-interval"><option value="15">15分</option><option value="30">30分</option></select></label>
-
-<button type="submit">Bot設定を保存</button><p id="bot-save-result" role="status"></p></form></section>
-<section class="panel"><h2>チャンネル接続と起動</h2>
-<div id="bot-account"><img id="bot-icon" hidden alt="Botチャンネルのアイコン" referrerpolicy="no-referrer"><strong id="bot-name">共通Bot：JoinQueueBot</strong><a href="https://www.youtube.com/@JoinQueueBot" target="_blank" rel="noopener noreferrer">チャンネルを見る</a></div>
-<details><summary>接続方法・認証できないとき</summary><ol><li>@JoinQueueBot を自分のチャンネルのモデレーターに登録します。</li><li>普段配信するGoogleアカウントでチャンネルを認証します。Bot用アカウントではありません。</li><li>基本設定で配信を選び、接続確認後にBotを起動します。</li></ol><p>Googleのテストユーザー制限・審査状況によって認証できない場合は運営側の対応が必要です。OBSドック内で認証できない場合は、認証リンクを通常ブラウザーで開いてください。</p></details>
-
-<p id="bot-status" role="status">確認中…</p><p id="bot-last"></p><p id="bot-next"></p>
-<button id="bot-connect" type="button">配信チャンネルを接続</button>
-<button id="bot-status-check" type="button">認証結果を確認</button>
-<p><a id="bot-login-link" hidden target="_blank" rel="noopener noreferrer">ブラウザーでチャンネルを認証する</a> <span id="bot-confirmation"></span></p>
-<button id="bot-check" type="button">接続確認（投稿なし）</button>
+<label>初回の定期案内は今から<select id="bot-initial-delay" aria-label="初回の定期案内までの時間" style="display:inline-block;width:auto"><option value="15">15分後</option><option value="30" selected>30分後</option><option value="45">45分後</option><option value="60">60分後</option></select>から通知開始とします。</label>
+<button type="submit">Bot設定を保存</button></fieldset><p id="bot-save-result" role="status"></p></form></section>
+<section class="panel" id="bot-start-step"><h2>5. Botを起動する</h2>
+<p>チャンネル認証・対象配信の接続確認・通知設定が終わったら「Botを起動」を押します。「Bot稼働中」になれば準備完了です。</p>
+<p id="bot-running-status" role="status"></p><p id="bot-last"></p>
 <button id="bot-start" type="button">Botを起動</button>
-<button id="bot-stop" type="button">Botを停止</button><p id="bot-login-result" role="status"></p>
+<button id="bot-stop" type="button">Botを停止</button>
+<p id="bot-start-result" role="status"></p>
 <button id="bot-test" type="button">接続テスト（チャットへ投稿）</button>
-<p id="bot-test-availability"></p>
 <details><summary>停止・再起動時の動作</summary><p>再起動時は停止状態です。停止・設定変更時に未送信通知を破棄します。送信済み・送信中の投稿は取り消せません。配信変更や接続切断時も停止します。</p></details>
 <details><summary>配信チャンネルの変更・接続解除</summary><p>変更する場合は解除後に別の配信チャンネルを接続してください。共通Bot自体は変更しません。待機列・履歴は保持します。サーバーで接続を失効できない場合はキーを残し、通信復旧後にやり直します。</p>
 <label><input id="bot-disconnect-confirm" type="checkbox"> 接続を解除することを確認しました</label>
