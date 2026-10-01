@@ -54,6 +54,9 @@ export class PrivacyRecords {
       this.db.prepare('DELETE FROM posts WHERE createdAt<=?').run(now - CONNECTION_RETENTION_MS);
       this.db.prepare('DELETE FROM erasure_receipts WHERE expiresAt<=?').run(now);
       this.db.prepare('DELETE FROM erasure_barriers WHERE erasedAt<=?').run(now - SECURITY_MS);
+      if (this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='creator_revocations'").get()) {
+        this.db.prepare('DELETE FROM creator_revocations WHERE revokedAt<=?').run(now - SECURITY_MS);
+      }
       this.db.prepare('DELETE FROM channel_checks WHERE checkedAt<=?').run(now - SECURITY_MS);
       for (const table of ['channel_source_budget', 'channel_oauth_budget', 'channel_probe_budget']) {
         this.db.prepare('DELETE FROM ' + table + ' WHERE startedAt<=?').run(now - SECURITY_MS);

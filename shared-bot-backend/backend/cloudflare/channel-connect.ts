@@ -5,10 +5,11 @@ import type { YouTubeGateway } from '../service';
 import { AUTH_ORIGIN, BotVault, boundedText, type BotAuthEnv } from './bot-auth';
 import { boundedJson, json, rejected } from './http';
 import { PrivacyRecords } from './privacy';
+import { CreatorGrants, creatorConfigured, type CreatorEnv } from './creator-grants';
 
 export const CONNECT_CALLBACK = '/connect/callback';
 export const CHANNEL_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
-export interface ChannelEnv extends BotAuthEnv { CHANNEL_CONNECT_ENABLED?: string; BOT_POSTING_ENABLED?: string; BOT_DATA_LIFECYCLE_ENABLED?: string }
+export interface ChannelEnv extends CreatorEnv { CHANNEL_CONNECT_ENABLED?: string; BOT_POSTING_ENABLED?: string; BOT_DATA_LIFECYCLE_ENABLED?: string }
 const random = () => randomBytes(32).toString('base64url');
 const opaque = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{43}$/.test(v);
 const denied = () => new BotFault('UNAUTHENTICATED', 403);
@@ -43,14 +44,17 @@ export function channelBoundary(r: Request, env: ChannelEnv): boolean {
     /^application\/x-www-form-urlencoded(?:;\s*charset=utf-8)?$/i.test(r.headers.get('Content-Type') ?? '');
 }
 
-/** Streamer proof, never Bot OAuth. Google access is discarded after channels.list(mine=true). */
+/** Streamer proof, never Bot OAuth. Offline grants require an isolated, configured creator project. */
 export class ChannelConnections {
   private store: SqlBotStore;
   private vault: BotVault;
   private privacy: PrivacyRecords;
+  private grants: CreatorGrants;
   constructor(private db: SqlDriver, private env: ChannelEnv, private youtube: YouTubeGateway,
     private request: typeof fetch = fetch, private clock = Date.now) {
-    this.store = new SqlBotStore(db, env.BOT_DATA_LIFECYCLE_ENABLED === 'true'); this.vault = new BotVault(db, env);
+    this.store = new SqlBotStore(db, env.BOT_DATA_LIFECYCLE_ENABLED === 'true');
+    this.vault = new BotVault(db, env.CHANNEL_GRANTS_ENABLED === 'true' ? {...env, GOOGLE_CLIENT_ID:env.CREATOR_GOOGLE_CLIENT_ID} : env);
+    this.grants = new CreatorGrants(db, env, request, clock);
     db.exec(`CREATE TABLE IF NOT EXISTS channel_pairings (
       id TEXT PRIMARY KEY, tokenHash TEXT UNIQUE NOT NULL, browserKey TEXT NOT NULL,
       createdAt INTEGER NOT NULL, expiresAt INTEGER NOT NULL, status TEXT NOT NULL,
@@ -75,18 +79,24 @@ export class ChannelConnections {
         if (this.env.BOT_DATA_LIFECYCLE_ENABLED !== 'true') throw new BotFault('SERVICE_DISABLED', 503);
         if (Object.keys(body).length !== 1 || typeof body.confirmation !== 'string' || !/^UC[\w-]{22}$/.test(body.confirmation)) throw new BotFault('INVALID_MESSAGE');
         if (!this.privacy.receipt(tokenHash, body.confirmation, this.clock())) {
-          const principal = this.store.authenticate(r.headers.get('Authorization')!, this.clock());
-          const pairing = this.db.prepare("SELECT connectionId FROM channel_pairings WHERE tokenHash=? AND status='connected'").get(tokenHash);
+          // A failed Google revoke already stops local devices. The SAME unexpired
+          // owner credential may retry erasure, never posting or querying another user.
+          const principal = this.db.prepare('SELECT userId FROM devices WHERE hash=? AND expiresAt>?').get(tokenHash, this.clock());
+          if (!principal) throw new BotFault('UNAUTHENTICATED', 401);
+          const pairing = this.db.prepare('SELECT connectionId FROM channel_pairings WHERE tokenHash=?').get(tokenHash);
           if (!pairing) throw denied();
-          const connection = this.store.connection(String(pairing.connectionId), principal.userId, this.clock());
+          const connection = this.db.prepare('SELECT channelId FROM connections WHERE id=? AND userId=?').get(String(pairing.connectionId),String(principal.userId));
+          if (!connection || principal.userId !== 'youtube:' + connection.channelId) throw denied();
           if (body.confirmation !== connection.channelId) throw denied();
-          this.privacy.erase(principal.userId, connection.channelId, tokenHash, this.clock());
+          if (this.env.CHANNEL_GRANTS_ENABLED === 'true') await this.grants.revoke(String(connection.channelId));
+          this.privacy.erase(String(principal.userId), String(connection.channelId), tokenHash, this.clock());
         }
         return json({ status: 'deleted', securityRetentionHours: 25 });
       }
       if (u.pathname.endsWith('/start')) {
         if (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true' && this.privacy.wasErased(tokenHash, this.clock())) throw denied();
-        if (this.env.CHANNEL_CONNECT_ENABLED !== 'true' || !this.env.GOOGLE_CLIENT_ID || !this.env.GOOGLE_CLIENT_SECRET || !opaque(this.env.BOT_VAULT_KEY)) throw new BotFault('SERVICE_DISABLED', 503);
+        if (this.env.CHANNEL_CONNECT_ENABLED !== 'true' || !this.env.GOOGLE_CLIENT_ID || !this.env.GOOGLE_CLIENT_SECRET || !opaque(this.env.BOT_VAULT_KEY) ||
+          (this.env.CHANNEL_GRANTS_ENABLED === 'true' && !creatorConfigured(this.env))) throw new BotFault('SERVICE_DISABLED', 503);
         const id = randomUUID(), key = random(), now = this.clock(), expiresAt = now + 600_000;
         this.db.transaction(() => {
           // This header is created only by our edge Worker from Cloudflare's client IP.
@@ -106,6 +116,7 @@ export class ChannelConnections {
       const pairing = this.db.prepare('SELECT * FROM channel_pairings WHERE tokenHash=?').get(tokenHash);
       if (!pairing) throw denied();
       if (u.pathname.endsWith('/disconnect')) {
+        if (this.env.CHANNEL_GRANTS_ENABLED === 'true' && pairing.channelId) await this.grants.revoke(String(pairing.channelId));
         // Also cancels a pending or consumed callback; callback rechecks after Google awaits.
         this.db.transaction(() => {
           if (pairing.deviceId) this.store.revokeDevice(String(pairing.deviceId));
@@ -121,6 +132,10 @@ export class ChannelConnections {
       }
       const principal = this.store.authenticate(r.headers.get('Authorization')!, this.clock());
       const connection = this.store.connection(String(pairing.connectionId), principal.userId, this.clock());
+      if (this.env.CHANNEL_GRANTS_ENABLED === 'true') {
+        await this.grants.ensure(connection.id);
+        this.store.authenticate(r.headers.get('Authorization')!, this.clock()); this.store.connection(connection.id, principal.userId, this.clock());
+      }
       let serviceEnabled = this.env.BOT_POSTING_ENABLED === 'true';
       try { this.store.assertEnabled(); } catch { serviceEnabled = false; }
       if (u.pathname.endsWith('/check')) {
@@ -145,6 +160,8 @@ export class ChannelConnections {
     } catch (e) { return rejected(e instanceof BotFault ? e : new BotFault('BOT_UNAVAILABLE', 503)); }
   }
   private async browser(r: Request): Promise<Response> {
+    const offline = this.env.CHANNEL_GRANTS_ENABLED === 'true';
+    if (offline) this.grants.configured();
     const u = new URL(r.url), id = u.searchParams.get('id'), key = u.searchParams.get('key');
     if (!id || !/^[a-f0-9-]{36}$/.test(id) || !opaque(key) || [...u.searchParams.keys()].length !== 2) throw denied();
     const row = this.db.prepare('SELECT * FROM channel_pairings WHERE id=?').get(id);
@@ -154,18 +171,19 @@ export class ChannelConnections {
       // Native form POST must retain its same-origin Origin header. no-referrer
       // serializes it as "null" and our strict boundary correctly rejects that.
       // Do not forward the pairing URL to Google: redirects retain no-referrer.
-      return html(`<h1>配信するチャンネルを接続</h1><p>プラグインの確認番号が ${id.slice(0, 8)} であることを確認してください。他人から届いたリンクでは接続しないでください。</p><p>自分の配信チャンネルで認証します。共通Bot用アカウントではありません。読み取り専用で所有チャンネルを確認します。</p><p>作者・運営：kyo563。チャンネルの所有確認後、Googleのアクセストークンは継続保存せず、確認済みチャンネルIDと端末接続情報を保存します。Botを使う場合は、選んだ通知に必要な表示名・待機順などをサーバー経由でYouTubeへ送ります。</p><p><a href="https://kyo563.github.io/privacy.html" target="_blank" rel="noreferrer noopener">プライバシーポリシー</a> ／ <a href="https://kyo563.github.io/terms.html" target="_blank" rel="noreferrer noopener">利用に関するご案内</a> ／ <a href="https://www.youtube.com/t/terms" target="_blank" rel="noreferrer noopener">YouTube利用規約</a></p><form method="post"><input type="hidden" name="csrf" value="${nonce}"><p><label><input type="checkbox" name="privacy" value="privacy-2026-10-01" required> プライバシーポリシーを確認し、情報の取り扱いに同意します。</label></p><button>Googleでチャンネルを確認する</button></form>`, { 'Set-Cookie': `${COOKIE}=${nonce}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`, 'Referrer-Policy': 'same-origin' });
+      const disclosure = offline ? '読み取り専用の更新用認証情報をサーバーだけに暗号化保存し、Google権限の有効性確認・解除に使います。PCへ配布せず、コメント取得にも使いません。' : 'チャンネルの所有確認後、Googleのアクセストークンは継続保存せず、確認済みチャンネルIDと端末接続情報を保存します。';
+      return html(`<h1>配信するチャンネルを接続</h1><p>プラグインの確認番号が ${id.slice(0, 8)} であることを確認してください。他人から届いたリンクでは接続しないでください。</p><p>自分の配信チャンネルで認証します。共通Bot用アカウントではありません。読み取り専用で所有チャンネルを確認します。</p><p>作者・運営：kyo563。${disclosure} Botを使う場合は、選んだ通知に必要な表示名・待機順などをサーバー経由でYouTubeへ送ります。</p><p><a href="https://kyo563.github.io/privacy.html" target="_blank" rel="noreferrer noopener">プライバシーポリシー</a> ／ <a href="https://kyo563.github.io/terms.html" target="_blank" rel="noreferrer noopener">利用に関するご案内</a> ／ <a href="https://www.youtube.com/t/terms" target="_blank" rel="noreferrer noopener">YouTube利用規約</a></p><form method="post"><input type="hidden" name="csrf" value="${nonce}"><p><label><input type="checkbox" name="privacy" value="${offline ? 'privacy-creator-grants-v1' : 'privacy-2026-10-01'}" required> プライバシーポリシーを確認し、情報の取り扱いに同意します。</label></p><button>Googleでチャンネルを確認する</button></form>`, { 'Set-Cookie': `${COOKIE}=${nonce}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`, 'Referrer-Policy': 'same-origin' });
     }
     const fields = new URLSearchParams(await boundedText(r, 1024));
-    if ([...fields.keys()].length !== 2 || fields.get('privacy') !== 'privacy-2026-10-01' || !cookie(r) || fields.get('csrf') !== cookie(r)) throw denied();
+    if ([...fields.keys()].length !== 2 || fields.get('privacy') !== (offline ? 'privacy-creator-grants-v1' : 'privacy-2026-10-01') || !cookie(r) || fields.get('csrf') !== cookie(r)) throw denied();
     const state = random(), verifier = random();
     const encrypted = await this.vault.crypt(verifier, 'channel-pkce:' + id);
     const updated = this.db.prepare("UPDATE channel_pairings SET status='pending',stateHash=?,browserHash=?,verifier=? WHERE id=? AND status='new' AND expiresAt>?")
       .run(digest(state), digest(cookie(r)), encrypted, id, this.clock());
     if (updated.changes !== 1) throw denied();
     const target = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    target.search = new URLSearchParams({ client_id: this.env.GOOGLE_CLIENT_ID!, redirect_uri: AUTH_ORIGIN + CONNECT_CALLBACK,
-      response_type: 'code', scope: CHANNEL_SCOPE, access_type: 'online', prompt: 'select_account',
+    target.search = new URLSearchParams({ client_id: offline ? this.env.CREATOR_GOOGLE_CLIENT_ID! : this.env.GOOGLE_CLIENT_ID!, redirect_uri: AUTH_ORIGIN + CONNECT_CALLBACK,
+      response_type: 'code', scope: CHANNEL_SCOPE, access_type: offline ? 'offline' : 'online', prompt: offline ? 'consent select_account' : 'select_account',
       state, code_challenge: Buffer.from(digest(verifier), 'hex').toString('base64url'), code_challenge_method: 'S256' }).toString();
     return html('', { Location: target.href }, 303);
   }
@@ -177,6 +195,8 @@ export class ChannelConnections {
     return data as Record<string, any>;
   }
   private async callback(r: Request): Promise<Response> {
+    const offline = this.env.CHANNEL_GRANTS_ENABLED === 'true';
+    if (offline) this.grants.configured();
     const u = new URL(r.url), state = u.searchParams.get('state');
     if (!opaque(state) || u.searchParams.getAll('state').length !== 1 || !cookie(r)) throw denied();
     const row = this.db.prepare('SELECT * FROM channel_pairings WHERE stateHash=?').get(digest(state));
@@ -186,11 +206,12 @@ export class ChannelConnections {
       const code = u.searchParams.get('code');
       if (u.searchParams.has('error') || u.searchParams.getAll('code').length !== 1 || !code || code.length > 4096) throw denied();
       const grant = await this.google('https://oauth2.googleapis.com/token', { method: 'POST', body: new URLSearchParams({
-        grant_type: 'authorization_code', client_id: this.env.GOOGLE_CLIENT_ID!, client_secret: this.env.GOOGLE_CLIENT_SECRET!,
+        grant_type: 'authorization_code', client_id: offline ? this.env.CREATOR_GOOGLE_CLIENT_ID! : this.env.GOOGLE_CLIENT_ID!,
+        client_secret: offline ? this.env.CREATOR_GOOGLE_CLIENT_SECRET! : this.env.GOOGLE_CLIENT_SECRET!,
         redirect_uri: AUTH_ORIGIN + CONNECT_CALLBACK, code, code_verifier: await this.vault.crypt(String(row.verifier), 'channel-pkce:' + row.id, true),
       }) });
       if (typeof grant.access_token !== 'string' || !/^[\x21-\x7e]{1,8192}$/.test(grant.access_token) || grant.token_type?.toLowerCase() !== 'bearer' ||
-        typeof grant.scope !== 'string' || !grant.scope.split(' ').includes(CHANNEL_SCOPE)) throw denied();
+        typeof grant.scope !== 'string' || (offline ? grant.scope !== CHANNEL_SCOPE : !grant.scope.split(' ').includes(CHANNEL_SCOPE))) throw denied();
       // Reserve shared YouTube lookup quota only AFTER successful Google authentication.
       // Abandoned starts and invalid OAuth codes consume no shared daily lookup allowance.
       this.db.transaction(() => {
@@ -202,13 +223,15 @@ export class ChannelConnections {
       const mine = await this.google('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true', { headers: { Authorization: 'Bearer ' + grant.access_token } });
       const channelId = mine.items?.[0]?.id;
       if (!Array.isArray(mine.items) || mine.items.length !== 1 || typeof channelId !== 'string' || !/^UC[\w-]{22}$/.test(channelId) || channelId === this.env.BOT_CHANNEL_ID) throw denied();
+      const userId = 'youtube:' + channelId, deviceId = randomUUID(), connectionId = randomUUID();
+      const prepared = offline ? await this.grants.prepare(connectionId, channelId, grant.refresh_token, grant.refresh_token_expires_in, Number(row.createdAt)) : undefined;
       this.db.transaction(() => {
         const fresh = this.db.prepare('SELECT status,expiresAt FROM channel_pairings WHERE id=?').get(String(row.id));
         if (fresh?.status !== 'consumed' || Number(fresh.expiresAt) <= this.clock()) throw denied();
         if (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true') this.privacy.assertFreshPairing(channelId, Number(row.createdAt));
-        const userId = 'youtube:' + channelId, deviceId = randomUUID(), connectionId = randomUUID();
         this.db.prepare('INSERT INTO devices (hash,userId,deviceId,expiresAt) VALUES (?,?,?,?)').run(String(row.tokenHash), userId, deviceId, this.clock() + (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true' ? CONNECTION_RETENTION_MS : 30 * 86_400_000));
         this.store.provisionVerifiedConnection({ id: connectionId, userId, channelId, verifiedAt: this.clock() });
+        if (prepared) this.grants.save(prepared);
         this.db.prepare("UPDATE channel_pairings SET status='connected',channelId=?,connectionId=?,deviceId=?,verifier=NULL WHERE id=?").run(channelId, connectionId, deviceId, String(row.id));
       });
       // Never returns the device credential or either Google token to this browser.

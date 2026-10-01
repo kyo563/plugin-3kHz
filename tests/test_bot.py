@@ -389,3 +389,17 @@ def test_erasure_timeout_and_pending_post_preserve_device_for_safe_retry(setup_b
     with pytest.raises(BotError): bot.command('erase')
     assert bot.device == token and bot.store.data['shared_device'] == token
     assert 'PRIVATE' not in str(bot.status()) and token not in str(bot.status())
+
+
+def test_creator_authorization_error_preserves_key_for_disconnect_retry(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot); token = bot.device; before = services.build_view_state()
+    bot.http.close()
+    bot.http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(503,
+        json={'error': {'code': 'CHANNEL_AUTH_UNAVAILABLE', 'message': 'private provider payload'}})))
+    with pytest.raises(BotError) as result:
+        bot.command('disconnect')
+    assert result.value.code == 'CHANNEL_AUTH_UNAVAILABLE'
+    assert 'private provider' not in str(result.value)
+    assert bot.device == token and bot.store.data['shared_device'] == token
+    assert not bot.running and services.build_view_state() == before

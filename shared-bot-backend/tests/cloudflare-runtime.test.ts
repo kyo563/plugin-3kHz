@@ -20,14 +20,21 @@ const base = { modules: true, compatibilityDate: '2026-09-18', compatibilityFlag
   outboundService: async () => { throw new Error('External network is forbidden in tests'); },
 } as const;
 
-for (const lifecycle of ['false', 'true']) test('Cloudflare channel connection: actual Worker routing, OAuth proof and revocation without live posting (retention=' + lifecycle + ')', async () => {
-  let exchanges = 0;
-  const mf = new Miniflare(convertV4MiniflareOptions({ ...base, compatibilityFlags: [...base.compatibilityFlags], script: await bundle('backend/cloudflare/worker.ts'),
-    durableObjects: { BOT_COORDINATOR: { className: 'BotCoordinator', useSQLite: true } },
+for (const {lifecycle,offline} of [{lifecycle:'false',offline:false},{lifecycle:'true',offline:false},{lifecycle:'false',offline:true}]) test('Cloudflare channel connection: actual Worker routing, OAuth proof and revocation without live posting (retention=' + lifecycle + ', offline=' + offline + ')', async () => {
+  let exchanges = 0,refreshes=0;
+  const mf = new Miniflare(convertV4MiniflareOptions({ ...base, compatibilityFlags: [...base.compatibilityFlags], script: await bundle(offline?'tests/fixtures/cloudflare-privacy.ts':'backend/cloudflare/worker.ts'),
+    durableObjects: { BOT_COORDINATOR: { className: offline?'TestPrivacyCoordinator':'BotCoordinator', useSQLite: true } },
     bindings: { BOT_DATA_LIFECYCLE_ENABLED: lifecycle, BOT_POSTING_ENABLED: 'false', CHANNEL_CONNECT_ENABLED: 'true', BOT_CHANNEL_ID: 'UC' + 'b'.repeat(22),
-      BOT_VAULT_KEY: randomBytes(32).toString('base64url'), GOOGLE_CLIENT_ID: 'fake-client', GOOGLE_CLIENT_SECRET: 'fake-secret' },
+      BOT_VAULT_KEY: randomBytes(32).toString('base64url'), GOOGLE_CLIENT_ID: 'fake-client', GOOGLE_CLIENT_SECRET: 'fake-secret',
+      ...(offline?{CHANNEL_GRANTS_ENABLED:'true',CREATOR_GOOGLE_CLIENT_ID:'creator-client',CREATOR_GOOGLE_CLIENT_SECRET:'creator-secret',
+        CREATOR_GOOGLE_PROJECT_ID:'joinqueue-creators-test',BOT_GOOGLE_PROJECT_ID:'joinqueue-bot-dev'}:{}) },
     outboundService: async request => {
-      if (request.url === 'https://oauth2.googleapis.com/token') { exchanges++; return Response.json({ access_token: 'fake-channel-access', token_type: 'Bearer', scope: CHANNEL_SCOPE }); }
+      if (request.url === 'https://oauth2.googleapis.com/revoke') {assert.equal(offline,true);assert.equal(new URLSearchParams(await request.text()).get('token'),'fake-creator-refresh');return new Response('',{status:200});}
+      if (request.url === 'https://oauth2.googleapis.com/token') {
+        const body=new URLSearchParams(await request.text());
+        if(body.get('grant_type')==='refresh_token'){refreshes++;assert.equal(body.get('refresh_token'),'fake-creator-refresh');}else exchanges++;
+        assert.equal(body.get('client_id'),offline?'creator-client':'fake-client');
+        return Response.json({ access_token: 'fake-channel-access', token_type: 'Bearer', expires_in:3600,scope: CHANNEL_SCOPE,...(offline?{refresh_token:'fake-creator-refresh'}:{}) }); }
       assert.equal(request.url, 'https://www.googleapis.com/youtube/v3/channels?part=id&mine=true');
       return Response.json({ items: [{ id: 'UC' + 'a'.repeat(22) }] });
     },
@@ -41,14 +48,22 @@ for (const lifecycle of ['false', 'true']) test('Cloudflare channel connection: 
     assert.equal(page.headers.get('referrer-policy'), 'same-origin');
     const cookie = page.headers.get('set-cookie')!.split(';')[0]!;
     const csrf = /name="csrf" value="([^"]+)"/.exec(await page.text())![1]!;
-    const begin = await mf.dispatchFetch(link, { method: 'POST', redirect: 'manual', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf, privacy:'privacy-2026-10-01' }).toString() });
+    const begin = await mf.dispatchFetch(link, { method: 'POST', redirect: 'manual', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf, privacy:offline?'privacy-creator-grants-v1':'privacy-2026-10-01' }).toString() });
     assert.equal(begin.status, 303); assert.equal(begin.headers.get('referrer-policy'), 'no-referrer');
     const state = new URL(begin.headers.get('location')!).searchParams.get('state')!;
+    assert.equal(new URL(begin.headers.get('location')!).searchParams.get('access_type'),offline?'offline':'online');
     const done = await mf.dispatchFetch(AUTH_ORIGIN + CONNECT_CALLBACK + '?state=' + state + '&code=fake', { headers: { Cookie: cookie } });
     assert.equal(done.status, 200, await done.clone().text()); assert.equal(exchanges, 1);
     const status = await (await api('status')).json() as any;
     assert.equal(status.status, 'connected'); assert.equal(status.serviceEnabled, false);
     assert.equal(status.features.dataDeletion, lifecycle === 'true');
+    if(offline){
+      const ns=await mf.getDurableObjectNamespace('BOT_COORDINATOR'),stub=ns.get(ns.idFromName('shared-youtube-bot-v1'));
+      assert.equal((await stub.fetch('https://internal/test/creator-due')).status,200);
+      const alarm=await (await stub.fetch('https://internal/test/alarm')).json() as any;
+      assert.equal(refreshes,1);assert.equal(alarm.rows,1);assert.ok(alarm.alarm>Date.now());
+      assert.equal((await api('status')).status,200); // No retention deletion while its flag is false.
+    }
     if (lifecycle === 'true') {
       const erased = await mf.dispatchFetch(AUTH_ORIGIN + '/v1/connections/erase', {method: 'POST', headers: {'Content-Type':'application/json', Authorization: 'Bearer ' + 'c'.repeat(43)}, body: JSON.stringify({confirmation: 'UC' + 'a'.repeat(22)})});
       assert.equal(erased.status, 200, await erased.clone().text());

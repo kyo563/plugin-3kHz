@@ -13,6 +13,7 @@ import { ChannelConnections, channelBoundary, isChannelRoute, type ChannelEnv } 
 import { applyPostingApproval } from './posting-approval';
 import { PrivacyRecords, PRIVACY_ALARM_MS } from './privacy';
 import { publicInfo } from './public-info';
+import { CreatorGrants } from './creator-grants';
 
 export interface WorkerEnv extends GoogleBotSecrets, BotAuthEnv, ChannelEnv {
   BOT_COORDINATOR: DurableObjectNamespace;
@@ -92,6 +93,7 @@ export class BotCoordinator {
   #authorization: BotAuthorization;
   #connections: ChannelConnections;
   #privacy: PrivacyRecords;
+  #grants: CreatorGrants;
   constructor(ctx: DurableObjectState, env: WorkerEnv) {
     this.#ctx = ctx; this.#env = env;
     const driver = durableSqlDriver(ctx.storage);
@@ -101,19 +103,24 @@ export class BotCoordinator {
     this.#authorization = new BotAuthorization(driver, env);
     const youtube = new YouTubeApi(new GoogleRefreshTokens(env, fetch, Date.now,
       () => vault.refreshToken()), env.BOT_CHANNEL_ID);
-    this.#service = new BotService(this.#store, youtube, event => console.log(JSON.stringify({requestId:event.requestId, status:event.status, code:event.code})));
+    this.#grants = new CreatorGrants(driver, env);
+    this.#service = new BotService(this.#store, youtube, event => console.log(JSON.stringify({requestId:event.requestId, status:event.status, code:event.code})), Date.now, {},
+      env.CHANNEL_GRANTS_ENABLED === 'true' ? connection => this.#grants.ensure(connection.id) : undefined);
     this.#connections = new ChannelConnections(driver, env, youtube);
     this.#privacy = new PrivacyRecords(driver);
-    if (env.BOT_DATA_LIFECYCLE_ENABLED === 'true') {
+    if (env.BOT_DATA_LIFECYCLE_ENABLED === 'true' || env.CHANNEL_GRANTS_ENABLED === 'true') {
       ctx.waitUntil(ctx.blockConcurrencyWhile(async () => {
-        this.#privacy.prune(Date.now());
+        if (env.BOT_DATA_LIFECYCLE_ENABLED === 'true') this.#privacy.prune(Date.now());
         if (await ctx.storage.getAlarm() === null) await ctx.storage.setAlarm(Date.now() + PRIVACY_ALARM_MS);
       }));
     }
   }
   async alarm(): Promise<void> {
-    if (this.#env.BOT_DATA_LIFECYCLE_ENABLED !== 'true') return;
-    try { this.#privacy.prune(Date.now()); }
+    if (this.#env.BOT_DATA_LIFECYCLE_ENABLED !== 'true' && this.#env.CHANNEL_GRANTS_ENABLED !== 'true') return;
+    try {
+      if (this.#env.CHANNEL_GRANTS_ENABLED === 'true') await this.#grants.sweep();
+      if (this.#env.BOT_DATA_LIFECYCLE_ENABLED === 'true') this.#privacy.prune(Date.now());
+    }
     finally { await this.#ctx.storage.setAlarm(Date.now() + PRIVACY_ALARM_MS); }
   }
   async fetch(request: Request): Promise<Response> {

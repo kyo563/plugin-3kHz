@@ -6,6 +6,10 @@ Product: 待機列整理アプリ（わんコメ連携版） / JoinQueue
 Release: https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v0.1.4
 Bot: https://www.youtube.com/@JoinQueueBot
 
+This description records the CURRENT production implementation. A new creator
+grant design is implemented locally but NOT enabled; its follow-up below must
+replace the relevant scope/data statements only after deployment and consent.
+
 Application description (English submission draft)
 JoinQueue is a Windows plugin for OneComme that helps YouTube livestream
 creators manage a participant queue and display it in OBS. OneComme supplies
@@ -140,6 +144,32 @@ Outstanding inputs / evidence before submission
   No real Google authorization or YouTube posting occurred. Existing installed
   plugin, release assets, server configuration and user data were not replaced.
   Candidate SHA256: 90f24c293fc7b6ccc390821afa32021e4b094a20b54dccf3f72b4999154acec7.
+
+2026-10-01 creator authorization isolation follow-up (NOT deployed)
+- The operator approved encrypted server-only storage of creator readonly
+  refresh grants for authorization checks and Google's token revocation.
+- A separate service-owned project was created: joinqueue-creator-connect,
+  number 193959902164. The existing joinqueue-bot-dev Bot project is unchanged.
+  Google app policy acceptance and OAuth client issuance are still pending.
+- When enabled, creator OAuth requests ONLY youtube.readonly with offline
+  access. After channel ownership lookup, refresh credentials are encrypted
+  server-side. Access tokens are discarded; no Google token reaches the plugin.
+  New consent is required; old online grants cannot be migrated automatically.
+- Creator grant checks run on a 24-hour validity window, hourly bounded alarms
+  and posting/connection checks. Definite invalid grants stop that connection;
+  transient failures retain encrypted credentials for retries and block posts.
+  Disconnect stops the channel locally and requests Google revocation. Google
+  failure is not reported as successful revocation; retry credentials remain.
+- Google revocation affects that user's clients/scopes in the same project.
+  The dedicated creator project isolates the common Bot grant, not each Brand
+  Account channel belonging to the same Google account. Such creator channels
+  may require reauthorization after one of their grants is revoked.
+- CHANNEL_GRANTS_ENABLED and BOT_DATA_LIFECYCLE_ENABLED remain disabled.
+  Existing production retains its previous online/discard behavior. Public
+  policy/consent, deletion operations, actual grant tests, capacity/monitoring,
+  production approval and creator-project verification must be completed before
+  claiming compliance or general availability. See creator-grants-rollout.txt.
+- No production credentials, release asset or local user queue was replaced.
 
 Official preparation reference
 https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification

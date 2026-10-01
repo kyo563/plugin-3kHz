@@ -20,7 +20,10 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
   アプリからの解除時にGoogleトークンを直ちに失効させる処理と、
   Google側からの解除を定期確認する処理を満たすことが未確認。
   29日保存期限だけを有効にしても、この認証解除の問題は解決しない。
-  詳細と設計候補: operations-runbook.txt。
+  2026-10-01追記: readonly認証の暗号化保存・再確認・Google解除は承認を
+  得てソースに実装済み。専用プロジェクトも作成済み。ただしOAuth
+  クライアント作成・本番切替は未実施。旧方式の本番にはまだ適用されない。
+  詳細: creator-grants-rollout.txt / operations-runbook.txt。
 
 2. Googleのドメイン・ブランド確認 [未完了]
   プロジェクト: joinqueue-bot-dev。現状はExternal / Testing。
@@ -70,6 +73,14 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
   Productionへの切替は審査承認ではない。未確認警告や利用者上限が
   残る可能性があり、「万人が登録可能」と先に宣言しない。
   Googleの返信対応、承認状態確認、実機最終検証後に一般提供を案内する。
+
+配信者認証分離の追加状況（2026-10-01）
+  joinqueue-creator-connectを作成済み。Bot用はjoinqueue-bot-devを維持。
+  新アプリのGoogleポリシー同意・OAuthクライアント作成は未完了。
+  CHANNEL_GRANTS_ENABLED=false。新しい暗号化保管方針はまだ本番に適用
+  せず、公開ポリシーも本番の旧方式の説明を維持する。新同意と既存利用者
+  再接続が必要。最新ソースのテスト結果はcreator-grants-rollout.txtを参照。
+  上記ZIPは分離実装より前の候補であり、この追加実装を含まない。
 
 公式資料
 https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification

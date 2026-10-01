@@ -118,6 +118,38 @@ test('backend: 投稿直前に端末失効・接続失効・期限・全体停�
   }
 });
 
+test('backend: creator grant checks fail closed without disabling the shared Bot', async () => {
+  for (const failAt of [1, 2]) {
+    const f = fixture(); let checks = 0;
+    try {
+      const service = new BotService(f.store, f.gateway, undefined, f.clock, {}, async () => {
+        checks++;
+        if (checks === failAt) throw new BotFault('CHANNEL_AUTH_UNAVAILABLE', 503, 900);
+      });
+      const result = await service.submit(`Bearer ${f.token}`, f.body());
+      assert.equal(result.body.error?.code, 'CHANNEL_AUTH_UNAVAILABLE');
+      assert.equal(f.verified.length, failAt === 1 ? 0 : 1);
+      assert.equal(f.sent.length, 0);
+      assert.doesNotThrow(() => f.store.assertEnabled());
+    } finally { f.store.close(); }
+  }
+});
+
+test('backend: local revocation during awaited creator check prevents posting', async () => {
+  const f = fixture();
+  try {
+    const service = new BotService(f.store, f.gateway, undefined, f.clock, {}, async () => {
+      await Promise.resolve();
+      f.store.revokeConnection('connection-1');
+    });
+    const result = await service.submit(`Bearer ${f.token}`, f.body());
+    assert.equal(result.body.error?.code, 'CHANNEL_NOT_LINKED');
+    assert.equal(f.verified.length, 0);
+    assert.equal(f.sent.length, 0);
+    assert.doesNotThrow(() => f.store.assertEnabled());
+  } finally { f.store.close(); }
+});
+
 test('backend: 利用者・チャンネル・全体の制限と予算をYouTube呼出し前に適用', async () => {
   for (const limits of [{ userPerMinute: 1 }, { channelPerMinute: 1 }, { globalPerMinute: 1 }, { dailyUnits: REQUEST_UNITS }, { channelGapMs: 60_000 }]) {
     const f = fixture(limits);

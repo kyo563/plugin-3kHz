@@ -7,23 +7,32 @@ import { AUTH_ORIGIN } from '../backend/cloudflare/bot-auth';
 import { SqlBotStore, type SqlDriver } from '../backend/sql-store';
 import { applyPostingApproval } from '../backend/cloudflare/posting-approval';
 
-function fixture() {
+function fixture(offline = false) {
   const db = new DatabaseSync(':memory:'); let now = 1_000_000;
   const driver: SqlDriver = { exec: sql => { db.exec(sql); }, prepare: sql => db.prepare(sql), transaction: fn => {
     db.exec('BEGIN'); try { const result = fn(); db.exec('COMMIT'); return result; } catch (e) { db.exec('ROLLBACK'); throw e; }
   } };
   const env: ChannelEnv = { BOT_CHANNEL_ID: 'UC' + 'b'.repeat(22), GOOGLE_CLIENT_ID: 'fake-client', GOOGLE_CLIENT_SECRET: 'fake-secret',
     BOT_VAULT_KEY: randomBytes(32).toString('base64url'), CHANNEL_CONNECT_ENABLED: 'true', BOT_POSTING_ENABLED: 'false' };
+  if (offline) Object.assign(env,{CHANNEL_GRANTS_ENABLED:'true',CREATOR_GOOGLE_CLIENT_ID:'creator-client',CREATOR_GOOGLE_CLIENT_SECRET:'creator-secret',
+    CREATOR_GOOGLE_PROJECT_ID:'joinqueue-creators-test',BOT_GOOGLE_PROJECT_ID:'joinqueue-bot-dev'});
   const token = randomBytes(32).toString('base64url'), channelId = 'UC' + 'a'.repeat(22);
   let lookups = 0, checks = 0, exchanges = 0, bad = '', pause: (() => Promise<void>) | undefined;
   const request: typeof fetch = async (url, init) => {
     assert.equal(init?.redirect, 'manual'); assert.ok(init?.signal);
+    if (url === 'https://oauth2.googleapis.com/revoke') {
+      assert.equal(offline,true);assert.equal(new URLSearchParams(String(init?.body)).get('token'),'private-refresh');
+      return new Response('',{status:200});
+    }
     if (url === 'https://oauth2.googleapis.com/token') {
       exchanges++; await pause?.();
       const body = new URLSearchParams(String(init?.body));
       assert.equal(body.get('redirect_uri'), AUTH_ORIGIN + CONNECT_CALLBACK);
+      assert.equal(body.get('client_id'),offline?'creator-client':'fake-client');
+      assert.equal(body.get('client_secret'),offline?'creator-secret':'fake-secret');
       assert.match(body.get('code_verifier')!, /^[\w-]{43}$/);
-      return Response.json({ access_token: 'private-access', token_type: 'Bearer', scope: bad === 'scope' ? 'bad' : CHANNEL_SCOPE });
+      return Response.json({ access_token: 'private-access', token_type: 'Bearer', scope: bad === 'scope' ? 'bad' : bad === 'combined' ? CHANNEL_SCOPE+' write-scope' : CHANNEL_SCOPE,
+        ...(offline && bad !== 'refresh' ? {refresh_token:'private-refresh'} : {}) });
     }
     assert.equal(url, 'https://www.googleapis.com/youtube/v3/channels?part=id&mine=true');
     lookups++; return Response.json({ items: bad === 'empty' ? [] : [{ id: bad === 'bot' ? env.BOT_CHANNEL_ID : channelId }] });
@@ -38,18 +47,40 @@ function fixture() {
     assert.equal(landing.headers.get('referrer-policy'), 'same-origin');
     const html = await landing.text(); const cookie = landing.headers.get('set-cookie')!.split(';')[0]!;
     const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1]!;
-    const begin = await auth().handle(new Request(data.authorizationUrl, { method: 'POST', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf, privacy:'privacy-2026-10-01' }) }));
+    assert.match(html,offline?/更新用認証情報をサーバーだけに暗号化保存/:/継続保存せず/);
+    const begin = await auth().handle(new Request(data.authorizationUrl, { method: 'POST', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf, privacy:offline?'privacy-creator-grants-v1':'privacy-2026-10-01' }) }));
     assert.equal(begin.status, 303);
     assert.equal(begin.headers.get('referrer-policy'), 'no-referrer');
     const google = new URL(begin.headers.get('location')!);
     assert.equal(google.origin, 'https://accounts.google.com'); assert.equal(google.searchParams.get('scope'), CHANNEL_SCOPE);
-    assert.equal(google.searchParams.get('access_type'), 'online'); assert.equal(google.searchParams.has('include_granted_scopes'), false);
+    assert.equal(google.searchParams.get('access_type'), offline?'offline':'online'); assert.equal(google.searchParams.has('include_granted_scopes'), false);
     return { cookie, state: google.searchParams.get('state')!, link: data.authorizationUrl };
   };
   const callback = (state: string, cookie: string) => auth().handle(new Request(AUTH_ORIGIN + CONNECT_CALLBACK + '?state=' + state + '&code=fake-code', { headers: { Cookie: cookie } }));
   return { db, driver, env, token, channelId, auth, api, start, callback, counts: () => ({ lookups, checks, exchanges }),
     bad: (value: string) => { bad = value; }, pause: (fn: () => Promise<void>) => { pause = fn; }, advance: (ms: number) => { now += ms; } };
 }
+
+test('creator offline callback persists only encrypted readonly refresh grant and disconnect revokes it',async()=>{
+  const f=fixture(true);try{
+    const b=await f.start();assert.equal((await f.callback(b.state,b.cookie)).status,200);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM creator_grants').get()!.n,1);
+    const dump=JSON.stringify(f.db.prepare('SELECT * FROM creator_grants').all());
+    for(const secret of ['private-access','private-refresh','creator-secret','fake-secret'])assert.ok(!dump.includes(secret));
+    const status=await (await f.api('status')).json() as any;assert.equal(status.status,'connected');assert.equal(status.features.dataDeletion,false);
+    assert.ok(!JSON.stringify(status).includes('private-refresh'));
+    assert.equal((await f.api('disconnect')).status,200);assert.equal(f.db.prepare('SELECT count(*) AS n FROM creator_grants').get()!.n,0);
+  }finally{f.db.close();}
+});
+test('creator offline callback fails closed for missing refresh token or combined write scope',async()=>{
+  for(const invalid of ['refresh','combined']){
+    const f=fixture(true);try{
+      f.bad(invalid);const b=await f.start();assert.equal((await f.callback(b.state,b.cookie)).status,400);
+      assert.equal(f.db.prepare('SELECT count(*) AS n FROM creator_grants').get()!.n,0);
+      assert.equal(f.db.prepare('SELECT count(*) AS n FROM devices').get()!.n,0);
+    }finally{f.db.close();}
+  }
+});
 
 test('operator posting approval: explicit configuration only, a restart or replay never reopens tripped breaker', () => {
   const f = fixture(); try {

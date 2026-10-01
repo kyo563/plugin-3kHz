@@ -9,6 +9,7 @@ const messages: Record<BotErrorCode, string> = {
   DUPLICATE_CONFLICT: '同じイベントIDで異なる投稿要求は送れません。', INVALID_MESSAGE: '投稿要求の形式が正しくありません。',
   BOT_UNAVAILABLE: 'Botに接続できません。', DELIVERY_UNKNOWN: '投稿結果を確認できません。重複防止のため自動再送しません。',
   REQUEST_EXPIRED: '通知が古いため投稿しません。', SERVICE_DISABLED: 'Bot投稿は停止中です。',
+  CHANNEL_AUTH_UNAVAILABLE: '配信者のGoogle権限を確認できません。時間をおいて接続を確認してください。',
 };
 export class BotFault extends Error {
   constructor(readonly code: BotErrorCode, readonly http = 400, readonly retryAfterSeconds?: number) {

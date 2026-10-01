@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { assertFresh, BotFault, digest, failure, parsePost, renderPost, type ApiResult } from './policy';
-import { SqlBotStore, DEFAULT_LIMITS, type Limits } from './sql-store';
+import { SqlBotStore, DEFAULT_LIMITS, type Limits, type Connection } from './sql-store';
 
 export interface YouTubeGateway {
   profile?(): {id:string; name:string; icon:string} | null;
@@ -13,7 +13,8 @@ export interface AuditEvent { requestId: string; userId?: string; deviceId?: str
 export class BotService {
   private readonly limits: Limits;
   constructor(private readonly store: SqlBotStore, private readonly youtube: YouTubeGateway,
-    private readonly audit: (event: AuditEvent) => void = () => {}, private readonly clock = Date.now, limits: Partial<Limits> = {}) {
+    private readonly audit: (event: AuditEvent) => void = () => {}, private readonly clock = Date.now, limits: Partial<Limits> = {},
+    private readonly creatorAuthorization?: (connection: Connection) => Promise<void>) {
     this.limits = { ...DEFAULT_LIMITS, ...limits };
     if (Object.values(this.limits).some(value => !Number.isSafeInteger(value) || value < 0)) throw new Error('Invalid limits');
   }
@@ -32,12 +33,16 @@ export class BotService {
       const previous = this.store.previous(userId, eventHash, fingerprint);
       if (previous) return previous;
       this.store.assertEnabled(); assertFresh(post, this.clock());
+      await this.creatorAuthorization?.(connection);
+      this.store.authenticate(authorization, this.clock()); this.store.connection(connection.id, userId, this.clock());
+      this.store.assertEnabled(); assertFresh(post, this.clock());
       const message = renderPost(post);
       const raced = this.store.reserve({ requestId, userId, channelId: connection.channelId, eventHash, fingerprint, contentHash: digest(message) }, this.clock(), this.limits);
       if (raced) return raced;
       reserved = true;
       // No waiting/backlog: expire instead of posting old notifications on reconnect.
       const chatId = await this.youtube.resolveChat(post.videoId, connection.channelId);
+      await this.creatorAuthorization?.(connection);
       this.store.authenticate(authorization, this.clock());
       this.store.connection(post.channelConnectionId, userId, this.clock());
       this.store.assertEnabled(); assertFresh(post, this.clock());

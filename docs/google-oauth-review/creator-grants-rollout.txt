@@ -1,0 +1,75 @@
+JoinQueue — 配信者認証の分離・暗号化保管
+更新: 2026-10-01 / 作者・運営: kyo563
+状態: ソース実装・模擬テスト済み。本番切替・Google審査提出は未実行。
+
+承認と現在の設定
+- ユーザーは配信者のreadonly更新用認証情報をサーバーで暗号化保管し、
+  Google権限の失効確認・解除に使う方式を承認した。
+- 運営側に1つだけ追加する専用Google Cloudプロジェクトの作成を承認。
+  JoinQueue Creator Connect / joinqueue-creator-connect / 193959902164。
+  課金設定は変更していない。利用者にプロジェクト作成を要求しない。
+- 認証アプリの初期入力はJoinQueue Bot、公開連絡先joinqueue.bot@gmail.com、
+  External / Testing。Googleユーザーデータポリシー同意と作成確定は未実行。
+  専用OAuthクライアント・秘密情報はまだ発行していない。
+- 既存joinqueue-bot-dev、共通Botの暗号化認証、投稿承認IDは変更しない。
+- CHANNEL_GRANTS_ENABLEDはfalse。本番BOT_DATA_LIFECYCLE_ENABLEDも無効。
+  記録削除・期限処理の本番有効化はユーザーが今回は拒否した。
+
+なぜ別プロジェクトにするか
+Googleへのトークン失効は、同じ認証ユーザーの同一プロジェクト内の
+全クライアント・全scopeに影響する。単にOAuthクライアントを追加する
+だけでは共通Botの認証を保護できない。配信者用とBot用を分離する。
+https://developers.google.com/identity/protocols/oauth2/web-server#tokenrevoke
+同じGoogleアカウントに属する複数チャンネルの配信者用認証については、
+Googleでの解除により他チャンネルも再認証が必要になる場合がある。
+影響がGoogleアカウント単位であることと、別利用者の隔離を区別する。
+
+実装した動作（フラグ有効化後のみ）
+- 新規同意privacy-creator-grants-v1、readonlyのみ、offline、PKCEを使用。
+- channels.list(mine=true)による所有確認後、refresh tokenのみAES-GCMで
+  暗号化保存。チャンネル・grant・専用clientに結び付ける。access tokenは
+  保存せず、PCにもGoogle認証情報を返さない。コメント取得はわんコメ。
+- 所有確認直後から24時間単位で認証を再確認。失敗時は投稿を拒否し、
+  確定したinvalid_grantと一時的な通信障害を区別する。
+- 接続確認・Bot投稿でも権限を点検。非同期確認後にローカル失効状態を
+  再確認し、他配信者や共通Bot全体を停止するエラーとは分けて扱う。
+- 接続解除はチャンネルの全端末を先に停止し、Google revokeを要求。
+  成功確認後に暗号化認証情報を除去。一時障害では再試行用に保管し、
+  解除成功とは返さない。遅れて戻るOAuth callbackの復活も拒否する。
+- hourly alarmは最大8件の期限到来grantを処理。期限・全記録削除は
+  別フラグが有効の場合だけ。Bot vaultとPCの待機列は削除しない。
+- 一時障害はCHANNEL_AUTH_UNAVAILABLEとして秘密を含まずに返す。
+
+有効化前の手順（現時点では実行しない）
+1. Googleポリシー同意の承認と初期アプリ確定。
+2. 専用プロジェクトでYouTube Data API、ブランドURL、readonly scopeを
+   設定。永続認証情報の作成直前に承認し、Web OAuthクライアントを作る。
+   redirectは既存サーバーの/connect/callbackだけとし、Bot用callbackや
+   force-ssl scopeを専用プロジェクトへ追加しない。
+3. Consoleでclientの実際の所属プロジェクトを照合する。コードの環境
+   変数の宣言だけでは所属を証明できない。CREATOR_GOOGLE_PROJECT_ID=
+   joinqueue-creator-connect、BOT_GOOGLE_PROJECT_ID=joinqueue-bot-dev。
+4. CREATOR_GOOGLE_CLIENT_IDとCREATOR_GOOGLE_CLIENT_SECRETをバックエンドへ
+   設定。secretはCloudflare Secret、client IDはサーバー設定。Bot用
+   GOOGLE_CLIENT_ID/SECRETとBOT_VAULT_KEYは交換しない。秘密をログや
+   公開ソース、録画、クライアント配布物へ出さない。
+5. 新しい保管・解除方針を公開ポリシーと申請資料へ反映する。旧同意を
+   流用しない。既存接続のrefresh tokenは復元できないため再接続が必要。
+   旧オンライン同意のGoogle解除はユーザー自身のGoogle設定で行う。
+6. 独立した試験環境で実同意・外部失効・解除・一時障害からの回復を
+   確認。共通Botが失効しないことを確認する。実投稿は別途許可が必要。
+7. 全記録削除・保存期限を実際に運用できるよう承認を得て有効化する。
+   認証情報の解除だけでYouTubeポリシー完全適合とは説明しない。
+8. チェック処理の最大8件/時は無制限規模の保証ではない。利用者数に
+   応じた処理能力、失効確認間隔、alarm遅延、失敗検知を検証する。
+9. 本番切替・一般公開・配布物更新の承認後にのみ配置し、再認証を案内。
+   新しい配信者用プロジェクトのブランド確認とscope審査を行う。
+   既存Bot運営専用force-ssl認証の審査要否・説明も別途確認する。
+
+現在の検証範囲
+自動テスト: Python 436 / JavaScript 76 / backend 66 = 578件成功。
+TypeScript型検査とWorkerビルドも成功。新しい配布ZIPは未作成。
+Google/YouTube応答は模擬。Cloudflare Miniflareの実SQLiteとalarmで
+暗号化保管・復元、期限確認、Google解除、競合、失敗時の隔離を検証。
+実Google同意・実投稿・審査承認・新ZIP配布はこの変更では未実施。
+公開ポリシーは現在の本番（所有確認後に配信者トークン破棄）を記載する。
