@@ -9,7 +9,11 @@ JoinQueue — 配信者認証の分離・暗号化保管
   JoinQueue Creator Connect / joinqueue-creator-connect / 193959902164。
   課金設定は変更していない。利用者にプロジェクト作成を要求しない。
 - 認証アプリの初期入力はJoinQueue Bot、公開連絡先joinqueue.bot@gmail.com、
-  External / Testing。Googleユーザーデータポリシー同意と作成確定は未実行。
+  External / Testing。ユーザー許可後、Googleユーザーデータポリシーに
+  同意し、アプリ作成を確定。ブランドのホーム・プライバシー・利用規約
+  URLとkyo563.github.io / joinqueue.workers.devを保存済み。
+  youtube.readonlyのみを機密スコープとして登録。検証センターでは
+  テスト状態のため検証不要と表示される。申請・ブランド確認は未実行。
   専用OAuthクライアント・秘密情報はまだ発行していない。
 - 既存joinqueue-bot-dev、共通Botの暗号化認証、投稿承認IDは変更しない。
 - CHANNEL_GRANTS_ENABLEDはfalse。本番BOT_DATA_LIFECYCLE_ENABLEDも無効。
@@ -41,9 +45,9 @@ Googleでの解除により他チャンネルも再認証が必要になる場�
 - 一時障害はCHANNEL_AUTH_UNAVAILABLEとして秘密を含まずに返す。
 
 有効化前の手順（現時点では実行しない）
-1. Googleポリシー同意の承認と初期アプリ確定。
-2. 専用プロジェクトでYouTube Data API、ブランドURL、readonly scopeを
-   設定。永続認証情報の作成直前に承認し、Web OAuthクライアントを作る。
+1. Googleポリシー同意と初期アプリ確定は完了。
+2. ブランドURLとreadonly scopeは登録済み。YouTube Data APIの規約同意・
+   有効化とWeb OAuthクライアント発行について、操作直前の許可を確認する。
    redirectは既存サーバーの/connect/callbackだけとし、Bot用callbackや
    force-ssl scopeを専用プロジェクトへ追加しない。
 3. Consoleでclientの実際の所属プロジェクトを照合する。コードの環境
@@ -67,9 +71,20 @@ Googleでの解除により他チャンネルも再認証が必要になる場�
    既存Bot運営専用force-ssl認証の審査要否・説明も別途確認する。
 
 現在の検証範囲
-自動テスト: Python 436 / JavaScript 76 / backend 66 = 578件成功。
-TypeScript型検査とWorkerビルドも成功。新しい配布ZIPは未作成。
+自動テスト: Python 436 / JavaScript 76 / backend 67 = 579件成功。
+暗号化grantとデータ期限処理を両方有効にした隔離Cloudflare環境も追加。
+Googleへの解除応答確認後に、対象接続/暗号化grantが除去される模擬
+実行を検証済み。本番フラグはこの試験で変更しない。
+TypeScript型検査とWorkerビルドも成功。Windows配布候補も再ビルド済み。
+208 ZIP項目の整合性・秘密ファイル除外・チェックサムを確認し、隔離先で
+実行ファイル起動/停止/再起動、設定/待機列復元、OneComme模擬コメント、
+OBS用データ、名前付きドラッグURL、テンプレートZIP取得を確認した。
+候補: dist/onecomme-release-0.1.4-creator-grants-20261001/
+Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip
+SHA256: 566311f108675dbca44b5269624f5a18b4e50cc6a5929973b54bf75b7f3d658e
+PC側には新エラーへの対応だけが入り、Google認証情報は含まない。
+GitHub公開添付・インストール済みプラグイン・本番サーバーは差し替えない。
 Google/YouTube応答は模擬。Cloudflare Miniflareの実SQLiteとalarmで
 暗号化保管・復元、期限確認、Google解除、競合、失敗時の隔離を検証。
-実Google同意・実投稿・審査承認・新ZIP配布はこの変更では未実施。
+実Googleチャンネル同意・実投稿・審査承認・新ZIP配布は未実施。
 公開ポリシーは現在の本番（所有確認後に配信者トークン破棄）を記載する。

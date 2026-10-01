@@ -13,7 +13,8 @@ export class TestPrivacyCoordinator extends BotCoordinator {
     }
     if (action === '/test/alarm') {
       await super.alarm();
-      return Response.json({alarm: await this.testState.storage.getAlarm(), rows: this.testState.storage.sql.exec('SELECT COUNT(*) AS n FROM connections').one().n});
+      return Response.json({alarm: await this.testState.storage.getAlarm(), rows: this.testState.storage.sql.exec('SELECT COUNT(*) AS n FROM connections').one().n,
+        grants:this.testState.storage.sql.exec('SELECT COUNT(*) AS n FROM creator_grants').one().n});
     }
     if (action === '/test/creator-due') {
       this.testState.storage.sql.exec("UPDATE creator_grants SET checkedAt=?,nextCheckAt=?",Date.now()-25*3600000,Date.now()-1);

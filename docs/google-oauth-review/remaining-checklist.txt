@@ -65,6 +65,12 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
   連続失敗・Google割当量障害による停止を監視し、原因確認後にのみ復旧。
   投稿承認IDを再生成して停止を無断解除しない。
   問合せ・削除依頼の受付を実際に運用できることを確認する。
+  Google External / TestingのYouTube更新トークンは原則7日期限。
+  Bot用プロジェクトもテスト状態のため、保存済みBot認証の有効性を
+  一般提供前に点検する。現時点で失効を確認したわけではない。
+  公開状態変更だけで旧トークンの期限延長を仮定せず、必要なら運営者の
+  明示許可と操作で再認証する。入口を常時開放したり停止IDを再生成しない。
+  https://developers.google.com/identity/protocols/oauth2#expiration
 
 6. 一般公開・審査提出 [未実行]
   上記の不足を解決し、実操作動画の限定公開URLと説明を揃える。
@@ -76,11 +82,14 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
 
 配信者認証分離の追加状況（2026-10-01）
   joinqueue-creator-connectを作成済み。Bot用はjoinqueue-bot-devを維持。
-  新アプリのGoogleポリシー同意・OAuthクライアント作成は未完了。
+  新アプリのGoogleポリシー同意と初期作成は完了。ブランドURLと
+  readonly scopeも保存済み。OAuthクライアント発行・API有効化は許可待ち。
   CHANNEL_GRANTS_ENABLED=false。新しい暗号化保管方針はまだ本番に適用
   せず、公開ポリシーも本番の旧方式の説明を維持する。新同意と既存利用者
   再接続が必要。最新ソースのテスト結果はcreator-grants-rollout.txtを参照。
   上記ZIPは分離実装より前の候補であり、この追加実装を含まない。
+  新しい配信者用プロジェクトの申請欄草案: creator-application-draft.txt。
+  審査動画の計画はプロジェクト別に整理済み。模擬動画を証拠にしない。
 
 公式資料
 https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification

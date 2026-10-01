@@ -40,7 +40,8 @@ Googleへの失効APIを呼べず、外部での権限解除を直接検知で�
 認証失効と一時的な障害を区別し、後者では再試行用の暗号化認証を保持。
 別プロジェクトjoinqueue-creator-connectを作成済み。Googleの失効が
 同一プロジェクト内の認証に影響するため、Bot用とclientを分けるだけ
-ではなくプロジェクトも分ける。新アプリ同意・client作成はまだ未完了。
+ではなくプロジェクトも分ける。新アプリのポリシー同意・作成は完了。
+ブランドURLとreadonly scopeを保存済み。client発行・API有効化は許可待ち。
 CHANNEL_GRANTS_ENABLEDはfalse、本番未切替。上記の現在の本番の事実は
 引き続き正しい。詳しい条件と移行手順: creator-grants-rollout.txt。
 データ削除・期限処理の本番有効化許可はまだ得ていない。
@@ -72,6 +73,12 @@ Google/API割当量、auth invalid、DELIVERY_UNKNOWN、全体停止を確認。
 秘密・コメント全文・私用氏名をログに出さず、サニタイズした結果のみ保持。
 DELIVERY_UNKNOWNを自動再送しない。停止承認IDを無断更新しない。
 Bot再認証が必要なら運営者が承認し、運営用入口を限定時間だけ開く。
+External / Testingで発行したYouTube更新トークンには原則7日の期限が
+あるため、Bot用プロジェクトの本番公開方針と認証有効性を実機で確認する。
+保存済み・vault接続済みの表示だけで有効性を証明しない。現在の認証が
+実際に失効していることは未確認。一般公開切替が旧トークンを延長する
+と仮定せず、必要な再認証は別途承認する。
+https://developers.google.com/identity/protocols/oauth2#expiration
 
 禁止する説明
 「Googleへの公開切替で審査完了」「期限処理だけで解除要件を満たす」

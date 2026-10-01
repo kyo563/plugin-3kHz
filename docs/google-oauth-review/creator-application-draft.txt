@@ -1,0 +1,79 @@
+JoinQueue Creator Connect — sensitive scope submission fields
+Prepared 2026-10-01. DRAFT / NOT SUBMITTED. Operator: kyo563.
+Project: joinqueue-creator-connect / 193959902164.
+App display name: JoinQueue Bot.
+Public support and developer contact: joinqueue.bot@gmail.com.
+Home: https://kyo563.github.io/
+Privacy: https://kyo563.github.io/privacy.html
+Terms: https://kyo563.github.io/terms.html
+Release: https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v0.1.4
+
+Scope registered in this project (ONE scope only)
+https://www.googleapis.com/auth/youtube.readonly
+Google Console classifies this as sensitive. No email, profile, OpenID, write,
+moderation or force-ssl scope is requested by this creator-connection client.
+
+Scope justification — intended isolated implementation, NOT yet production
+JoinQueue is a Windows participant-queue plugin for OneComme. Creators connect
+their own YouTube channels to an optional centrally operated notification bot.
+The server calls channels.list(part=id,mine=true) after consent to verify the
+creator's channel ID and bind it to their authenticated device. A client-supplied
+channel ID, public profile or email cannot prove control of a YouTube channel,
+including a Brand Account. youtube.readonly is the narrowest supported scope
+for this lookup. We request offline access and encrypt the refresh credential
+on our server only to recheck continuing authorization and revoke the grant
+when disconnected. Access tokens are transient, never returned to the plugin.
+This scope never posts as the creator or fetches incoming live chat. Incoming
+comments come from OneComme. Bot posting uses a separately authorized service
+Bot in another Google Cloud project; its credentials never reach creators.
+
+Additional explanation — central Bot and separation
+The dedicated @JoinQueueBot account is authorized by the operator under
+joinqueue-bot-dev, not by each creator. Its write credential is server-only.
+The current creator project contains no Bot operator OAuth client or write
+scope. Revoking one creator's grant cannot revoke the Bot grant in the other
+project. Google revocation may affect multiple creator Brand Account grants
+belonging to the same Google account within this creator project; we explain
+that reauthorization may be necessary. Distinct creators cannot select each
+other's connection or route messages to a channel they have not verified.
+
+Data disclosure to align before submission
+Queue/history, OneComme memos, display preferences and fonts remain local.
+The server stores verified channel/device IDs, hashed device keys, encrypted
+readonly refresh credentials, authorization dates and notification metadata.
+It receives only destination and fixed notification variables needed for Bot
+posting; not full incoming comment history, memos or font files. It does not
+persist full notification bodies in the application posting ledger. Notifications
+sent to YouTube become visible in the destination live chat. Cloudflare hosts
+the server, GitHub Pages the public site, and Google/YouTube the OAuth/API.
+No Google passwords are requested by the plugin or support. Only kyo563 and
+the dedicated public service email identify the operator in public materials.
+
+Real demonstration video — REQUIRED, NOT AVAILABLE YET
+YouTube Unlisted URL: not supplied; do not enter a mock link.
+Use demo-runbook.txt Part A plus the creator lifecycle demonstration. Show
+English consent, actual App Name and public OAuth client ID, real channel
+ownership lookup and its connected-channel result. Do not record secrets,
+pairing keys, passwords or unrelated personal account identities. Bot posting
+may illustrate the overall product, but it is not a creator write permission.
+Do not reauthenticate the common Bot merely to make a readonly review video.
+
+Submission blockers — do not certify these as complete
+- Web OAuth client issuance awaits action-time approval; no client ID yet.
+- YouTube API activation awaits approval of its terms; no real lookup yet.
+- Audience remains External / Testing. Branding URLs/domains saved; the
+  Verification Center currently says verification is not required in Testing.
+  Production publishing and brand verification have not been executed.
+- Server creator-grant feature is disabled. Public privacy still describes
+  the actual legacy online/discard flow. Update it and new consent BEFORE
+  making the isolated offline feature available.
+- Data erasure/retention activation was explicitly declined. Do not certify
+  enabled compliant deletion/expiry. It requires a separate operational decision.
+- Real grant/revoke testing, capacity/monitoring and the demonstration video
+  must be completed. Local simulated tests are not evidence of real OAuth use.
+- No verification request submitted. No approval or universal access promised.
+
+Official submission requirements
+https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification
+https://developers.google.com/identity/verification/authentication-verification
+https://developers.google.com/youtube/terms/developer-policies

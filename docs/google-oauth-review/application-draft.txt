@@ -150,7 +150,9 @@ Outstanding inputs / evidence before submission
   refresh grants for authorization checks and Google's token revocation.
 - A separate service-owned project was created: joinqueue-creator-connect,
   number 193959902164. The existing joinqueue-bot-dev Bot project is unchanged.
-  Google app policy acceptance and OAuth client issuance are still pending.
+  Google app policy acceptance and app creation are complete. Public branding
+  URLs/domains and the readonly scope are saved. OAuth client issuance and
+  YouTube API activation await action-time approval. Audience remains Testing.
 - When enabled, creator OAuth requests ONLY youtube.readonly with offline
   access. After channel ownership lookup, refresh credentials are encrypted
   server-side. Access tokens are discarded; no Google token reaches the plugin.
@@ -169,6 +171,12 @@ Outstanding inputs / evidence before submission
   policy/consent, deletion operations, actual grant tests, capacity/monitoring,
   production approval and creator-project verification must be completed before
   claiming compliance or general availability. See creator-grants-rollout.txt.
+- Fresh local Windows candidate: 208 ZIP entries, checksum/integrity/private
+  filename checks and isolated packaged start/restart/persistence/OneComme
+  fixture/OBS-data/template-download smoke checks passed. No live grant/post.
+  dist/onecomme-release-0.1.4-creator-grants-20261001/
+  Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip
+  SHA256: 566311f108675dbca44b5269624f5a18b4e50cc6a5929973b54bf75b7f3d658e.
 - No production credentials, release asset or local user queue was replaced.
 
 Official preparation reference

@@ -1,5 +1,9 @@
 JoinQueue OAuth review demonstration — recording plan, NOT completed evidence
-Owner: kyo563 / Project: joinqueue-bot-dev / Prepared: 2026-10-01
+Owner: kyo563 / Prepared: 2026-10-01
+Creator review: joinqueue-creator-connect (youtube.readonly only).
+Operator Bot: joinqueue-bot-dev (separate existing authorization).
+New creator client/feature are not active; use the final verified configuration
+only after the migration prerequisites in creator-grants-rollout.txt are met.
 
 Before recording
 Use a dedicated clean browser window, a test public livestream and invented
@@ -10,7 +14,9 @@ ID is public and should remain visible with the app name as Google requests.
 Display language and narration: English. Put a checked recording on an
 Unlisted YouTube video. A screenshot or simulated local screen is not proof
 of real OAuth/API functionality. Do not claim the recording already exists.
-The two scopes serve different audiences; demonstrate both separately.
+The scopes serve different audiences AND projects. The creator-project review
+must demonstrate its readonly scope. Part B is a separate operator-review plan,
+not a requirement to reauthenticate the working Bot for the readonly video.
 
 Part A — Creator channel ownership (youtube.readonly)
 1. Show public home/privacy/terms and the Windows OneComme plugin's Bot tab.
@@ -25,6 +31,10 @@ Part A — Creator channel ownership (youtube.readonly)
 6. Complete the callback. Show the connected creator's test channel and target
    live video in the plugin, not a token or internal response.
 7. Explain that channels.list(part=id,mine=true) verifies channel control.
+8. For the enabled isolated flow, explain encrypted server-only refresh storage
+   for ongoing authorization checks/revocation, not incoming comment retrieval.
+   Record a real grant withdrawal and its rejected connection using a test
+   identity, without disrupting the current operator Bot or other creators.
 
 Suggested narration
 "JoinQueue is a queue management plugin for OneComme. Incoming comments are
@@ -32,15 +42,16 @@ provided by OneComme, not fetched by our bot backend. The creator grants
 YouTube read-only access so our server can verify the channel they control.
 This creator flow does not request permission to post as the creator."
 
-Part B — Dedicated operator Bot (youtube.force-ssl)
+Part B — SEPARATE operator review, if required (youtube.force-ssl)
 1. Obtain authorization before temporarily opening the operator OAuth entry.
    Do not revoke or replace the currently working Bot credentials just to film.
 2. Show the separate operator grant flow, its app/client ID and write scope.
    The human operator authorizes the dedicated @JoinQueueBot channel.
 3. Show only the safe success page: Bot identity matched and server storage.
    Close the operator entry immediately after the authorized operation.
-4. Explain the same current OAuth client supports the separate operator flow;
-   ordinary creators never receive the Bot refresh credential/write scope.
+4. Explain the operator uses the separate Bot project/client; ordinary creators
+   never receive the Bot refresh credential or its write scope. The creator
+   client must not include the operator callback or force-ssl permission.
 
 Suggested narration
 "The service operator separately authorizes the dedicated JoinQueueBot
@@ -81,7 +92,7 @@ Use an isolated test connection; deleting real user records needs separate appro
 
 Before upload and submission
 - Human reviews the whole recording for names, keys, codes and private data.
-- Both sensitive scopes and their actual features are demonstrated in English.
+- Each submitted project's scopes/features are demonstrated in English.
 - The final privacy operation, video and release match the submitted code.
 - Upload only after confirming the checked video and its Unlisted audience.
 - Record URL and Google submission state; never infer approval from upload.
