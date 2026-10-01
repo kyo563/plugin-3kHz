@@ -2,11 +2,11 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-async function fixture(authenticated=false) {
+async function fixture(authenticated=false, deletionAvailable=false) {
   const elements={}, calls=[], bodies=[];
   const el=id=>elements[id] ||= {hidden:false,disabled:false,checked:false,textContent:'',value:'15',
-    addEventListener(type,handler){this[type]=handler;},removeAttribute(){},showModal(){},close(){}};
-  const state={authenticated,ready:false,has_connection_key:authenticated,
+    addEventListener(type,handler){this[type]=handler;},removeAttribute(){},showModal(){this.open=true;},close(){this.open=false;}};
+  const state={authenticated,ready:false,has_connection_key:authenticated,deletion_available:deletionAvailable,
     settings:{announce_now:true,reply_position:true,periodic:false,interval_minutes:15}};
   const context={document:{getElementById:el},window:{},URL,AbortSignal,setInterval(){},
     fetch:async(path,options)=>{
@@ -61,4 +61,32 @@ test('errors are shown next to the corresponding authentication, check or start 
     assert.equal(f.el(result).textContent,'接続できませんでした');
     assert.equal(f.el('bot-running-status').textContent,'チャンネル接続済み／停止中');
   }
+});
+
+test('server erasure needs supported authenticated connection, two actions and exact confirmation text',async()=>{
+  for(const [authenticated,available] of [[false,false],[true,false],[false,true]]) {
+    const f=await fixture(authenticated,available);
+    assert.equal(f.el('bot-erase-open').disabled,true);
+    f.el('bot-erase-open').onclick();
+    assert.notEqual(f.el('bot-erase-dialog').open,true);
+    assert.deepEqual(f.calls,['/api/bot']);
+  }
+  const f=await fixture(true,true);
+  assert.equal(f.el('bot-erase-open').disabled,false);
+  f.el('bot-erase-open').onclick();
+  assert.equal(f.el('bot-erase-dialog').open,true);
+  assert.equal(f.el('bot-erase-confirm').disabled,true);
+  f.el('bot-erase-text').value='削除'; f.el('bot-erase-text').input();
+  await f.el('bot-erase-confirm').onclick();
+  assert.deepEqual(f.calls,['/api/bot']);
+  f.el('bot-erase-text').value='サーバー記録を削除'; f.el('bot-erase-text').input();
+  assert.equal(f.el('bot-erase-confirm').disabled,false);
+  await f.el('bot-erase-confirm').onclick();
+  assert.deepEqual(f.calls,['/api/bot','/api/bot/erase']);
+  assert.equal(f.bodies[0].confirmation,'サーバー記録を削除');
+  assert.equal(f.el('bot-erase-dialog').open,false);
+  assert.match(f.el('bot-start-result').textContent,/接続キーは保持/);
+  const html=fs.readFileSync('static/bot.html','utf8');
+  assert.match(html,/id="bot-erase-open"[^>]*disabled/);
+  assert.match(html,/id="bot-erase-cancel"[^>]*autofocus/);
 });

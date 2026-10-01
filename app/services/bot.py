@@ -167,6 +167,7 @@ class AnnouncementBot:
         self.connection = self.authorization_url = self.confirmation = self.checked = None
         self.bot_profile = {'id': BOT_ID, 'name': 'JoinQueueBot', 'handle': BOT_HANDLE}
         self.test_available = False
+        self.deletion_available = False
         self.running, self.active_video = False, ''
         self.queue = deque(maxlen=20)
         self.seen, self.reply_times, self.now_events = OrderedDict(), OrderedDict(), OrderedDict()
@@ -198,6 +199,7 @@ class AnnouncementBot:
         with self.lock:
             return {'settings': self.settings.model_dump(),
                     'account': self.bot_profile.copy(), 'test_available': self.test_available,
+                    'deletion_available': self.deletion_available,
                     'authenticated': self.connection is not None, 'ready': self.running,
                     'channel_id': self.connection['channelId'] if self.connection else None,
                     'error': self.error, 'last_result': self.last_result, 'pending': len(self.queue),
@@ -286,6 +288,24 @@ class AnnouncementBot:
                             raise
                 self.store.write('shared_device', None)
                 self.device = self.connection = self.authorization_url = self.confirmation = None
+                self.test_available = self.deletion_available = False
+            elif action == 'erase':
+                if not self.deletion_available or not self.connection:
+                    raise ValueError('認証結果を確認してください。サーバー記録の削除は対応サーバーとの接続時のみ利用できます。')
+                channel_id = self.connection['channelId']
+                self.pause()
+                if not self.send_lock.acquire(blocking=False):
+                    raise ValueError('投稿処理中です。Botは停止しました。処理完了後に削除をやり直してください。')
+                try:
+                    data = self._api('/v1/connections/erase', {'confirmation': channel_id})
+                    if data.get('status') != 'deleted' or data.get('securityRetentionHours') != 25:
+                        raise BotError()
+                    self.store.write('shared_device', None)
+                    self.device = self.connection = self.authorization_url = self.confirmation = None
+                    self.test_available = self.deletion_available = False
+                    self.last_result = 'サーバーの接続情報・投稿台帳を削除しました。短期の制限用ハッシュは最長25時間で削除します。PC内の待機列・設定とYouTube投稿は変更していません。'
+                finally:
+                    self.send_lock.release()
             elif action in ('status', 'check', 'start', 'test'):
                 if action != 'status' and not video:
                     raise BotError('LIVE_NOT_ACTIVE')
@@ -307,6 +327,7 @@ class AnnouncementBot:
                         raise BotError()
                     self.connection = {k: data[k] for k in ('channelId', 'connectionId')}
                     self.test_available = isinstance(data.get('features'), dict) and data['features'].get('connectionTest') is True
+                    self.deletion_available = isinstance(data.get('features'), dict) and data['features'].get('dataDeletion') is True
                     profile = data.get('bot')
                     if isinstance(profile, dict) and profile.get('id') == BOT_ID:
                         from app.schemas.avatar import normalize_avatar_url

@@ -1,13 +1,14 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { BotFault, digest } from '../policy';
-import { SqlBotStore, type SqlDriver } from '../sql-store';
+import { CONNECTION_RETENTION_MS, SqlBotStore, type SqlDriver } from '../sql-store';
 import type { YouTubeGateway } from '../service';
 import { AUTH_ORIGIN, BotVault, boundedText, type BotAuthEnv } from './bot-auth';
 import { boundedJson, json, rejected } from './http';
+import { PrivacyRecords } from './privacy';
 
 export const CONNECT_CALLBACK = '/connect/callback';
 export const CHANNEL_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
-export interface ChannelEnv extends BotAuthEnv { CHANNEL_CONNECT_ENABLED?: string; BOT_POSTING_ENABLED?: string }
+export interface ChannelEnv extends BotAuthEnv { CHANNEL_CONNECT_ENABLED?: string; BOT_POSTING_ENABLED?: string; BOT_DATA_LIFECYCLE_ENABLED?: string }
 const random = () => randomBytes(32).toString('base64url');
 const opaque = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{43}$/.test(v);
 const denied = () => new BotFault('UNAUTHENTICATED', 403);
@@ -32,7 +33,7 @@ export function channelBoundary(r: Request, env: ChannelEnv): boolean {
     return !u.search && !r.headers.has('Origin') && r.method === 'POST' &&
       /^application\/json(?:;\s*charset=utf-8)?$/i.test(r.headers.get('Content-Type') ?? '') &&
       /^Bearer [A-Za-z0-9_-]{43}$/.test(r.headers.get('Authorization') ?? '') &&
-      ['start', 'status', 'check', 'disconnect'].includes(u.pathname.slice('/v1/connections/'.length));
+      ['start', 'status', 'check', 'disconnect', 'erase'].includes(u.pathname.slice('/v1/connections/'.length));
   }
   if (env.CHANNEL_CONNECT_ENABLED !== 'true') return false;
   if (u.pathname === CONNECT_CALLBACK) return r.method === 'GET' && !r.headers.has('Origin');
@@ -46,9 +47,10 @@ export function channelBoundary(r: Request, env: ChannelEnv): boolean {
 export class ChannelConnections {
   private store: SqlBotStore;
   private vault: BotVault;
+  private privacy: PrivacyRecords;
   constructor(private db: SqlDriver, private env: ChannelEnv, private youtube: YouTubeGateway,
     private request: typeof fetch = fetch, private clock = Date.now) {
-    this.store = new SqlBotStore(db); this.vault = new BotVault(db, env);
+    this.store = new SqlBotStore(db, env.BOT_DATA_LIFECYCLE_ENABLED === 'true'); this.vault = new BotVault(db, env);
     db.exec(`CREATE TABLE IF NOT EXISTS channel_pairings (
       id TEXT PRIMARY KEY, tokenHash TEXT UNIQUE NOT NULL, browserKey TEXT NOT NULL,
       createdAt INTEGER NOT NULL, expiresAt INTEGER NOT NULL, status TEXT NOT NULL,
@@ -57,6 +59,7 @@ export class ChannelConnections {
       CREATE TABLE IF NOT EXISTS channel_probe_budget (deviceId TEXT PRIMARY KEY, startedAt INTEGER NOT NULL, count INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS channel_source_budget (source TEXT PRIMARY KEY, startedAt INTEGER NOT NULL, count INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS channel_oauth_budget (id INTEGER PRIMARY KEY CHECK(id=1), startedAt INTEGER NOT NULL, count INTEGER NOT NULL);`);
+    this.privacy = new PrivacyRecords(db);
   }
   async handle(r: Request): Promise<Response> {
     if (!channelBoundary(r, this.env)) return json({ error: { code: 'NOT_FOUND' } }, 404);
@@ -68,7 +71,21 @@ export class ChannelConnections {
       if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BotFault('INVALID_MESSAGE');
       const body = input as Record<string, unknown>;
       const tokenHash = digest(r.headers.get('Authorization')!.slice(7));
+      if (u.pathname.endsWith('/erase')) {
+        if (this.env.BOT_DATA_LIFECYCLE_ENABLED !== 'true') throw new BotFault('SERVICE_DISABLED', 503);
+        if (Object.keys(body).length !== 1 || typeof body.confirmation !== 'string' || !/^UC[\w-]{22}$/.test(body.confirmation)) throw new BotFault('INVALID_MESSAGE');
+        if (!this.privacy.receipt(tokenHash, body.confirmation, this.clock())) {
+          const principal = this.store.authenticate(r.headers.get('Authorization')!, this.clock());
+          const pairing = this.db.prepare("SELECT connectionId FROM channel_pairings WHERE tokenHash=? AND status='connected'").get(tokenHash);
+          if (!pairing) throw denied();
+          const connection = this.store.connection(String(pairing.connectionId), principal.userId, this.clock());
+          if (body.confirmation !== connection.channelId) throw denied();
+          this.privacy.erase(principal.userId, connection.channelId, tokenHash, this.clock());
+        }
+        return json({ status: 'deleted', securityRetentionHours: 25 });
+      }
       if (u.pathname.endsWith('/start')) {
+        if (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true' && this.privacy.wasErased(tokenHash, this.clock())) throw denied();
         if (this.env.CHANNEL_CONNECT_ENABLED !== 'true' || !this.env.GOOGLE_CLIENT_ID || !this.env.GOOGLE_CLIENT_SECRET || !opaque(this.env.BOT_VAULT_KEY)) throw new BotFault('SERVICE_DISABLED', 503);
         const id = randomUUID(), key = random(), now = this.clock(), expiresAt = now + 600_000;
         this.db.transaction(() => {
@@ -103,7 +120,7 @@ export class ChannelConnections {
         return json({ status: 'pending' });
       }
       const principal = this.store.authenticate(r.headers.get('Authorization')!, this.clock());
-      const connection = this.store.connection(String(pairing.connectionId), principal.userId);
+      const connection = this.store.connection(String(pairing.connectionId), principal.userId, this.clock());
       let serviceEnabled = this.env.BOT_POSTING_ENABLED === 'true';
       try { this.store.assertEnabled(); } catch { serviceEnabled = false; }
       if (u.pathname.endsWith('/check')) {
@@ -121,10 +138,10 @@ export class ChannelConnections {
           this.db.prepare('INSERT OR REPLACE INTO channel_checks VALUES (?,?)').run(principal.deviceId, this.clock());
         });
         await this.youtube.resolveChat(body.videoId, connection.channelId);
-        this.store.authenticate(r.headers.get('Authorization')!, this.clock()); this.store.connection(connection.id, principal.userId); this.store.assertEnabled();
+        this.store.authenticate(r.headers.get('Authorization')!, this.clock()); this.store.connection(connection.id, principal.userId, this.clock()); this.store.assertEnabled();
       }
       return json({ status: 'connected', channelId: connection.channelId, connectionId: connection.id, serviceEnabled,
-        features:{connectionTest:true}, bot:this.youtube.profile?.() ?? null });
+        features:{connectionTest:true, dataDeletion:this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true'}, bot:this.youtube.profile?.() ?? null });
     } catch (e) { return rejected(e instanceof BotFault ? e : new BotFault('BOT_UNAVAILABLE', 503)); }
   }
   private async browser(r: Request): Promise<Response> {
@@ -137,10 +154,10 @@ export class ChannelConnections {
       // Native form POST must retain its same-origin Origin header. no-referrer
       // serializes it as "null" and our strict boundary correctly rejects that.
       // Do not forward the pairing URL to Google: redirects retain no-referrer.
-      return html(`<h1>配信するチャンネルを接続</h1><p>プラグインの確認番号が ${id.slice(0, 8)} であることを確認してください。他人から届いたリンクでは接続しないでください。</p><p>自分の配信チャンネルで認証します。共通Bot用アカウントではありません。読み取り専用で所有チャンネルを確認します。</p><form method="post"><input type="hidden" name="csrf" value="${nonce}"><button>Googleでチャンネルを確認する</button></form>`, { 'Set-Cookie': `${COOKIE}=${nonce}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`, 'Referrer-Policy': 'same-origin' });
+      return html(`<h1>配信するチャンネルを接続</h1><p>プラグインの確認番号が ${id.slice(0, 8)} であることを確認してください。他人から届いたリンクでは接続しないでください。</p><p>自分の配信チャンネルで認証します。共通Bot用アカウントではありません。読み取り専用で所有チャンネルを確認します。</p><p>作者・運営：kyo563。チャンネルの所有確認後、Googleのアクセストークンは継続保存せず、確認済みチャンネルIDと端末接続情報を保存します。Botを使う場合は、選んだ通知に必要な表示名・待機順などをサーバー経由でYouTubeへ送ります。</p><p><a href="https://kyo563.github.io/privacy.html" target="_blank" rel="noreferrer noopener">プライバシーポリシー</a> ／ <a href="https://kyo563.github.io/terms.html" target="_blank" rel="noreferrer noopener">利用に関するご案内</a> ／ <a href="https://www.youtube.com/t/terms" target="_blank" rel="noreferrer noopener">YouTube利用規約</a></p><form method="post"><input type="hidden" name="csrf" value="${nonce}"><p><label><input type="checkbox" name="privacy" value="privacy-2026-10-01" required> プライバシーポリシーを確認し、情報の取り扱いに同意します。</label></p><button>Googleでチャンネルを確認する</button></form>`, { 'Set-Cookie': `${COOKIE}=${nonce}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`, 'Referrer-Policy': 'same-origin' });
     }
     const fields = new URLSearchParams(await boundedText(r, 1024));
-    if ([...fields.keys()].length !== 1 || !cookie(r) || fields.get('csrf') !== cookie(r)) throw denied();
+    if ([...fields.keys()].length !== 2 || fields.get('privacy') !== 'privacy-2026-10-01' || !cookie(r) || fields.get('csrf') !== cookie(r)) throw denied();
     const state = random(), verifier = random();
     const encrypted = await this.vault.crypt(verifier, 'channel-pkce:' + id);
     const updated = this.db.prepare("UPDATE channel_pairings SET status='pending',stateHash=?,browserHash=?,verifier=? WHERE id=? AND status='new' AND expiresAt>?")
@@ -188,8 +205,9 @@ export class ChannelConnections {
       this.db.transaction(() => {
         const fresh = this.db.prepare('SELECT status,expiresAt FROM channel_pairings WHERE id=?').get(String(row.id));
         if (fresh?.status !== 'consumed' || Number(fresh.expiresAt) <= this.clock()) throw denied();
+        if (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true') this.privacy.assertFreshPairing(channelId, Number(row.createdAt));
         const userId = 'youtube:' + channelId, deviceId = randomUUID(), connectionId = randomUUID();
-        this.db.prepare('INSERT INTO devices (hash,userId,deviceId,expiresAt) VALUES (?,?,?,?)').run(String(row.tokenHash), userId, deviceId, this.clock() + 30 * 86_400_000);
+        this.db.prepare('INSERT INTO devices (hash,userId,deviceId,expiresAt) VALUES (?,?,?,?)').run(String(row.tokenHash), userId, deviceId, this.clock() + (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true' ? CONNECTION_RETENTION_MS : 30 * 86_400_000));
         this.store.provisionVerifiedConnection({ id: connectionId, userId, channelId, verifiedAt: this.clock() });
         this.db.prepare("UPDATE channel_pairings SET status='connected',channelId=?,connectionId=?,deviceId=?,verifier=NULL WHERE id=?").run(channelId, connectionId, deviceId, String(row.id));
       });

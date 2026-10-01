@@ -329,6 +329,8 @@ def test_api_local_auth_legacy_endpoint_removed_and_disconnect_confirmation(tmp_
         assert c.post('/api/bot/settings', json={'periodic':'false'}).status_code == 422
         assert c.post('/api/bot/login', json={'installed':{}}).status_code == 404
         assert c.post('/api/bot/disconnect', json={}).status_code == 422
+        assert c.post('/api/bot/erase', json={}).status_code == 422
+        assert c.post('/api/bot/connection', json={'action':'erase'}).status_code == 422
         assert c.post('/api/bot/connection', json={'action':'stop','url':'https://evil.invalid'}).status_code == 422
         html = c.get('/bot').text
         assert '<h1>設定画面</h1>' in html and 'id="bot-client"' not in html
@@ -345,3 +347,45 @@ def test_api_local_auth_legacy_endpoint_removed_and_disconnect_confirmation(tmp_
         c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
         assert c.get('/api/bot').status_code == 404 and c.get('/bot').status_code == 404
         assert 'settings-bot-panel' not in c.get('/settings').text
+
+
+def test_server_erasure_preserves_local_queue_settings_and_requires_server_acknowledgement(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    services.receive_comment(comment(1))
+    before = services.build_view_state()
+    settings = bot.settings.model_dump(); settings['enabled'] = False
+    with pytest.raises(ValueError, match='認証結果'): bot.command('erase')
+    token = bot.device
+    bot.deletion_available = True
+    bot.http.close()
+    attempted = []
+    def erase(request):
+        attempted.append(request)
+        assert request.url.path == '/v1/connections/erase'
+        assert json.loads(request.content) == {'confirmation': 'UC' + '9'*22}
+        return httpx.Response(200, json={'status':'deleted', 'securityRetentionHours':25})
+    bot.http = httpx.Client(transport=httpx.MockTransport(erase))
+    result = bot.command('erase')
+    assert not result['ready'] and not result['authenticated'] and not result['has_connection_key']
+    assert bot.settings.model_dump() == settings
+    assert bot.store.data['shared_device'] is None
+    assert services.build_view_state() == before
+    assert len(attempted) == 1 and not sent
+    assert token not in str(result)
+
+
+def test_erasure_timeout_and_pending_post_preserve_device_for_safe_retry(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot); bot.deletion_available = True; token = bot.device
+    bot.send_lock.acquire()
+    try:
+        with pytest.raises(ValueError, match='投稿処理中'): bot.command('erase')
+    finally:
+        bot.send_lock.release()
+    assert bot.device == token and not bot.running
+    bot.http.close()
+    bot.http = httpx.Client(transport=httpx.MockTransport(lambda r: (_ for _ in ()).throw(httpx.ReadTimeout('PRIVATE'))))
+    with pytest.raises(BotError): bot.command('erase')
+    assert bot.device == token and bot.store.data['shared_device'] == token
+    assert 'PRIVATE' not in str(bot.status()) and token not in str(bot.status())

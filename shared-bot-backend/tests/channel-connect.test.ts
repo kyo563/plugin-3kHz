@@ -38,7 +38,7 @@ function fixture() {
     assert.equal(landing.headers.get('referrer-policy'), 'same-origin');
     const html = await landing.text(); const cookie = landing.headers.get('set-cookie')!.split(';')[0]!;
     const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1]!;
-    const begin = await auth().handle(new Request(data.authorizationUrl, { method: 'POST', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf }) }));
+    const begin = await auth().handle(new Request(data.authorizationUrl, { method: 'POST', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf, privacy:'privacy-2026-10-01' }) }));
     assert.equal(begin.status, 303);
     assert.equal(begin.headers.get('referrer-policy'), 'no-referrer');
     const google = new URL(begin.headers.get('location')!);
@@ -70,7 +70,10 @@ test('channel form preserves strict Origin and CSRF checks while allowing native
     const page = await f.auth().handle(new Request(link));
     assert.equal(page.headers.get('referrer-policy'), 'same-origin');
     const cookie = page.headers.get('set-cookie')!.split(';')[0]!;
-    const csrf = /name="csrf" value="([^"]+)"/.exec(await page.text())![1]!;
+    const landingText = await page.text();
+    const csrf = /name="csrf" value="([^"]+)"/.exec(landingText)![1]!;
+    assert.match(landingText,/name="privacy" value="privacy-2026-10-01" required/);
+    assert.match(landingText,/https:\/\/kyo563.github.io\/privacy.html/);
     for (const origin of [undefined, 'null', 'https://evil.invalid']) {
       const headers = new Headers({Cookie:cookie, 'Content-Type':'application/x-www-form-urlencoded'});
       if (origin !== undefined) headers.set('Origin', origin);
@@ -79,7 +82,11 @@ test('channel form preserves strict Origin and CSRF checks while allowing native
     }
     const headers = {Origin:AUTH_ORIGIN, Cookie:cookie, 'Content-Type':'application/x-www-form-urlencoded'};
     assert.equal((await f.auth().handle(new Request(link, {method:'POST', headers, body:new URLSearchParams({csrf:'invalid'})}))).status, 403);
-    const result = await f.auth().handle(new Request(link, {method:'POST', headers, body:new URLSearchParams({csrf})}));
+    const unacceptedForms: Record<string,string>[] = [{csrf}, {csrf,privacy:'false'}, {csrf,privacy:'privacy-2026-10-01',extra:'unexpected'}];
+    for (const body of unacceptedForms) {
+      assert.equal((await f.auth().handle(new Request(link, {method:'POST', headers, body:new URLSearchParams(body)}))).status,403);
+    }
+    const result = await f.auth().handle(new Request(link, {method:'POST', headers, body:new URLSearchParams({csrf,privacy:'privacy-2026-10-01'})}));
     assert.equal(result.status, 303);
     assert.equal(result.headers.get('referrer-policy'), 'no-referrer');
     assert.deepEqual(f.counts(), {lookups:0, checks:0, exchanges:0});

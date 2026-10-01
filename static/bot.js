@@ -17,6 +17,7 @@
     el('bot-notifications-hint').hidden = s.authenticated;
     el('bot-stop').disabled = !s.ready;
     el('bot-test').disabled = !s.test_available;
+    el('bot-erase-open').disabled = !s.authenticated || !s.deletion_available;
     el('bot-name').textContent = '共通Bot：' + (s.account?.name || 'JoinQueueBot');
     const icon = el('bot-icon'), url = s.account?.icon;
     icon.hidden = true;
@@ -81,6 +82,20 @@
     });
   }
   el('bot-disconnect-confirm').addEventListener('change', () => { el('bot-disconnect').disabled = !el('bot-disconnect-confirm').checked; });
+  el('bot-erase-open').onclick = () => {
+    if (busy || !current?.authenticated || !current?.deletion_available) return;
+    el('bot-erase-text').value = ''; el('bot-erase-confirm').disabled = true;
+    el('bot-erase-dialog').showModal();
+  };
+  el('bot-erase-text').addEventListener('input', () => { el('bot-erase-confirm').disabled = busy || el('bot-erase-text').value !== 'サーバー記録を削除'; });
+  el('bot-erase-cancel').onclick = () => el('bot-erase-dialog').close();
+  el('bot-erase-confirm').onclick = async () => {
+    if (busy || el('bot-erase-text').value !== 'サーバー記録を削除') return;
+    busy = true; el('bot-erase-confirm').disabled = true;
+    try { status(await call('/erase', {confirmation:'サーバー記録を削除'})); el('bot-start-result').textContent = current.last_result; }
+    catch(e) { el('bot-start-result').textContent = e.message + ' 接続キーは保持しています。削除結果が不明な場合は運営へ確認してください。'; }
+    finally { busy = false; el('bot-erase-dialog').close(); }
+  };
   el('bot-test').onclick = () => { if (!busy) el('bot-test-dialog').showModal(); };
   el('bot-test-cancel').onclick = () => el('bot-test-dialog').close();
   el('bot-test-confirm').onclick = async () => {

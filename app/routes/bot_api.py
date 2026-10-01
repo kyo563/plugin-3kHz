@@ -45,3 +45,16 @@ def disconnect(payload: Disconnect, request: Request):
         return request.app.state.bot.disconnect()
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
+
+
+class Erase(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    confirmation: Literal['サーバー記録を削除']
+
+
+@router.post('/api/bot/erase')
+def erase(payload: Erase, request: Request):
+    try:
+        return request.app.state.bot.command('erase')
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None

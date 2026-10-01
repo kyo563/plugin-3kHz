@@ -11,6 +11,8 @@ import { GoogleRefreshTokens, type GoogleBotSecrets } from './tokens';
 import { AUTH_PATH, BotAuthorization, BotVault, authBoundary, boundedText, type BotAuthEnv } from './bot-auth';
 import { ChannelConnections, channelBoundary, isChannelRoute, type ChannelEnv } from './channel-connect';
 import { applyPostingApproval } from './posting-approval';
+import { PrivacyRecords, PRIVACY_ALARM_MS } from './privacy';
+import { publicInfo } from './public-info';
 
 export interface WorkerEnv extends GoogleBotSecrets, BotAuthEnv, ChannelEnv {
   BOT_COORDINATOR: DurableObjectNamespace;
@@ -42,6 +44,7 @@ export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     try {
       const url = new URL(request.url);
+      const info = publicInfo(request); if (info) return info;
       if (isChannelRoute(url.pathname)) {
         if (!channelBoundary(request, env)) return json({ error: { code: 'NOT_FOUND' } }, 404);
         const stub = env.BOT_COORDINATOR.get(env.BOT_COORDINATOR.idFromName(COORDINATOR_NAME));
@@ -88,17 +91,30 @@ export class BotCoordinator {
   #env: WorkerEnv;
   #authorization: BotAuthorization;
   #connections: ChannelConnections;
+  #privacy: PrivacyRecords;
   constructor(ctx: DurableObjectState, env: WorkerEnv) {
     this.#ctx = ctx; this.#env = env;
     const driver = durableSqlDriver(ctx.storage);
-    this.#store = new SqlBotStore(driver);
+    this.#store = new SqlBotStore(driver, env.BOT_DATA_LIFECYCLE_ENABLED === 'true');
     const vault = new BotVault(driver, env);
     applyPostingApproval(driver, env.BOT_POSTING_ENABLED, env.BOT_POSTING_APPROVAL_ID, vault.connected());
     this.#authorization = new BotAuthorization(driver, env);
     const youtube = new YouTubeApi(new GoogleRefreshTokens(env, fetch, Date.now,
       () => vault.refreshToken()), env.BOT_CHANNEL_ID);
-    this.#service = new BotService(this.#store, youtube, event => console.log(JSON.stringify(event)));
+    this.#service = new BotService(this.#store, youtube, event => console.log(JSON.stringify({requestId:event.requestId, status:event.status, code:event.code})));
     this.#connections = new ChannelConnections(driver, env, youtube);
+    this.#privacy = new PrivacyRecords(driver);
+    if (env.BOT_DATA_LIFECYCLE_ENABLED === 'true') {
+      ctx.waitUntil(ctx.blockConcurrencyWhile(async () => {
+        this.#privacy.prune(Date.now());
+        if (await ctx.storage.getAlarm() === null) await ctx.storage.setAlarm(Date.now() + PRIVACY_ALARM_MS);
+      }));
+    }
+  }
+  async alarm(): Promise<void> {
+    if (this.#env.BOT_DATA_LIFECYCLE_ENABLED !== 'true') return;
+    try { this.#privacy.prune(Date.now()); }
+    finally { await this.#ctx.storage.setAlarm(Date.now() + PRIVACY_ALARM_MS); }
   }
   async fetch(request: Request): Promise<Response> {
     try {

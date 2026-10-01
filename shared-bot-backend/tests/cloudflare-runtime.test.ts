@@ -20,11 +20,11 @@ const base = { modules: true, compatibilityDate: '2026-09-18', compatibilityFlag
   outboundService: async () => { throw new Error('External network is forbidden in tests'); },
 } as const;
 
-test('Cloudflare channel connection: actual Worker routing, OAuth proof and revocation without live posting', async () => {
+for (const lifecycle of ['false', 'true']) test('Cloudflare channel connection: actual Worker routing, OAuth proof and revocation without live posting (retention=' + lifecycle + ')', async () => {
   let exchanges = 0;
   const mf = new Miniflare(convertV4MiniflareOptions({ ...base, compatibilityFlags: [...base.compatibilityFlags], script: await bundle('backend/cloudflare/worker.ts'),
     durableObjects: { BOT_COORDINATOR: { className: 'BotCoordinator', useSQLite: true } },
-    bindings: { BOT_POSTING_ENABLED: 'false', CHANNEL_CONNECT_ENABLED: 'true', BOT_CHANNEL_ID: 'UC' + 'b'.repeat(22),
+    bindings: { BOT_DATA_LIFECYCLE_ENABLED: lifecycle, BOT_POSTING_ENABLED: 'false', CHANNEL_CONNECT_ENABLED: 'true', BOT_CHANNEL_ID: 'UC' + 'b'.repeat(22),
       BOT_VAULT_KEY: randomBytes(32).toString('base64url'), GOOGLE_CLIENT_ID: 'fake-client', GOOGLE_CLIENT_SECRET: 'fake-secret' },
     outboundService: async request => {
       if (request.url === 'https://oauth2.googleapis.com/token') { exchanges++; return Response.json({ access_token: 'fake-channel-access', token_type: 'Bearer', scope: CHANNEL_SCOPE }); }
@@ -41,15 +41,38 @@ test('Cloudflare channel connection: actual Worker routing, OAuth proof and revo
     assert.equal(page.headers.get('referrer-policy'), 'same-origin');
     const cookie = page.headers.get('set-cookie')!.split(';')[0]!;
     const csrf = /name="csrf" value="([^"]+)"/.exec(await page.text())![1]!;
-    const begin = await mf.dispatchFetch(link, { method: 'POST', redirect: 'manual', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf }).toString() });
+    const begin = await mf.dispatchFetch(link, { method: 'POST', redirect: 'manual', headers: { Origin: AUTH_ORIGIN, Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf, privacy:'privacy-2026-10-01' }).toString() });
     assert.equal(begin.status, 303); assert.equal(begin.headers.get('referrer-policy'), 'no-referrer');
     const state = new URL(begin.headers.get('location')!).searchParams.get('state')!;
     const done = await mf.dispatchFetch(AUTH_ORIGIN + CONNECT_CALLBACK + '?state=' + state + '&code=fake', { headers: { Cookie: cookie } });
     assert.equal(done.status, 200, await done.clone().text()); assert.equal(exchanges, 1);
     const status = await (await api('status')).json() as any;
     assert.equal(status.status, 'connected'); assert.equal(status.serviceEnabled, false);
+    assert.equal(status.features.dataDeletion, lifecycle === 'true');
+    if (lifecycle === 'true') {
+      const erased = await mf.dispatchFetch(AUTH_ORIGIN + '/v1/connections/erase', {method: 'POST', headers: {'Content-Type':'application/json', Authorization: 'Bearer ' + 'c'.repeat(43)}, body: JSON.stringify({confirmation: 'UC' + 'a'.repeat(22)})});
+      assert.equal(erased.status, 200, await erased.clone().text());
+      assert.equal((await erased.json() as any).status, 'deleted');
+      assert.equal((await api('status')).status, 403);
+      return;
+    }
     assert.equal((await api('disconnect')).status, 200); assert.equal((await api('status')).status, 403);
   } finally { await mf.dispose(); }
+});
+
+test('Cloudflare actual SQLite alarm deletes only expired connections and reschedules', async () => {
+  const mf = new Miniflare(convertV4MiniflareOptions({...base, compatibilityFlags: [...base.compatibilityFlags], script: await bundle('tests/fixtures/cloudflare-privacy.ts'),
+    durableObjects: {BOT_COORDINATOR: {className: 'TestPrivacyCoordinator', useSQLite: true}}, bindings: {BOT_DATA_LIFECYCLE_ENABLED: 'true', BOT_POSTING_ENABLED: 'false', BOT_CHANNEL_ID: 'UC' + 'b'.repeat(22)}}));
+  try {
+    const ns = await mf.getDurableObjectNamespace('BOT_COORDINATOR');
+    const stub = ns.get(ns.idFromName('test-privacy'));
+    assert.equal((await stub.fetch('https://internal/test/seed')).status, 200);
+    const response = await stub.fetch('https://internal/test/alarm');
+    assert.equal(response.status, 200, await response.clone().text());
+    const data = await response.json() as any;
+    assert.equal(data.rows, 0);
+    assert.ok(data.alarm > Date.now() && data.alarm <= Date.now() + 3600_000);
+  } finally {await mf.dispose();}
 });
 
 test('Cloudflare runtime: 実Workersランタイムで停止・認証拒否、公開の登録/秘密APIなし', async () => {

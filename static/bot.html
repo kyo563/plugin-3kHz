@@ -59,7 +59,11 @@
 <details><summary>配信チャンネルの変更・接続解除</summary><p>変更する場合は解除後に別の配信チャンネルを接続してください。共通Bot自体は変更しません。待機列・履歴は保持します。サーバーで接続を失効できない場合はキーを残し、通信復旧後にやり直します。</p>
 <label><input id="bot-disconnect-confirm" type="checkbox"> 接続を解除することを確認しました</label>
 <button id="bot-disconnect" type="button" disabled>接続を解除</button></details>
+<details><summary>サーバーの保存記録を削除する</summary><p>この配信チャンネルの全端末のBot接続と投稿台帳を削除します。PC内の待機列・履歴・表示設定と、YouTubeに投稿済みのコメントは削除しません。連投防止・削除結果確認のためのハッシュ化した短期記録は最長25時間で削除します。再利用にはチャンネル認証が必要です。</p>
+<p>対応サーバーへの認証結果を確認すると操作できます。接続できない場合は<a href="mailto:joinqueue.bot@gmail.com">運営へ削除を依頼</a>してください。パスワードや接続キーを送らないでください。</p><button id="bot-erase-open" type="button" disabled>サーバー記録の削除へ</button></details>
+<p><a href="https://kyo563.github.io/privacy.html" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a> ／ <a href="https://security.google.com/settings/security/permissions" target="_blank" rel="noopener noreferrer">Google側のアクセス許可を管理</a></p>
 </section>
+<dialog id="bot-erase-dialog" aria-labelledby="bot-erase-title"><h2 id="bot-erase-title">サーバー記録を削除しますか？</h2><p>このチャンネルの全端末でBot接続が解除されます。PC内の待機列・表示設定は保持します。この操作は取り消せません。</p><label>確認のため「サーバー記録を削除」と入力してください<input id="bot-erase-text" autocomplete="off"></label><button id="bot-erase-cancel" type="button" autofocus>キャンセル</button><button id="bot-erase-confirm" type="button" disabled>削除する</button></dialog>
 <dialog id="bot-test-dialog" aria-labelledby="bot-test-title"><h2 id="bot-test-title">配信チャットに投稿しますか？</h2>
 <p>選択中の配信に「JoinQueueBot 接続テスト」を1件投稿します。登録の必須手順ではありません。投稿は取り消せません。</p>
 <button id="bot-test-cancel" type="button" autofocus>キャンセル</button><button id="bot-test-confirm" type="button">テストコメントを投稿する</button></dialog>

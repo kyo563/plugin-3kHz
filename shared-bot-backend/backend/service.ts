@@ -26,7 +26,7 @@ export class BotService {
       const principal = this.store.authenticate(authorization, this.clock());
       ({ userId, deviceId } = principal);
       const post = parsePost(input);
-      const connection = this.store.connection(post.channelConnectionId, userId);
+      const connection = this.store.connection(post.channelConnectionId, userId, this.clock());
       const fingerprint = digest(JSON.stringify(post));
       const eventHash = digest(post.eventId);
       const previous = this.store.previous(userId, eventHash, fingerprint);
@@ -39,7 +39,7 @@ export class BotService {
       // No waiting/backlog: expire instead of posting old notifications on reconnect.
       const chatId = await this.youtube.resolveChat(post.videoId, connection.channelId);
       this.store.authenticate(authorization, this.clock());
-      this.store.connection(post.channelConnectionId, userId);
+      this.store.connection(post.channelConnectionId, userId, this.clock());
       this.store.assertEnabled(); assertFresh(post, this.clock());
       dispatching = true;
       await this.youtube.post(chatId, message);

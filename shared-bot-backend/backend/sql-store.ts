@@ -15,10 +15,12 @@ export interface Connection { id: string; userId: string; channelId: string; ver
 export interface Limits { userPerMinute: number; channelPerMinute: number; globalPerMinute: number; channelGapMs: number; globalGapMs: number; dailyUnits: number }
 export const DEFAULT_LIMITS: Limits = { userPerMinute: 12, channelPerMinute: 6, globalPerMinute: 20, channelGapMs: 10_000, globalGapMs: 1_000, dailyUnits: 8_000 };
 export const REQUEST_UNITS = 52; // channels.list + videos.list + liveChatMessages.insert; no refund on failure.
+// 29 days leaves an hourly alarm margin below YouTube's 30-day data limit.
+export const CONNECTION_RETENTION_MS = 29 * 86_400_000;
 
 /** Single-service SQLite ledger. No Google credentials, message body, memo or raw token. */
 export class SqlBotStore {
-  constructor(protected readonly db: SqlDriver) {
+  constructor(protected readonly db: SqlDriver, private readonly retentionEnabled = false) {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS devices (hash TEXT PRIMARY KEY, userId TEXT NOT NULL, deviceId TEXT NOT NULL,
         expiresAt INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
@@ -31,6 +33,9 @@ export class SqlBotStore {
       CREATE INDEX IF NOT EXISTS post_user_time ON posts(userId,createdAt);
       CREATE INDEX IF NOT EXISTS post_channel_time ON posts(channelId,createdAt);
       CREATE INDEX IF NOT EXISTS post_content_time ON posts(channelId,contentHash,createdAt);
+      CREATE TABLE IF NOT EXISTS rate_reservations (requestId TEXT PRIMARY KEY, userHash TEXT NOT NULL,
+        channelHash TEXT NOT NULL, contentHash TEXT NOT NULL, createdAt INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS rate_time ON rate_reservations(createdAt);
       CREATE TABLE IF NOT EXISTS switches (id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL);
       INSERT OR IGNORE INTO switches VALUES (1, 0);`);
   }
@@ -59,9 +64,9 @@ export class SqlBotStore {
     if (!row) throw new BotFault('UNAUTHENTICATED', 401);
     return { userId: String(row.userId), deviceId: String(row.deviceId) };
   }
-  connection(id: string, userId: string): Connection {
+  connection(id: string, userId: string, now = Date.now()): Connection {
     const row = this.db.prepare('SELECT * FROM connections WHERE id=? AND userId=? AND revoked=0 AND verifiedAt>0').get(id, userId);
-    if (!row) throw new BotFault('CHANNEL_NOT_LINKED', 403);
+    if (!row || (this.retentionEnabled && Number(row.verifiedAt) <= now - CONNECTION_RETENTION_MS)) throw new BotFault('CHANNEL_NOT_LINKED', 403);
     return row as unknown as Connection;
   }
   previous(userId: string, eventHash: string, fingerprint: string): ApiResult | undefined {
@@ -76,20 +81,35 @@ export class SqlBotStore {
       const previous = this.previous(data.userId, data.eventHash, data.fingerprint);
       if (previous) return previous;
       this.assertEnabled();
+      this.preserveLimits(now);
       const count = (sql: string, ...args: (string | number)[]) => Number(this.db.prepare(sql).get(...args)?.n ?? 0);
-      if (count('SELECT count(*) AS n FROM posts WHERE createdAt>?', now - 86_400_000) * REQUEST_UNITS + REQUEST_UNITS > limits.dailyUnits) throw new BotFault('QUOTA_EXHAUSTED', 429);
-      const userCount = count('SELECT count(*) AS n FROM posts WHERE userId=? AND createdAt>?', data.userId, now - 60_000);
-      const channelCount = count('SELECT count(*) AS n FROM posts WHERE channelId=? AND createdAt>?', data.channelId, now - 60_000);
-      const globalCount = count('SELECT count(*) AS n FROM posts WHERE createdAt>?', now - 60_000);
-      const lastChannel = count('SELECT max(createdAt) AS n FROM posts WHERE channelId=?', data.channelId);
-      const lastGlobal = count('SELECT max(createdAt) AS n FROM posts');
-      const sameContent = count('SELECT count(*) AS n FROM posts WHERE channelId=? AND contentHash=? AND createdAt>?', data.channelId, data.contentHash, now - 60_000);
+      if (count('SELECT count(*) AS n FROM rate_reservations WHERE createdAt>?', now - 86_400_000) * REQUEST_UNITS + REQUEST_UNITS > limits.dailyUnits) throw new BotFault('QUOTA_EXHAUSTED', 429);
+      const userHash = digest(data.userId), channelHash = digest(data.channelId);
+      const userCount = count('SELECT count(*) AS n FROM rate_reservations WHERE userHash=? AND createdAt>?', userHash, now - 60_000);
+      const channelCount = count('SELECT count(*) AS n FROM rate_reservations WHERE channelHash=? AND createdAt>?', channelHash, now - 60_000);
+      const globalCount = count('SELECT count(*) AS n FROM rate_reservations WHERE createdAt>?', now - 60_000);
+      const lastChannel = count('SELECT max(createdAt) AS n FROM rate_reservations WHERE channelHash=?', channelHash);
+      const lastGlobal = count('SELECT max(createdAt) AS n FROM rate_reservations');
+      const sameContent = count('SELECT count(*) AS n FROM rate_reservations WHERE channelHash=? AND contentHash=? AND createdAt>?', channelHash, data.contentHash, now - 60_000);
       if (userCount >= limits.userPerMinute || channelCount >= limits.channelPerMinute || globalCount >= limits.globalPerMinute ||
           (lastChannel > 0 && now - lastChannel < limits.channelGapMs) || (lastGlobal > 0 && now - lastGlobal < limits.globalGapMs) || sameContent > 0) throw new BotFault('RATE_LIMITED', 429, 60);
       this.db.prepare('INSERT INTO posts (requestId,userId,channelId,eventHash,fingerprint,contentHash,createdAt) VALUES (?,?,?,?,?,?,?)')
         .run(data.requestId, data.userId, data.channelId, data.eventHash, data.fingerprint, data.contentHash, now);
+      this.db.prepare('INSERT INTO rate_reservations VALUES (?,?,?,?,?)').run(data.requestId, userHash, channelHash, data.contentHash, now);
       return undefined;
     });
+  }
+  /** Copy recent legacy ledger rows before erasure; erasing data must NOT reset abuse/quota limits. */
+  preserveLimits(now: number): void {
+    this.db.prepare('DELETE FROM rate_reservations WHERE createdAt<=?').run(now - 86_400_000);
+    // SqlDriver is deliberately a small get/run interface; bounded daily quota limits this scan.
+    // Hashes are computed in JS, not a SQLite extension that is unavailable in Workers.
+    while (true) {
+      const row = this.db.prepare(`SELECT requestId,userId,channelId,contentHash,createdAt FROM posts p WHERE createdAt>?
+        AND NOT EXISTS (SELECT 1 FROM rate_reservations r WHERE r.requestId=p.requestId) LIMIT 1`).get(now - 86_400_000);
+      if (!row) break;
+      this.db.prepare('INSERT OR IGNORE INTO rate_reservations VALUES (?,?,?,?,?)').run(String(row.requestId), digest(String(row.userId)), digest(String(row.channelId)), String(row.contentHash), Number(row.createdAt));
+    }
   }
   finish(requestId: string, result: ApiResult): void {
     const saved = this.db.prepare('UPDATE posts SET result=? WHERE requestId=? AND result IS NULL').run(JSON.stringify(result), requestId);

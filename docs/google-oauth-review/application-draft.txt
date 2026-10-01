@@ -1,0 +1,153 @@
+Google OAuth verification preparation — 2026-10-01
+Status: DRAFT. Not submitted to Google.
+Public author / operator: kyo563
+Google Cloud project: joinqueue-bot-dev (identified by the user)
+Product: 待機列整理アプリ（わんコメ連携版） / JoinQueue
+Release: https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v0.1.4
+Bot: https://www.youtube.com/@JoinQueueBot
+
+Application description (English submission draft)
+JoinQueue is a Windows plugin for OneComme that helps YouTube livestream
+creators manage a participant queue and display it in OBS. OneComme supplies
+incoming comments; JoinQueue does not retrieve YouTube chat messages itself.
+An optional centrally operated YouTube bot posts three types of notifications:
+calling the next group, replying with a viewer's queue position when addressed,
+and periodically announcing the waiting participant and group counts.
+Creators independently connect their own channels and register @JoinQueueBot
+as a moderator. They do not create bot accounts or OAuth clients. The initial
+public service targets active public YouTube livestreams. Members-only
+broadcast posting has not been verified and is not promised.
+
+Requested scope: https://www.googleapis.com/auth/youtube.readonly
+Audience: creators connecting their own streaming channels.
+Purpose: call channels.list(part=id, mine=true) on the server after OAuth
+consent to verify which YouTube channel the creator controls. Bind the verified
+channel ID to the plugin's device connection so requests cannot target a
+channel merely claimed by the client. This scope does not post messages.
+The creator's Google access token is used for this lookup and is not retained
+after the callback. No creator refresh token is requested (access_type=online).
+OpenID profile or email alone does not prove control of a YouTube channel,
+including a Brand Account channel. No creator write scope is requested.
+
+Requested scope: https://www.googleapis.com/auth/youtube.force-ssl
+Audience: the service operator authenticating the dedicated @JoinQueueBot
+channel; not creators connecting their streaming channels.
+Purpose: server-side liveChatMessages.insert for the optional notifications.
+Read-only access cannot insert messages. This scope is supported by the
+official insert endpoint; the code does not upload or delete videos, delete
+comments, or perform moderation actions. channels.list(mine=true) verifies
+the authenticated bot identity. videos.list verifies the target video's owner,
+live status and activeLiveChatId before posting. Bot refresh credentials are
+encrypted in server storage and never distributed with the plugin.
+Operator authorization is separate from creator authorization, although the
+current implementation uses the same configured Google OAuth client.
+
+Implementation-grounded data notes for the privacy policy
+- Queue, participation history, declared names, received OneComme memo and
+  appearance preferences are stored locally on the creator's PC.
+- The server receives the connected channel ID, target video ID, notification
+  template and its variables (which can contain viewer handles/display names,
+  queue positions, groups and counts). It needs these to post to YouTube.
+- The full incoming chat history, OneComme memos and font files are not sent
+  to the shared bot backend. The backend does not fetch incoming comments.
+- Notification text is rendered transiently and sent to YouTube. The SQL
+  posting ledger stores IDs, timestamps, hashes and delivery results, not
+  full notification bodies. Posted text appears in the creator's live chat.
+- Server connection records include verified channel IDs, device identifiers,
+  hashed device credentials and revocation information. The local device
+  credential is protected using Windows DPAPI.
+- Disconnect revokes the server connection and removes the local connection
+  credential. It does not currently erase all server connection or post records.
+- Unsuccessful expired pairing records are cleaned during subsequent pairing
+  creation. Server erasure and bounded retention are implemented and tested,
+  but the user explicitly declined enabling them in production on 2026-10-01.
+  BOT_DATA_LIFECYCLE_ENABLED remains disabled. Do not claim that production
+  records are erased automatically or that the deletion UI is already released.
+- Network requests are processed by Cloudflare and Google/YouTube. Admission
+  control uses hashed source identifiers rather than storing raw IP addresses
+  in the application SQL ledger. Do not promise that infrastructure providers
+  retain no network metadata.
+
+Outstanding inputs / evidence before submission
+1. Existing project access is confirmed under the Bot operator account.
+   Branding: JoinQueue Bot. Support and developer contact: joinqueue.bot@gmail.com.
+   Audience: External, Testing. Verification Center says verification is not
+   required while in Testing; no review is in progress.
+   Both youtube.readonly and youtube.force-ssl are registered as sensitive
+   scopes. No non-sensitive or restricted scopes are registered.
+   One web OAuth client exists: JoinQueue Bot Server, created 2026-09-22.
+   Its two HTTPS redirects are the existing backend's /connect/callback and
+   /operator/bot-auth/callback under joinqueue-bot-backend.joinqueue.workers.dev.
+   Client secrets were not opened or copied during this inspection.
+2. Public application pages were published using free GitHub Pages:
+   https://kyo563.github.io/
+   https://kyo563.github.io/privacy.html
+   https://kyo563.github.io/terms.html
+   Source: https://github.com/kyo563/kyo563.github.io
+   Creator/operator/committer: kyo563, GitHub noreply email only.
+   Search Console confirmed ownership for https://kyo563.github.io/ under the
+   project's Bot operator account using an HTML meta tag. Public HTTP 200 and
+   desktop/mobile layout were checked. The existing Google project's branding
+   saved these URLs and kyo563.github.io as an additional authorized domain.
+   This is site ownership verification, NOT Google OAuth approval.
+   Search Console also confirmed ownership of the exact callback URL-prefix
+   https://joinqueue-bot-backend.joinqueue.workers.dev/ using an HTML meta tag.
+   The parent authorized domain joinqueue.workers.dev remains configured;
+   final Google OAuth domain/branding acceptance has not been verified. No custom
+   domain was purchased and no billing/payment settings were changed.
+3. Public support and developer contacts have been confirmed as the Bot
+   contact above. Public author must remain kyo563.
+4. Establish the user-data deletion process and retention limits before review
+   submission/general availability. The published privacy page accurately
+   explains the current disconnect/revocation and lack of automatic complete
+   record deletion, instead of claiming that unimplemented deletion exists.
+   It includes Google/YouTube policies, Google revocation and support links.
+   Source now supports authenticated channel-wide erasure with explicit
+   confirmation, 29-day channel/device retention and hourly cleanup alarms.
+   Short-lived hashed quota/anti-abuse and erasure-retry records prevent a
+   deletion/reconnection from resetting shared Bot limits (maximum 25 hours
+   under normal hourly alarm execution). No Bot vault, other creators' data,
+   local queue/settings or existing YouTube messages are erased.
+   Production activation was declined by the user; it remains a prerequisite
+   for relying on this operation during general availability. Authorization
+   landing-page policy agreement is now required before starting Google OAuth,
+   with public policy/terms links and server-side rejection of missing consent.
+5. Prepare a real consent-and-feature demonstration video in English with the
+   app name and OAuth client ID visible. Demonstrate creator ownership lookup
+   and the separately authorized common bot's posting use. Do not expose
+   tokens, client secrets, private browser tabs, personal account names or
+   unrelated personal data. Simulated screens are not evidence of real API use.
+6. Confirm whether Google requires moving publishing status to production or
+   publishing verified branding as part of the current submission flow.
+   Do not record those actions as completed without verifying the console.
+
+Official preparation reference
+https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification
+
+Current verification record
+- Creator authorization and bot transport logic inspected.
+- Verification update tests: Python 435 passed, backend 50 passed, JavaScript
+  76 passed. Google/YouTube responses were simulated. Cloudflare SQLite alarm
+  execution and enabled/disabled deletion paths were tested in Miniflare.
+- No verification request submitted; no real posting demonstrated in this task.
+- Operator login succeeded. Existing project branding, audience, OAuth client
+  list and scope classifications inspected. Public page URLs and an additional
+  authorized domain were saved; no credentials/scopes/callbacks were changed.
+- Worker version 8af52a35 was deployed with lifecycle deletion disabled.
+  Bundle SHA256: c9e5dd366f827ca6a8b993c30ba5a48b7cc138b663ea8a4c71c275d380d453dd.
+  Existing namespace/bindings, secrets and posting approval were preserved.
+  Public ownership page was verified; production health returned 200 and a
+  synthetic erasure request returned SERVICE_DISABLED, without deleting data.
+- Follow-up active version: 23ebfedd. Bundle SHA256:
+  1f7da007b69e574e2f3d6ef89fecce5af2afe5019110a8616aa78a4eb4d77fb1.
+  The creator landing page now links the published privacy/terms pages and
+  requires policy agreement, enforced by the server before OAuth begins.
+  Production landing HTML and same-origin policy were checked using a
+  synthetic pending pairing that was subsequently revoked, without accepting
+  any agreement, Google consent or real channel access. Erasure remains off.
+  The public privacy English summary now accurately says that production
+  expiry/erasure is not enabled (site commit 7045b11, author kyo563).
+- Site publication and exact callback-host Search Console ownership completed.
+  Final Google branding/authorized-domain acceptance, enabled compliant
+  deletion/retention operations and a real feature video remain outstanding.
+  Publishing status remains Testing; no review request has been submitted.
