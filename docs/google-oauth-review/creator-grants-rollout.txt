@@ -14,7 +14,11 @@ JoinQueue — 配信者認証の分離・暗号化保管
   URLとkyo563.github.io / joinqueue.workers.devを保存済み。
   youtube.readonlyのみを機密スコープとして登録。検証センターでは
   テスト状態のため検証不要と表示される。申請・ブランド確認は未実行。
-  専用OAuthクライアント・秘密情報はまだ発行していない。
+  2026-10-03の明示許可後、専用Web OAuthクライアントを作成し、
+  YouTube Data API v3を有効化した。secretは取得・サーバー登録していない。
+  client名: JoinQueue Creator Server
+  public client ID:
+  193959902164-v7s1q6jd5g1c779dmaardivohbigg7ti.apps.googleusercontent.com
 - 既存joinqueue-bot-dev、共通Botの暗号化認証、投稿承認IDは変更しない。
 - CHANNEL_GRANTS_ENABLEDはfalse。本番BOT_DATA_LIFECYCLE_ENABLEDも無効。
   記録削除・期限処理の本番有効化はユーザーが今回は拒否した。
@@ -64,10 +68,10 @@ Googleでの解除により他チャンネルも再認証が必要になる場�
 
 有効化前の手順（現時点では実行しない）
 1. Googleポリシー同意と初期アプリ確定は完了。
-2. ブランドURLとreadonly scopeは登録済み。YouTube Data APIの規約同意・
-   有効化とWeb OAuthクライアント発行について、操作直前の許可を確認する。
-   redirectは既存サーバーの/connect/callbackだけとし、Bot用callbackや
-   force-ssl scopeを専用プロジェクトへ追加しない。
+2. ブランドURL・readonly scope登録、Web OAuthクライアント作成、
+   YouTube Data APIの規約同意・有効化は完了（2026-10-03、明示許可後）。
+   redirectは既存サーバーの/connect/callbackのみ。Bot用callbackや
+   force-ssl scopeは専用プロジェクトへ追加していない。
 3. Consoleでclientの実際の所属プロジェクトを照合する。コードの環境
    変数の宣言だけでは所属を証明できない。CREATOR_GOOGLE_PROJECT_ID=
    joinqueue-creator-connect、BOT_GOOGLE_PROJECT_ID=joinqueue-bot-dev。
@@ -115,9 +119,14 @@ Google/YouTube応答は模擬。Cloudflare Miniflareの実SQLiteとalarmで
 - 初期アカウントではプロジェクト権限エラー。アカウントメニューから
   joinqueue.bot@gmail.comへ切り替え、既存専用プロジェクトにアクセスできた。
   IAM権限の新規付与はしていない。
-- OAuthクライアント未構成を確認。JoinQueue Creator Server / Webの作成
-  フォームを準備。redirectは共通バックエンドの/connect/callbackのみ。
-  作成ボタンは未押下、認証情報未発行。操作直前の許可を再確認中。
-- YouTube Data API v3は未有効。利用規約を表示して有効化の許可を再確認中。
+- 操作直前の明示許可後、JoinQueue Creator Server / Webを作成。
+  redirectは共通バックエンドの/connect/callbackのみ、JS originsなし。
+  正しい専用プロジェクトのクライアント一覧と作成完了表示を確認した。
+  client secretは表示内容を取得せず、コピー・JSON保存・サーバー登録なし。
+- 明示許可された規約同意後、YouTube Data API v3を有効化。
+  専用プロジェクトのAPI詳細で「ステータス: 有効」を確認した。
+- 検証センターは引き続きTestingによる「検証不要」。審査承認ではない。
+  証跡: work/google-oauth-review/creator-client-created-20261003.png と
+  creator-api-enabled-20261003.png（秘密情報を含まない画面）。
 - 無料トライアル開始・課金設定・対象ユーザー範囲拡大は行っていない。
   審査申請は未提出。実OAuth動画・本番との方針一致・運用承認が残る。

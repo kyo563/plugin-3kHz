@@ -41,7 +41,9 @@ Googleへの失効APIを呼べず、外部での権限解除を直接検知で�
 別プロジェクトjoinqueue-creator-connectを作成済み。Googleの失効が
 同一プロジェクト内の認証に影響するため、Bot用とclientを分けるだけ
 ではなくプロジェクトも分ける。新アプリのポリシー同意・作成は完了。
-ブランドURLとreadonly scopeを保存済み。client発行・API有効化は許可待ち。
+ブランドURLとreadonly scopeを保存済み。2026-10-03の明示許可後に
+JoinQueue Creator Server / Webを作成し、YouTube Data API v3を有効化。
+secretは未取得・サーバー未登録。実Google認証・所有確認はまだ未検証。
 CHANNEL_GRANTS_ENABLEDはfalse、本番未切替。上記の現在の本番の事実は
 引き続き正しい。詳しい条件と移行手順: creator-grants-rollout.txt。
 データ削除・期限処理の本番有効化許可はまだ得ていない。
