@@ -11,6 +11,10 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
   利用者は30分間の入口開放を許可。本人による新setup hash登録、
   Bot Google再認証、保存期限改善、入口閉鎖の確認は未完了。
   詳細はshared-bot-renewal.txt冒頭。課金・投稿・削除・公開ZIPは不変。
+  同日23:24 JST追記: 本人のsetup hash登録を確認後、許可済みのpinと
+  期限を設定し、ca41ed02で入口を開放。本日23:53:36 JSTで自動拒否。
+  公開入口HTTP200・Chromeで一回用フォームを確認。キー入力・Google
+  同意は本人操作待ち。認証改善のメタデータ確認と入口false復帰が残る。
 
 2026-10-03 22:52 JST ホームページ所有権登録完了（以下より優先）
   利用者が追加登録を許可。Search Consoleのjoinqueue.bot@gmail.comで

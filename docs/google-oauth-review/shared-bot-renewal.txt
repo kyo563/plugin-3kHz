@@ -32,6 +32,24 @@ Googleが期限を返さない場合のexpiresAt=0は「既知の固定期限な
 成功確認後は入口をfalseへ戻す。秘密値をチャットやURLへ含めない。
 実再認証完了・期限の改善・入口閉鎖の確認までは長期移行完了としない。
 
+長期移行の再認証入口開放: 2026-10-03 23:24 JST
+本人が新しいsetup hashの登録を報告。CloudflareでSecret / Value encrypted
+と、c49a5d3dのUpdated secret: BOT_AUTH_SETUP_HASH / 本番100%を確認した。
+秘密値は取得せず、保存済みBotのchannelId・connectedAt・expiresAtだけを
+Data Studioで確認。登録済みBotと一致し、日時と期限は変更されていない。
+BOT_AUTH_REPLACE_GRANT=1791030298619:1791635037619を設定（abde2d58）、
+BOT_AUTH_EXPIRES_AT=1791039216161へ更新（74d70498）、最後に
+BOT_AUTH_ENABLED=trueへ変更した（ca41ed02 / 本番100%）。
+入口は2026-10-03 23:53:36 JSTに自動拒否する。実際の開放は30分以内。
+設定画面の3値と、公開入口HTTP200・一回用setupフォームを確認した。
+Chromeの固定運営者認証画面も表示できた。キー入力・Google同意は
+本人へ引き継ぎ、今回は自動操作でGoogle認証・実投稿を行っていない。
+投稿設定、承認ID、Bot/client、配信者接続、暗号化秘密、削除設定、課金は
+変更しない。本人の成功報告後にメタデータを再確認し、入口をfalseへ戻す。
+期限経過で自動拒否されても、設定フラグfalseへの片付けは別途行う。
+非公開証跡: work/google-oauth-review/bot-longterm-entry-enabled-20261003.png
+およびbot-longterm-consent-handoff-20261003.png。
+
 確認した状態
 Cloudflareの暗号化列を開かず、認証のメタデータだけを確認した。
 共通Bot認証: 2026-09-22 21:49:05 JSTに保存、2026-09-29 21:48:04 JSTに期限切れ。
