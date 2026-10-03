@@ -1,6 +1,25 @@
 JoinQueue — 共通Botの既知の期限切れ認証更新
 作者・運営: kyo563 / 2026-10-03
 
+長期運用への再認証完了: 2026-10-03 23:36 JST（以下の履歴より優先）
+本人操作後、最新の運営者結果ページで「Botの認証が完了しました」と、
+登録済みBotとの一致・サーバーへの暗号化保存の成功を確認した。
+Data Studioでは暗号化列や秘密値を開かず、channelId・connectedAt・expiresAt
+だけを再取得。channelIdは登録済みBotと一致し、connectedAt=1791037850089
+（2026-10-03 23:30:50 JST）、expiresAt=0へ更新された。
+以前の7日固定期限の認証を新しい認証へ置換できた。期限0はGoogleから
+固定期限が返されなかったことを示すだけで、無期限・失効なしの保証ではない。
+成功callbackは更新トークン動作・Bot本人・scope・競合を確認してから保存する。
+通常のアクセストークン更新は既存サーバー処理が行い、Google側の解除・失効時は
+運営者による再認証が必要。クライアントへBot秘密は配布しない。
+
+許可済みの片付けとしてBOT_AUTH_ENABLED=falseを本番へ反映。
+Worker 10785d11 / Production 100%、設定行false、公開運営者入口HTTP404、
+health HTTP200を確認。古いpinは新しい認証と一致せず、入口も閉じている。
+投稿フラグ・投稿承認ID・配信者接続・課金・削除設定・公開ZIPは変更していない。
+本作業で実チャット投稿は行っていない。Google審査の提出・承認とは別作業。
+非公開証跡: work/google-oauth-review/bot-longterm-entry-closed-20261003.png。
+
 長期運用への移行準備: 2026-10-03（以下の履歴より優先）
 利用者の実行直前の許可後、Googleのjoinqueue-bot-devをTestingから
 In productionへ変更し、Audience画面の「本番環境」を確認した。
