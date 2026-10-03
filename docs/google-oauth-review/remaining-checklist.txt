@@ -96,6 +96,11 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
   コピーボタン説明から初期secretがツール出力へ出たため、そのsecretは
   使用せず本人による無効化・交換とCloudflareへの直接入力を待っている。
   secret登録は未完了。値そのものは資料・ソースへ記載しない。
+  本人操作後の同日追記: 新secret作成・旧secret削除とCloudflare登録を
+  ユーザーが報告。Production一覧でSecret / Value encrypted行を確認済み。
+  secret内容は取得しない。登録形式の確認であり実認証成功の証明ではない。
+  Google検証センター/ブランディングはまだTestingで提出導線なし。
+  新認証方式の配置・有効化、実認証/動画、方針整合を引き続き確認する。
   CHANNEL_GRANTS_ENABLED=false。新しい暗号化保管方針はまだ本番に適用
   せず、公開ポリシーも本番の旧方式の説明を維持する。新同意と既存利用者
   再接続が必要。最新ソースのテスト結果はcreator-grants-rollout.txtを参照。

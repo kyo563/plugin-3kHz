@@ -44,6 +44,9 @@ Googleへの失効APIを呼べず、外部での権限解除を直接検知で�
 ブランドURLとreadonly scopeを保存済み。2026-10-03の明示許可後に
 JoinQueue Creator Server / Webを作成し、YouTube Data API v3を有効化。
 secretは未取得・サーバー未登録。実Google認証・所有確認はまだ未検証。
+同日後続: 初期secretのツール出力露出に対して本人が交換・旧secret削除。
+本人がCloudflareへ直接登録し、ProductionのCREATOR_GOOGLE_CLIENT_SECRET
+行のSecret / Value encrypted表示を確認済み。値は開かず、実認証は未検証。
 CHANNEL_GRANTS_ENABLEDはfalse、本番未切替。上記の現在の本番の事実は
 引き続き正しい。詳しい条件と移行手順: creator-grants-rollout.txt。
 データ削除・期限処理の本番有効化許可はまだ得ていない。

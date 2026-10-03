@@ -147,3 +147,18 @@ Google/YouTube応答は模擬。Cloudflare Miniflareの実SQLiteとalarmで
   作成してCloudflareのこの欄へ直接入力する。チャットには送らない。
 - 正式審査は未提出。実認証動画、公開ポリシーと運用の一致、ブランド
   公開・対象ユーザー状態の確認が残る。課金・本番削除設定は未変更。
+
+本人による秘密値交換・登録後の確認（2026-10-03）
+- ユーザーが新シークレット作成と旧シークレット削除を報告。
+  続いてCloudflareへの直接入力・保存とSecret / Value encrypted表示を報告。
+- CloudflareのProduction一覧でCREATOR_GOOGLE_CLIENT_SECRETの行が存在し、
+  種類Secret・Value encrypted表示であることを読み取り確認した。
+  秘密値は開かず、内容の照合やGoogle token交換も行っていない。
+  公開client/project変数3件も存在する。Googleの旧秘密値削除は本人報告で
+  あり、この確認でGoogle側の秘密情報一覧を再取得してはいない。
+- 配信者用の検証センターとブランディングは依然Testing。テスト状態の
+  ため検証不要と表示され、審査提出・Verify Brandingボタンは現れない。
+  登録成功はGoogle審査提出・実認証成功を意味しない。
+- 新しいgrantコードの配置・有効化、公開ポリシーとの整合、実認証動画と
+  運用確認が必要。本人のGoogleログイン・チャンネル選択・権限同意を
+  代行・模擬成功しない。一般公開切替・本番削除設定は変更していない。
