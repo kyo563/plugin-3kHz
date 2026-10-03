@@ -2,6 +2,17 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
 更新: 2026-10-03 / 作者・運営: kyo563
 状態: 申請準備中。Google審査の提出・承認は未完了。
 
+2026-10-03 22:52 JST ホームページ所有権登録完了（以下より優先）
+  利用者が追加登録を許可。Search Consoleのjoinqueue.bot@gmail.comで
+  URL-prefix https://kyo563.github.io/を登録し、既存HTMLタグによる
+  「所有権を自動確認しました」の成功画面を確認。サイト変更は不要。
+  新規パスワード・OAuth秘密・課金・Bot権限の変更なし。
+  Googleのブランド問題画面の案内に従い、24時間待って再試行する。
+  再試行目安: 2026-10-04 22:53 JST以降。ブランド審査はまだ未完了。
+  非公開証跡: work/google-oauth-review/home-ownership-verified-20261003.png。
+  次の不足: ブランド確認/公開、実OAuth動画URL、解除/削除運用の本番確認、
+  データアクセス審査の提出。審査提出・承認済みとは表記しない。
+
 2026-10-03 配信者OAuth公開切替・ブランド自動確認（以下より優先）
   実行直前の利用者許可後、joinqueue-creator-connectのみTestingから
   In productionへ変更。External、未確認アプリの利用者上限100を確認。
