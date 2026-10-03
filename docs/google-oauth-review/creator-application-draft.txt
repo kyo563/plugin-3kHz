@@ -1,5 +1,13 @@
 JoinQueue Creator Connect — sensitive scope submission fields
 Updated 2026-10-03. DRAFT / NOT SUBMITTED. Operator: kyo563.
+Latest review-preparation update (overrides historical unverified entries):
+The operator reported successful creator channel authorization, renewed common
+Bot authorization, a visible fixed connection-test post and the corrected NOW
+reply. No full OAuth recording, revocation/deletion demonstration or review
+submission is available. On 2026-10-03 the Creator Verification Center still
+said verification was unnecessary because publishing status remained Testing.
+Feature baseline: plugin 0.1.4 / b8d0656, production Worker a9e4ba06. Ordinary
+feature work is frozen for review; policy-required corrections remain possible.
 Project: joinqueue-creator-connect / 193959902164.
 Web client: JoinQueue Creator Server (created 2026-10-03).
 Public client ID: 193959902164-v7s1q6jd5g1c779dmaardivohbigg7ti.apps.googleusercontent.com
@@ -43,6 +51,12 @@ data itself; refreshing an OAuth access token alone is not a data refresh.
 This scope never posts as the creator or fetches incoming live chat. Incoming
 comments come from OneComme. Bot posting uses a separately authorized service
 Bot in another Google Cloud project; its credentials never reach creators.
+For an upcoming selected broadcast whose public video metadata lacks a chat
+ID, liveBroadcasts.list(part=id,snippet,status,id=selectedVideoId) uses the same
+read-only grant to verify ownership, a non-ended state and a chat destination.
+It queries only the video selected through OneComme, keeps the chat ID in
+memory and never starts/changes a broadcast or retrieves/posts chat messages
+with the creator's credential. If verification fails, Bot connection is refused.
 
 Additional explanation — central Bot and separation
 The dedicated @JoinQueueBot account is authorized by the operator under

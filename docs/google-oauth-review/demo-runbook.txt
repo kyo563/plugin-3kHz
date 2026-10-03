@@ -2,8 +2,28 @@ JoinQueue OAuth review demonstration — recording plan, NOT completed evidence
 Owner: kyo563 / Prepared: 2026-10-01
 Creator review: joinqueue-creator-connect (youtube.readonly only).
 Operator Bot: joinqueue-bot-dev (separate existing authorization).
-New creator client/feature are not active; use the final verified configuration
-only after the migration prerequisites in creator-grants-rollout.txt are met.
+Latest status 2026-10-03: the creator flow is active in production. The human
+has reported a successful channel connection and common-Bot chat posts. The
+feature baseline is 0.1.4 / b8d0656 and Worker a9e4ba06. No real demonstration
+video has been supplied. Record the actual flow, never the mock preview.
+
+Minimum creator-review recording (suggested 3-5 minutes, no livestream start required)
+1. Clean recording window: show the public home/privacy links and plugin Bot tab.
+2. Begin a new creator connection using an isolated test identity/device, not
+   Disconnect on the user's currently working setup. Pairing keys/URLs stay hidden.
+3. The human accepts service consent and Google's English readonly consent.
+   Show app name, requested permission and public client ID; hide private account
+   identities and passwords without hiding the requested permission itself.
+4. Show the callback success and plugin channel result. Explain channel ownership
+   and ongoing authorization checks; comments still come from OneComme.
+5. Show the selected video and connection verification without posting. If using
+   an upcoming video, explain the readonly metadata fallback for that one video.
+6. On the isolated connection only, demonstrate grant withdrawal and local
+   settings remaining intact after a separate approval for that test operation.
+7. Human checks the full recording for personal names and secrets before an
+   approved Unlisted upload. The actual YouTube video URL is needed for submission.
+Part C's three notification tests are release QA, not additional creator scopes.
+The creator review must not imply youtube.readonly authorizes posting as creators.
 
 Before recording
 Use a dedicated clean browser window, a test public livestream and invented
