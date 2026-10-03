@@ -1,12 +1,12 @@
 import { BotFault, digest } from '../policy';
-import { CONNECTION_RETENTION_MS, SqlBotStore, type SqlDriver } from '../sql-store';
+import { CONNECTION_IDLE_MS, CONNECTION_RETENTION_MS, SqlBotStore, type SqlDriver } from '../sql-store';
 
 export const PRIVACY_ALARM_MS = 3_600_000;
 const SECURITY_MS = 86_400_000;
 
 /** Service-owned records only. Never touches Bot vault, switches, approval or local queue data. */
 export class PrivacyRecords {
-  constructor(private readonly db: SqlDriver) {
+  constructor(private readonly db: SqlDriver, private readonly slidingEnabled = false) {
     db.exec(`CREATE TABLE IF NOT EXISTS erasure_receipts (tokenHash TEXT PRIMARY KEY, channelHash TEXT NOT NULL, expiresAt INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS erasure_barriers (channelHash TEXT PRIMARY KEY, erasedAt INTEGER NOT NULL);`);
   }
@@ -39,14 +39,19 @@ export class PrivacyRecords {
     this.db.transaction(() => {
       new SqlBotStore(this.db).preserveLimits(now);
       // Delete children before their expired/revoked parent connections.
-      const stale = 'SELECT id FROM connections WHERE verifiedAt<=? OR revoked=1';
-      this.db.prepare(`DELETE FROM posts WHERE userId IN (SELECT userId FROM connections WHERE verifiedAt<=? OR revoked=1)
-        AND NOT EXISTS (SELECT 1 FROM connections c WHERE c.userId=posts.userId AND c.verifiedAt>? AND c.revoked=0)`)
-        .run(now - CONNECTION_RETENTION_MS, now - CONNECTION_RETENTION_MS);
-      this.db.prepare('DELETE FROM channel_checks WHERE deviceId IN (SELECT deviceId FROM channel_pairings WHERE connectionId IN (' + stale + '))').run(now - CONNECTION_RETENTION_MS);
-      this.db.prepare('DELETE FROM devices WHERE deviceId IN (SELECT deviceId FROM channel_pairings WHERE connectionId IN (' + stale + '))').run(now - CONNECTION_RETENTION_MS);
-      this.db.prepare('DELETE FROM channel_pairings WHERE connectionId IN (' + stale + ')').run(now - CONNECTION_RETENTION_MS);
-      this.db.prepare('DELETE FROM connections WHERE verifiedAt<=? OR revoked=1').run(now - CONNECTION_RETENTION_MS);
+      const cutoff = now - (this.slidingEnabled ? CONNECTION_IDLE_MS : CONNECTION_RETENTION_MS);
+      // Revoke encrypted grants BEFORE deleting their owner connection. Provider
+      // retry credentials are retained only in creator_grants, never in the Bot vault.
+      const expired = this.slidingEnabled ? "lastUsedAt<=? AND NOT EXISTS (SELECT 1 FROM creator_grants g WHERE g.connectionId=connections.id AND g.status='active')" : 'verifiedAt<=?';
+      const stale = 'SELECT id FROM connections WHERE (' + expired + ') OR revoked=1';
+      const timeField = this.slidingEnabled ? 'lastUsedAt' : 'verifiedAt';
+      this.db.prepare(`DELETE FROM posts WHERE userId IN (SELECT userId FROM connections WHERE (${expired}) OR revoked=1)
+        AND NOT EXISTS (SELECT 1 FROM connections c WHERE c.userId=posts.userId AND c.${timeField}>? AND c.revoked=0)`)
+        .run(cutoff, cutoff);
+      this.db.prepare('DELETE FROM channel_checks WHERE deviceId IN (SELECT deviceId FROM channel_pairings WHERE connectionId IN (' + stale + '))').run(cutoff);
+      this.db.prepare('DELETE FROM devices WHERE deviceId IN (SELECT deviceId FROM channel_pairings WHERE connectionId IN (' + stale + '))').run(cutoff);
+      this.db.prepare('DELETE FROM channel_pairings WHERE connectionId IN (' + stale + ')').run(cutoff);
+      this.db.prepare('DELETE FROM connections WHERE (' + expired + ') OR revoked=1').run(cutoff);
       this.db.prepare('DELETE FROM channel_checks WHERE deviceId IN (SELECT deviceId FROM devices WHERE expiresAt<=? OR revoked=1)').run(now);
       this.db.prepare('DELETE FROM channel_pairings WHERE deviceId IN (SELECT deviceId FROM devices WHERE expiresAt<=? OR revoked=1)').run(now);
       this.db.prepare('DELETE FROM devices WHERE expiresAt<=? OR revoked=1').run(now);

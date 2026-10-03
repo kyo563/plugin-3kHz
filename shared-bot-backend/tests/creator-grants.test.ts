@@ -5,7 +5,8 @@ import {randomBytes} from 'node:crypto';
 import {CreatorGrants, creatorConfigured, CREATOR_CHECK_MS, CREATOR_SCOPE} from '../backend/cloudflare/creator-grants';
 import {ChannelConnections, type ChannelEnv} from '../backend/cloudflare/channel-connect';
 import {AUTH_ORIGIN} from '../backend/cloudflare/bot-auth';
-import {SqlBotStore, type SqlDriver} from '../backend/sql-store';
+import {SqlBotStore, CONNECTION_IDLE_MS, CONNECTION_RETENTION_MS, type SqlDriver} from '../backend/sql-store';
+import {PrivacyRecords} from '../backend/cloudflare/privacy';
 import {BotFault, digest} from '../backend/policy';
 import {BotService} from '../backend/service';
 
@@ -20,6 +21,11 @@ function fixture() {
     CHANNEL_GRANTS_ENABLED:'true',CHANNEL_CONNECT_ENABLED:'true',BOT_POSTING_ENABLED:'true',BOT_DATA_LIFECYCLE_ENABLED:'false'};
   const request:typeof fetch=async(url,init)=>{
     assert.equal(init?.redirect,'manual');assert.ok(init?.signal);
+    if(url==='https://www.googleapis.com/youtube/v3/channels?part=id&mine=true') {
+      const suffix = new Headers(init?.headers).get('Authorization')!.slice(-1);
+      if(mode==='owner-fail') return Response.json({error:'private diagnostic'},{status:503});
+      return Response.json({items:[{id:'UC'+(mode==='owner-mismatch'?'z':suffix).repeat(22)}]});
+    }
     assert.equal(init?.method,'POST');const body=new URLSearchParams(String(init?.body));
     if(url==='https://oauth2.googleapis.com/revoke'){
       revokes++;assert.match(body.get('token')!,/^creator-refresh-/);assert.equal(body.has('client_secret'),false);
@@ -32,7 +38,7 @@ function fixture() {
     await pause?.();
     if(mode==='invalid')return Response.json({error:'invalid_grant'},{status:400});
     if(mode==='transient')return Response.json({error:'private secret diagnostic'},{status:503});
-    return Response.json({access_token:'PRIVATE-CREATOR-ACCESS',expires_in:3600,token_type:'Bearer',scope:mode==='scope'?CREATOR_SCOPE+' write-scope':CREATOR_SCOPE});
+    return Response.json({access_token:'PRIVATE-CREATOR-ACCESS-'+body.get('refresh_token')!.slice(-1),expires_in:3600,token_type:'Bearer',scope:mode==='scope'?CREATOR_SCOPE+' write-scope':CREATOR_SCOPE});
   };
   const youtube={async resolveChat(){return 'chat';},async post(){assert.fail('No live posting in grant tests');}};
   new ChannelConnections(driver,env,youtube,request,()=>now);
@@ -164,5 +170,133 @@ test('erasure retry uses the same owner credential after failed Google revoke, n
     assert.equal((await api(a.channel)).status,200);assert.equal((await api(a.channel)).status,200);
     assert.equal(f.db.prepare('SELECT count(*) AS n FROM connections').get()!.n,1);
     f.store.authenticate('Bearer '+c.token,f.now());f.assertBot();
+  }finally{f.db.close();}
+});
+
+test('90-day inactivity slides only on authenticated plugin activity, not provider refresh or alarms',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a'), other=await f.seed('c');
+    const store=new SqlBotStore(f.driver,true,true);
+    f.db.prepare('UPDATE devices SET expiresAt=?').run(f.now()+CONNECTION_IDLE_MS);
+    const initial=f.now();f.advance(28*86400_000);
+    await f.grants.ensure(a.connection);
+    assert.equal(f.db.prepare('SELECT verifiedAt,lastUsedAt FROM connections WHERE id=?').get(a.connection)!.lastUsedAt,initial);
+    assert.equal(f.db.prepare('SELECT verifiedAt FROM connections WHERE id=?').get(a.connection)!.verifiedAt,f.now());
+    const api=new ChannelConnections(f.driver,f.env,f.youtube,f.request,f.now);
+    const r=await api.handle(new Request(AUTH_ORIGIN+'/v1/connections/status',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+a.token},body:'{}'}));
+    assert.equal(r.status,200);
+    assert.equal(f.db.prepare('SELECT lastUsedAt FROM connections WHERE id=?').get(a.connection)!.lastUsedAt,f.now());
+    assert.equal(f.db.prepare('SELECT lastUsedAt FROM connections WHERE id=?').get(other.connection)!.lastUsedAt,initial);
+    f.advance(63*86400_000);
+    // Active user survives day 91; never-used creator expires despite automatic checks.
+    store.authenticate('Bearer '+a.token,f.now());store.connection(a.connection,'youtube:'+a.channel,f.now());
+    assert.throws(()=>store.connection(other.connection,'youtube:'+other.channel,f.now()),code('CHANNEL_NOT_LINKED'));
+    const before=f.counts().refreshes;
+    await assert.rejects(f.grants.ensure(other.connection),code('CHANNEL_NOT_LINKED'));
+    assert.equal(f.counts().refreshes,before);f.assertBot();
+  }finally{f.db.close();}
+});
+
+test('idle expiry revokes then prunes only that creator; old posts expire independently after 29 days',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a'),c=await f.seed('c');f.env.BOT_DATA_LIFECYCLE_ENABLED='true';
+    f.db.prepare('UPDATE devices SET expiresAt=?').run(f.now()+CONNECTION_IDLE_MS);
+    f.advance(CONNECTION_IDLE_MS);
+    f.db.prepare('UPDATE connections SET lastUsedAt=?,verifiedAt=? WHERE id=?').run(f.now(),f.now(),c.connection);
+    f.db.prepare('UPDATE devices SET expiresAt=? WHERE deviceId=?').run(f.now()+CONNECTION_IDLE_MS,c.device);
+    await f.grants.sweep();new PrivacyRecords(f.driver,true).prune(f.now());
+    assert.equal(f.counts().revokes,1);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM connections').get()!.n,1);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM creator_grants').get()!.n,1);
+    assert.throws(()=>f.store.authenticate('Bearer '+a.token,f.now()));
+    f.store.authenticate('Bearer '+c.token,f.now());f.assertBot();
+  }finally{f.db.close();}
+});
+
+test('channel-data refresh failure cannot retain stale API ownership beyond its separate 29-day deadline',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a');f.advance(CONNECTION_RETENTION_MS-900000);f.mode('owner-fail');
+    await assert.rejects(f.grants.ensure(a.connection),code('CHANNEL_AUTH_UNAVAILABLE'));
+    f.advance(900000);
+    await assert.rejects(f.grants.ensure(a.connection),code('CHANNEL_NOT_LINKED'));
+    new PrivacyRecords(f.driver,true).prune(f.now());
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM creator_grants').get()!.n,0);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM connections').get()!.n,0);f.assertBot();
+  }finally{f.db.close();}
+});
+
+test('ownership mismatch invalidates connection; forged status and ordinary Google refresh never extend usage',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a'),initial=f.now();f.advance(CREATOR_CHECK_MS);f.mode('owner-mismatch');
+    await assert.rejects(f.grants.ensure(a.connection),code('CHANNEL_NOT_LINKED'));
+    const store=new SqlBotStore(f.driver,true,true);
+    assert.throws(()=>store.recordUse(a.connection,'youtube:'+a.channel,f.now()),code('CHANNEL_NOT_LINKED'));
+    assert.equal(f.db.prepare('SELECT lastUsedAt FROM connections WHERE id=?').get(a.connection)!.lastUsedAt,initial);f.assertBot();
+  }finally{f.db.close();}
+});
+
+test('migration initializes activity from original verification date, never resets it on server restart',()=>{
+  const db=new DatabaseSync(':memory:');try{
+    db.exec("CREATE TABLE connections (id TEXT PRIMARY KEY,userId TEXT,channelId TEXT,verifiedAt INTEGER,revoked INTEGER); INSERT INTO connections VALUES ('old','owner','UCaaaaaaaaaaaaaaaaaaaaaa',12345,0)");
+    const driver:SqlDriver={exec:s=>db.exec(s),prepare:s=>db.prepare(s),transaction:fn=>fn()};
+    new SqlBotStore(driver,true,true);new SqlBotStore(driver,true,true);
+    assert.equal(db.prepare('SELECT lastUsedAt FROM connections').get()!.lastUsedAt,12345);
+  }finally{db.close();}
+});
+
+test('one active device extends its own channel only, never revives expired or revoked device keys',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a'),c=await f.seed('c'),initial=f.now();
+    const store=new SqlBotStore(f.driver,true,true);
+    store.provisionVerifiedConnection({id:'second-a',userId:'youtube:'+a.channel,channelId:a.channel,verifiedAt:initial});
+    store.provisionDevice('r'.repeat(43),{userId:'youtube:'+a.channel,deviceId:'revoked-a'},initial+CONNECTION_IDLE_MS);
+    store.revokeDevice('revoked-a');
+    store.provisionDevice('e'.repeat(43),{userId:'youtube:'+a.channel,deviceId:'expired-a'},initial+1);
+    f.advance(1000);store.recordUse(a.connection,'youtube:'+a.channel,f.now());
+    assert.equal(f.db.prepare('SELECT lastUsedAt FROM connections WHERE id=?').get('second-a')!.lastUsedAt,f.now());
+    assert.equal(f.db.prepare('SELECT lastUsedAt FROM connections WHERE id=?').get(c.connection)!.lastUsedAt,initial);
+    assert.throws(()=>store.authenticate('Bearer '+'r'.repeat(43),f.now()));
+    assert.throws(()=>store.authenticate('Bearer '+'e'.repeat(43),f.now()));
+    assert.throws(()=>store.recordUse(a.connection,'youtube:'+c.channel,f.now()),code('CHANNEL_NOT_LINKED'));f.assertBot();
+  }finally{f.db.close();}
+});
+
+test('valid Bot requests count as channel use, invalid or foreign-destination requests do not',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a'),initial=f.now();f.advance(60001);
+    const store=new SqlBotStore(f.driver,true,true);let posts=0;
+    const youtube={async resolveChat(video:string){if(video==='wrong000000')throw new BotFault('CHANNEL_MISMATCH',403);return 'chat';},async post(){posts++;}};
+    const svc=new BotService(store,youtube,()=>{},f.now,{},conn=>f.grants.ensure(conn.id));
+    const input={channelConnectionId:a.connection,videoId:'wrong000000',eventId:'wrong-target',createdAt:f.now(),templateId:'connection-test',variables:{}};
+    assert.equal((await svc.submit('Bearer '+a.token,input)).body.error?.code,'CHANNEL_MISMATCH');
+    assert.equal(f.db.prepare('SELECT lastUsedAt FROM connections WHERE id=?').get(a.connection)!.lastUsedAt,initial);
+    f.advance(60001);assert.equal((await svc.submit('Bearer '+a.token,{...input,videoId:'abcdefghijk',eventId:'valid',createdAt:f.now()})).body.status,'sent');
+    assert.equal(posts,1);assert.equal(f.db.prepare('SELECT lastUsedAt FROM connections WHERE id=?').get(a.connection)!.lastUsedAt,f.now());f.assertBot();
+  }finally{f.db.close();}
+});
+
+test('inactivity sweep with lifecycle disabled rejects stale use but does not erase production records',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a');f.advance(CONNECTION_IDLE_MS);
+    await f.grants.sweep();
+    assert.equal(f.counts().revokes,0);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM connections').get()!.n,1);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM creator_grants').get()!.n,1);
+    await assert.rejects(f.grants.ensure(a.connection),code('CHANNEL_NOT_LINKED'));f.assertBot();
+  }finally{f.db.close();}
+});
+
+test('posting ledger retention remains 29 days while an actively used connection survives',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a');
+    f.store.reserve({requestId:'old-post',userId:'youtube:'+a.channel,channelId:a.channel,eventHash:'event',fingerprint:'fp',contentHash:'body'},f.now(),
+      {userPerMinute:12,channelPerMinute:6,globalPerMinute:20,channelGapMs:0,globalGapMs:0,dailyUnits:8000});
+    f.advance(CONNECTION_RETENTION_MS);await f.grants.ensure(a.connection);
+    new SqlBotStore(f.driver,true,true).recordUse(a.connection,'youtube:'+a.channel,f.now());
+    new PrivacyRecords(f.driver,true).prune(f.now());
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM posts').get()!.n,0);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM connections').get()!.n,1);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM creator_grants').get()!.n,1);f.assertBot();
   }finally{f.db.close();}
 });

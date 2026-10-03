@@ -17,10 +17,12 @@ export const DEFAULT_LIMITS: Limits = { userPerMinute: 12, channelPerMinute: 6, 
 export const REQUEST_UNITS = 52; // channels.list + videos.list + liveChatMessages.insert; no refund on failure.
 // 29 days leaves an hourly alarm margin below YouTube's 30-day data limit.
 export const CONNECTION_RETENTION_MS = 29 * 86_400_000;
+// Service inactivity is distinct from the API-data refresh deadline above.
+export const CONNECTION_IDLE_MS = 90 * 86_400_000;
 
 /** Single-service SQLite ledger. No Google credentials, message body, memo or raw token. */
 export class SqlBotStore {
-  constructor(protected readonly db: SqlDriver, private readonly retentionEnabled = false) {
+  constructor(protected readonly db: SqlDriver, private readonly retentionEnabled = false, private readonly slidingEnabled = false) {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS devices (hash TEXT PRIMARY KEY, userId TEXT NOT NULL, deviceId TEXT NOT NULL,
         expiresAt INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
@@ -38,6 +40,9 @@ export class SqlBotStore {
       CREATE INDEX IF NOT EXISTS rate_time ON rate_reservations(createdAt);
       CREATE TABLE IF NOT EXISTS switches (id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL);
       INSERT OR IGNORE INTO switches VALUES (1, 0);`);
+    if (!this.db.prepare("SELECT name FROM pragma_table_info('connections') WHERE name='lastUsedAt'").get()) {
+      this.db.transaction(() => this.db.exec('ALTER TABLE connections ADD COLUMN lastUsedAt INTEGER NOT NULL DEFAULT 0; UPDATE connections SET lastUsedAt=verifiedAt'));
+    }
   }
   /** Trusted operator / future verified OAuth service ONLY. Never exposed by HTTP. */
   provisionDevice(token: string, principal: Principal, expiresAt: number): void {
@@ -48,8 +53,8 @@ export class SqlBotStore {
   /** Caller must have verified channel ownership out of band; no self-claim API. */
   provisionVerifiedConnection(connection: Omit<Connection, 'revoked'>): void {
     if (!/^UC[\w-]{22}$/.test(connection.channelId) || !connection.userId || !connection.id || !Number.isSafeInteger(connection.verifiedAt) || connection.verifiedAt <= 0) throw new Error('Invalid verified connection');
-    this.db.prepare('INSERT INTO connections (id,userId,channelId,verifiedAt) VALUES (?,?,?,?)')
-      .run(connection.id, connection.userId, connection.channelId, connection.verifiedAt);
+    this.db.prepare('INSERT INTO connections (id,userId,channelId,verifiedAt,lastUsedAt) VALUES (?,?,?,?,?)')
+      .run(connection.id, connection.userId, connection.channelId, connection.verifiedAt, connection.verifiedAt);
   }
   revokeDevice(deviceId: string): void { this.db.prepare('UPDATE devices SET revoked=1 WHERE deviceId=?').run(deviceId); }
   revokeConnection(id: string): void { this.db.prepare('UPDATE connections SET revoked=1 WHERE id=?').run(id); }
@@ -66,8 +71,20 @@ export class SqlBotStore {
   }
   connection(id: string, userId: string, now = Date.now()): Connection {
     const row = this.db.prepare('SELECT * FROM connections WHERE id=? AND userId=? AND revoked=0 AND verifiedAt>0').get(id, userId);
-    if (!row || (this.retentionEnabled && Number(row.verifiedAt) <= now - CONNECTION_RETENTION_MS)) throw new BotFault('CHANNEL_NOT_LINKED', 403);
+    if (!row || (this.slidingEnabled && Number(row.lastUsedAt) <= now - CONNECTION_IDLE_MS) ||
+      (this.retentionEnabled && !this.slidingEnabled && Number(row.verifiedAt) <= now - CONNECTION_RETENTION_MS)) throw new BotFault('CHANNEL_NOT_LINKED', 403);
     return row as unknown as Connection;
+  }
+  /** Only validated plugin activity calls this; alarms/provider refreshes never do. */
+  recordUse(id: string, userId: string, now: number): void {
+    if (!this.slidingEnabled) return;
+    this.db.transaction(() => {
+      const connection = this.connection(id, userId, now);
+      this.db.prepare('UPDATE connections SET lastUsedAt=? WHERE userId=? AND channelId=? AND revoked=0')
+        .run(now, userId, connection.channelId);
+      this.db.prepare('UPDATE devices SET expiresAt=? WHERE userId=? AND revoked=0 AND expiresAt>?')
+        .run(now + CONNECTION_IDLE_MS, userId, now);
+    });
   }
   previous(userId: string, eventHash: string, fingerprint: string): ApiResult | undefined {
     const old = this.db.prepare('SELECT requestId,fingerprint,result FROM posts WHERE userId=? AND eventHash=?').get(userId, eventHash);

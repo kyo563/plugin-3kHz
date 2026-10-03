@@ -46,6 +46,7 @@ export class BotService {
       this.store.authenticate(authorization, this.clock());
       this.store.connection(post.channelConnectionId, userId, this.clock());
       this.store.assertEnabled(); assertFresh(post, this.clock());
+      this.store.recordUse(connection.id, userId, this.clock());
       dispatching = true;
       await this.youtube.post(chatId, message);
       result = { http: 200, body: { requestId, status: 'sent' } };

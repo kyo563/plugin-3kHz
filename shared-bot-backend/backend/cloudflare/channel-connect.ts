@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { BotFault, digest } from '../policy';
-import { CONNECTION_RETENTION_MS, SqlBotStore, type SqlDriver } from '../sql-store';
+import { CONNECTION_IDLE_MS, CONNECTION_RETENTION_MS, SqlBotStore, type SqlDriver } from '../sql-store';
 import type { YouTubeGateway } from '../service';
 import { AUTH_ORIGIN, BotVault, boundedText, type BotAuthEnv } from './bot-auth';
 import { boundedJson, json, rejected } from './http';
@@ -52,7 +52,7 @@ export class ChannelConnections {
   private grants: CreatorGrants;
   constructor(private db: SqlDriver, private env: ChannelEnv, private youtube: YouTubeGateway,
     private request: typeof fetch = fetch, private clock = Date.now) {
-    this.store = new SqlBotStore(db, env.BOT_DATA_LIFECYCLE_ENABLED === 'true');
+    this.store = new SqlBotStore(db, env.BOT_DATA_LIFECYCLE_ENABLED === 'true', env.CHANNEL_GRANTS_ENABLED === 'true');
     this.vault = new BotVault(db, env.CHANNEL_GRANTS_ENABLED === 'true' ? {...env, GOOGLE_CLIENT_ID:env.CREATOR_GOOGLE_CLIENT_ID} : env);
     this.grants = new CreatorGrants(db, env, request, clock);
     db.exec(`CREATE TABLE IF NOT EXISTS channel_pairings (
@@ -63,7 +63,7 @@ export class ChannelConnections {
       CREATE TABLE IF NOT EXISTS channel_probe_budget (deviceId TEXT PRIMARY KEY, startedAt INTEGER NOT NULL, count INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS channel_source_budget (source TEXT PRIMARY KEY, startedAt INTEGER NOT NULL, count INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS channel_oauth_budget (id INTEGER PRIMARY KEY CHECK(id=1), startedAt INTEGER NOT NULL, count INTEGER NOT NULL);`);
-    this.privacy = new PrivacyRecords(db);
+    this.privacy = new PrivacyRecords(db, env.CHANNEL_GRANTS_ENABLED === 'true');
   }
   async handle(r: Request): Promise<Response> {
     if (!channelBoundary(r, this.env)) return json({ error: { code: 'NOT_FOUND' } }, 404);
@@ -155,6 +155,7 @@ export class ChannelConnections {
         await this.youtube.resolveChat(body.videoId, connection.channelId);
         this.store.authenticate(r.headers.get('Authorization')!, this.clock()); this.store.connection(connection.id, principal.userId, this.clock()); this.store.assertEnabled();
       }
+      this.store.recordUse(connection.id, principal.userId, this.clock());
       return json({ status: 'connected', channelId: connection.channelId, connectionId: connection.id, serviceEnabled,
         features:{connectionTest:true, dataDeletion:this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true'}, bot:this.youtube.profile?.() ?? null });
     } catch (e) { return rejected(e instanceof BotFault ? e : new BotFault('BOT_UNAVAILABLE', 503)); }
@@ -229,8 +230,14 @@ export class ChannelConnections {
         const fresh = this.db.prepare('SELECT status,expiresAt FROM channel_pairings WHERE id=?').get(String(row.id));
         if (fresh?.status !== 'consumed' || Number(fresh.expiresAt) <= this.clock()) throw denied();
         if (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true') this.privacy.assertFreshPairing(channelId, Number(row.createdAt));
-        this.db.prepare('INSERT INTO devices (hash,userId,deviceId,expiresAt) VALUES (?,?,?,?)').run(String(row.tokenHash), userId, deviceId, this.clock() + (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true' ? CONNECTION_RETENTION_MS : 30 * 86_400_000));
+        this.db.prepare('INSERT INTO devices (hash,userId,deviceId,expiresAt) VALUES (?,?,?,?)').run(String(row.tokenHash), userId, deviceId, this.clock() + (offline ? CONNECTION_IDLE_MS : this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true' ? CONNECTION_RETENTION_MS : 30 * 86_400_000));
         this.store.provisionVerifiedConnection({ id: connectionId, userId, channelId, verifiedAt: this.clock() });
+        // A newly authorized device is explicit channel activity too. Keep older
+        // grants for that channel from expiring while another device is in use.
+        if (offline) {
+          this.db.prepare('UPDATE connections SET lastUsedAt=? WHERE userId=? AND channelId=? AND revoked=0').run(this.clock(),userId,channelId);
+          this.db.prepare('UPDATE devices SET expiresAt=? WHERE userId=? AND revoked=0 AND expiresAt>?').run(this.clock()+CONNECTION_IDLE_MS,userId,this.clock());
+        }
         if (prepared) this.grants.save(prepared);
         this.db.prepare("UPDATE channel_pairings SET status='connected',channelId=?,connectionId=?,deviceId=?,verifier=NULL WHERE id=?").run(channelId, connectionId, deviceId, String(row.id));
       });

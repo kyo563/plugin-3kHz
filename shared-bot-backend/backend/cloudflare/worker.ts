@@ -97,7 +97,7 @@ export class BotCoordinator {
   constructor(ctx: DurableObjectState, env: WorkerEnv) {
     this.#ctx = ctx; this.#env = env;
     const driver = durableSqlDriver(ctx.storage);
-    this.#store = new SqlBotStore(driver, env.BOT_DATA_LIFECYCLE_ENABLED === 'true');
+    this.#store = new SqlBotStore(driver, env.BOT_DATA_LIFECYCLE_ENABLED === 'true', env.CHANNEL_GRANTS_ENABLED === 'true');
     const vault = new BotVault(driver, env);
     applyPostingApproval(driver, env.BOT_POSTING_ENABLED, env.BOT_POSTING_APPROVAL_ID, vault.connected());
     this.#authorization = new BotAuthorization(driver, env);
@@ -107,7 +107,7 @@ export class BotCoordinator {
     this.#service = new BotService(this.#store, youtube, event => console.log(JSON.stringify({requestId:event.requestId, status:event.status, code:event.code})), Date.now, {},
       env.CHANNEL_GRANTS_ENABLED === 'true' ? connection => this.#grants.ensure(connection.id) : undefined);
     this.#connections = new ChannelConnections(driver, env, youtube);
-    this.#privacy = new PrivacyRecords(driver);
+    this.#privacy = new PrivacyRecords(driver, env.CHANNEL_GRANTS_ENABLED === 'true');
     if (env.BOT_DATA_LIFECYCLE_ENABLED === 'true' || env.CHANNEL_GRANTS_ENABLED === 'true') {
       ctx.waitUntil(ctx.blockConcurrencyWhile(async () => {
         if (env.BOT_DATA_LIFECYCLE_ENABLED === 'true') this.#privacy.prune(Date.now());

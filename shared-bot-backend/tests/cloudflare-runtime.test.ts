@@ -20,7 +20,7 @@ const base = { modules: true, compatibilityDate: '2026-09-18', compatibilityFlag
   outboundService: async () => { throw new Error('External network is forbidden in tests'); },
 } as const;
 
-for (const {lifecycle,offline} of [{lifecycle:'false',offline:false},{lifecycle:'true',offline:false},{lifecycle:'false',offline:true},{lifecycle:'true',offline:true}]) test('Cloudflare channel connection: actual Worker routing, OAuth proof and revocation without live posting (retention=' + lifecycle + ', offline=' + offline + ')', async () => {
+for (const {lifecycle,offline,idle} of [{lifecycle:'false',offline:false,idle:false},{lifecycle:'true',offline:false,idle:false},{lifecycle:'false',offline:true,idle:false},{lifecycle:'true',offline:true,idle:false},{lifecycle:'true',offline:true,idle:true}]) test('Cloudflare channel connection: actual Worker routing, OAuth proof and revocation without live posting (retention=' + lifecycle + ', offline=' + offline + ', idle=' + idle + ')', async () => {
   let exchanges = 0,refreshes=0,revocations=0;
   const mf = new Miniflare(convertV4MiniflareOptions({ ...base, compatibilityFlags: [...base.compatibilityFlags], script: await bundle(offline?'tests/fixtures/cloudflare-privacy.ts':'backend/cloudflare/worker.ts'),
     durableObjects: { BOT_COORDINATOR: { className: offline?'TestPrivacyCoordinator':'BotCoordinator', useSQLite: true } },
@@ -63,6 +63,13 @@ for (const {lifecycle,offline} of [{lifecycle:'false',offline:false},{lifecycle:
       const alarm=await (await stub.fetch('https://internal/test/alarm')).json() as any;
       assert.equal(refreshes,1);assert.equal(alarm.rows,1);assert.ok(alarm.alarm>Date.now());
       assert.equal((await api('status')).status,200); // Fresh grants/connections survive either retention mode.
+      if (idle) {
+        assert.equal((await stub.fetch('https://internal/test/creator-idle')).status,200);
+        assert.equal((await api('status')).status,403); // Fresh API data does not override 90-day inactivity.
+        const after=await (await stub.fetch('https://internal/test/alarm')).json() as any;
+        assert.equal(after.rows,0);assert.equal(after.grants,0);assert.equal(revocations,1);
+        assert.equal((await api('status')).status,403);return;
+      }
     }
     if (lifecycle === 'true') {
       const erased = await mf.dispatchFetch(AUTH_ORIGIN + '/v1/connections/erase', {method: 'POST', headers: {'Content-Type':'application/json', Authorization: 'Bearer ' + 'c'.repeat(43)}, body: JSON.stringify({confirmation: 'UC' + 'a'.repeat(22)})});

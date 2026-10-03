@@ -1,5 +1,5 @@
 JoinQueue Creator Connect — sensitive scope submission fields
-Prepared 2026-10-01. DRAFT / NOT SUBMITTED. Operator: kyo563.
+Updated 2026-10-03. DRAFT / NOT SUBMITTED. Operator: kyo563.
 Project: joinqueue-creator-connect / 193959902164.
 App display name: JoinQueue Bot.
 Public support and developer contact: joinqueue.bot@gmail.com.
@@ -23,6 +23,8 @@ including a Brand Account. youtube.readonly is the narrowest supported scope
 for this lookup. We request offline access and encrypt the refresh credential
 on our server only to recheck continuing authorization and revoke the grant
 when disconnected. Access tokens are transient, never returned to the plugin.
+Scheduled checks also re-fetch channels.list(mine=true) to refresh ownership
+data itself; refreshing an OAuth access token alone is not a data refresh.
 This scope never posts as the creator or fetches incoming live chat. Incoming
 comments come from OneComme. Bot posting uses a separately authorized service
 Bot in another Google Cloud project; its credentials never reach creators.
@@ -48,6 +50,17 @@ sent to YouTube become visible in the destination live chat. Cloudflare hosts
 the server, GitHub Pages the public site, and Google/YouTube the OAuth/API.
 No Google passwords are requested by the plugin or support. Only kyo563 and
 the dedicated public service email identify the operator in public materials.
+
+Intended retention — implemented locally, NOT enabled in production
+Authenticated plugin status/connection checks and validated Bot requests extend
+the channel's last-use timestamp. New creator connections expire after 90 days
+without such use. Server alarms or automatic Google refresh checks do not count
+as user activity. Ownership data is separately re-fetched daily; connections
+whose data cannot be refreshed within 29 days are stopped. Posting-ledger data
+is retained for 29 days, not 90. Explicit disconnect/deletion and Google-side
+revocation are handled independently, not postponed until inactivity expiry.
+These claims must not be submitted as deployed behavior until the rollout,
+real grant tests and deletion-operation approval are complete.
 
 Real demonstration video — REQUIRED, NOT AVAILABLE YET
 YouTube Unlisted URL: not supplied; do not enter a mock link.

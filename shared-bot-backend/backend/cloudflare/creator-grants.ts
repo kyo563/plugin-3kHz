@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { BotFault, digest } from '../policy';
-import { CONNECTION_RETENTION_MS, type SqlDriver } from '../sql-store';
+import { CONNECTION_IDLE_MS, CONNECTION_RETENTION_MS, type SqlDriver } from '../sql-store';
 import { BotVault, boundedText, type BotAuthEnv } from './bot-auth';
 
 export const CREATOR_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
@@ -90,8 +90,13 @@ export class CreatorGrants {
   private async check(connectionId: string): Promise<void> {
     const row = this.db.prepare('SELECT * FROM creator_grants WHERE connectionId=?').get(connectionId);
     if (!row || row.status !== 'active' || row.clientHash !== digest(this.env.CREATOR_GOOGLE_CLIENT_ID!)) throw new BotFault('CHANNEL_NOT_LINKED', 403);
+    const connection = this.db.prepare('SELECT verifiedAt,lastUsedAt,revoked FROM connections WHERE id=?').get(connectionId);
+    if (!connection || connection.revoked === 1 || Number(connection.lastUsedAt) <= this.clock() - CONNECTION_IDLE_MS) throw new BotFault('CHANNEL_NOT_LINKED', 403);
     if (Number(row.expiresAt) !== 0 && Number(row.expiresAt) <= this.clock()) { this.invalidate(String(row.id)); throw new BotFault('CHANNEL_NOT_LINKED', 403); }
     if (Number(row.nextCheckAt) > this.clock()) {
+      if (Number(connection.verifiedAt) <= this.clock() - CONNECTION_RETENTION_MS) {
+        this.invalidate(String(row.id)); throw new BotFault('CHANNEL_NOT_LINKED', 403);
+      }
       if (this.clock() - Number(row.checkedAt) >= CREATOR_CHECK_MS) throw unavailable();
       return;
     }
@@ -107,11 +112,35 @@ export class CreatorGrants {
       if (!r.ok || !token(data?.access_token) || data?.token_type?.toLowerCase() !== 'bearer' ||
         !Number.isSafeInteger(data?.expires_in) || data.expires_in <= 60 || data.expires_in > 86400 ||
         (data.scope !== undefined && data.scope !== CREATOR_SCOPE)) throw unavailable();
+      // Refresh the API-derived ownership data itself, not just the OAuth token.
+      // Uses only channels.list(mine=true); comments still come exclusively from OneComme.
+      this.db.transaction(() => {
+        const budget = this.db.prepare('SELECT * FROM channel_oauth_budget WHERE id=1').get();
+        const current = budget && Number(budget.startedAt) > this.clock() - 86_400_000;
+        if (current && Number(budget.count) >= 200) throw unavailable();
+        this.db.prepare('INSERT OR REPLACE INTO channel_oauth_budget VALUES (1,?,?)')
+          .run(current ? Number(budget.startedAt) : this.clock(), current ? Number(budget.count) + 1 : 1);
+      });
+      const ownerResponse = await this.request('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true', {
+        redirect:'manual', signal:AbortSignal.timeout(8000), headers:{Authorization:'Bearer ' + data.access_token}});
+      const owner = JSON.parse(await boundedText(ownerResponse, 32768));
+      if (!ownerResponse.ok) throw unavailable();
+      if (!Array.isArray(owner?.items) || owner.items.length !== 1 || owner.items[0]?.id !== row.channelId) {
+        this.invalidate(String(row.id)); throw new BotFault('CHANNEL_NOT_LINKED', 403);
+      }
       // No access token is cached/persisted or used to fetch incoming comments.
-      const changed = this.db.prepare("UPDATE creator_grants SET checkedAt=?,nextCheckAt=? WHERE id=? AND status='active' AND encrypted=?")
-        .run(this.clock(), this.clock() + CREATOR_CHECK_MS, String(row.id), String(row.encrypted));
-      if (changed.changes !== 1) throw new BotFault('CHANNEL_NOT_LINKED', 403);
-    } catch (e) { throw e instanceof BotFault ? e : unavailable(); }
+      this.db.transaction(() => {
+        const changed = this.db.prepare("UPDATE creator_grants SET checkedAt=?,nextCheckAt=? WHERE id=? AND status='active' AND encrypted=?")
+          .run(this.clock(), this.clock() + CREATOR_CHECK_MS, String(row.id), String(row.encrypted));
+        if (changed.changes !== 1) throw new BotFault('CHANNEL_NOT_LINKED', 403);
+        this.db.prepare('UPDATE connections SET verifiedAt=? WHERE id=? AND revoked=0').run(this.clock(), connectionId);
+      });
+    } catch (e) {
+      if (connection && Number(connection.verifiedAt) <= this.clock() - CONNECTION_RETENTION_MS) {
+        this.invalidate(String(row.id)); throw new BotFault('CHANNEL_NOT_LINKED', 403);
+      }
+      throw e instanceof BotFault ? e : unavailable();
+    }
   }
   async revoke(channelId: string): Promise<void> {
     this.configured();
@@ -148,7 +177,7 @@ export class CreatorGrants {
       if (!row) break;
       try {
         if (row.status === 'revoking') await this.revokeRow(row);
-        else if (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true' && Number(row.createdAt) <= this.clock() - CONNECTION_RETENTION_MS) await this.revoke(String(row.channelId));
+        else if (this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true' && Number(this.db.prepare('SELECT lastUsedAt FROM connections WHERE id=?').get(String(row.connectionId))?.lastUsedAt ?? row.createdAt) <= this.clock() - CONNECTION_IDLE_MS) await this.revoke(String(row.channelId));
         else await this.ensure(String(row.connectionId));
       } catch {
         this.db.prepare('UPDATE creator_grants SET nextCheckAt=? WHERE id=? AND nextCheckAt<=?').run(this.clock() + RETRY_MS, String(row.id), this.clock());
