@@ -130,3 +130,20 @@ Google/YouTube応答は模擬。Cloudflare Miniflareの実SQLiteとalarmで
   creator-api-enabled-20261003.png（秘密情報を含まない画面）。
 - 無料トライアル開始・課金設定・対象ユーザー範囲拡大は行っていない。
   審査申請は未提出。実OAuth動画・本番との方針一致・運用承認が残る。
+
+サーバー設定登録の途中状態（2026-10-03）
+- ユーザーがCloudflareへの登録と、その後の審査提出開始を指示。
+- 既存WorkerのProduction変数にCREATOR_GOOGLE_CLIENT_ID、
+  CREATOR_GOOGLE_PROJECT_ID、BOT_GOOGLE_PROJECT_IDを追加して保存。
+  表示された値を確認済み。ローカルwrangler.jsoncも公開値のみ同期した。
+  これは既存コードの設定保存であり、新しいgrant処理のコード配置・
+  有効化ではない。Botの既存Google秘密・認証入口・投稿承認IDは未変更。
+- Googleクライアント詳細の操作項目を取得した際、コピーボタンの説明に
+  含まれるclient secretがツール出力へ出た。値はこの資料に記録しない。
+  そのsecretは登録・使用せず、無効化と交換が必要な状態として扱う。
+  新しい秘密値の作成・入力は本人操作へ引き継ぐ。共通Botのsecretではない。
+- CloudflareのCREATOR_GOOGLE_CLIENT_SECRET登録欄を用意しSecretを選択。
+  値は空、未保存。本人はGoogle側で古いsecretを無効化し、新しいsecretを
+  作成してCloudflareのこの欄へ直接入力する。チャットには送らない。
+- 正式審査は未提出。実認証動画、公開ポリシーと運用の一致、ブランド
+  公開・対象ユーザー状態の確認が残る。課金・本番削除設定は未変更。

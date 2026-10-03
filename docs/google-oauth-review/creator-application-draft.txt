@@ -5,7 +5,12 @@ Web client: JoinQueue Creator Server (created 2026-10-03).
 Public client ID: 193959902164-v7s1q6jd5g1c779dmaardivohbigg7ti.apps.googleusercontent.com
 Redirect: https://joinqueue-bot-backend.joinqueue.workers.dev/connect/callback
 YouTube Data API v3: enabled 2026-10-03 after explicit approval of its terms.
-Client secret: not retrieved or configured on the server. No real lookup yet.
+Client secret: not configured on the server. No real lookup yet.
+Current 2026-10-03 update: public client/project values saved to Cloudflare.
+Secret registration is paused: a copy-button label exposed the initial secret
+in tool output. That value must be disabled/replaced by the operator, not used.
+Replacement and direct Secret entry require human handoff. No secret value is
+recorded in source or this document; no new grant feature enabled or deployed.
 App display name: JoinQueue Bot.
 Public support and developer contact: joinqueue.bot@gmail.com.
 Home: https://kyo563.github.io/
@@ -78,7 +83,7 @@ Do not reauthenticate the common Bot merely to make a readonly review video.
 
 Submission blockers — do not certify these as complete
 - Web OAuth client creation and API activation are complete. Server credential
-  configuration and an isolated real channel lookup are still outstanding.
+  replacement/configuration and an isolated real channel lookup are outstanding.
 - Audience remains External / Testing. Branding URLs/domains saved; the
   Verification Center currently says verification is not required in Testing.
   Production publishing and brand verification have not been executed.
