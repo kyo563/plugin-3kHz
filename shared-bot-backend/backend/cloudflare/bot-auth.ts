@@ -22,6 +22,8 @@ export interface BotAuthEnv extends GoogleBotSecrets {
   BOT_AUTH_EXPIRES_AT?: string;
   BOT_AUTH_SETUP_HASH?: string;
   BOT_VAULT_KEY?: string;
+  /** Operator-only approval pin: exact connectedAt:expiresAt of a known short-lived grant. */
+  BOT_AUTH_REPLACE_GRANT?: string;
 }
 
 export function authConfigured(env: BotAuthEnv, now = Date.now()): boolean {
@@ -73,14 +75,24 @@ export class BotVault {
       status TEXT NOT NULL);`);
   }
   connected(): boolean { return !!this.#db.prepare('SELECT id FROM bot_credentials WHERE id=1').get(); }
-  /** Renew only a known-expired grant for the same configured Bot/client.
+  /** Renew an expired grant, or an explicitly pinned short-lived grant, for the same Bot/client.
    * Keep the old ciphertext until a replacement has passed every OAuth check. */
   canAuthorize(now: number): boolean {
-    const row = this.#db.prepare('SELECT channelId,clientIdHash,expiresAt FROM bot_credentials WHERE id=1').get();
+    const row = this.#db.prepare('SELECT channelId,clientIdHash,connectedAt,expiresAt FROM bot_credentials WHERE id=1').get();
     if (!row) return true;
     const expiry = Number(row.expiresAt);
-    return row.channelId === this.#env.BOT_CHANNEL_ID && row.clientIdHash === hash(this.#env.GOOGLE_CLIENT_ID ?? '') &&
-      Number.isSafeInteger(expiry) && expiry > 0 && expiry <= now;
+    if (row.channelId !== this.#env.BOT_CHANNEL_ID || row.clientIdHash !== hash(this.#env.GOOGLE_CLIENT_ID ?? '') ||
+        !Number.isSafeInteger(expiry) || expiry <= 0) return false;
+    if (expiry <= now) return true;
+    const connected = Number(row.connectedAt);
+    return authConfigured(this.#env, now) && Number.isSafeInteger(connected) && connected > 0 && connected <= now &&
+      expiry > connected && expiry - connected <= 7 * 86_400_000 &&
+      this.#env.BOT_AUTH_REPLACE_GRANT === `${connected}:${expiry}`;
+  }
+  /** Internal fingerprint binds a pending flow to the complete old encrypted record. */
+  fingerprint(): string {
+    const row = this.#db.prepare('SELECT encrypted,channelId,clientIdHash,connectedAt,expiresAt FROM bot_credentials WHERE id=1').get();
+    return hash(JSON.stringify(row ? [row.encrypted,row.channelId,row.clientIdHash,row.connectedAt,row.expiresAt] : null));
   }
   async crypt(value: string, purpose: string, decrypt = false): Promise<string> {
     if (!opaque(this.#env.BOT_VAULT_KEY)) throw fault();
@@ -132,10 +144,11 @@ export class BotAuthorization {
       if ([...fields.keys()].length !== 2 || fields.getAll('csrf').length !== 1 || fields.getAll('setup').length !== 1) throw fault();
       const csrf = fields.get('csrf')!; const setup = fields.get('setup')!; const browser = cookieValue(request);
       if (!browser || !opaque(csrf) || !same(browser, csrf) || !opaque(setup) || !same(hash(setup), this.#env.BOT_AUTH_SETUP_HASH!)) throw fault();
-      const state = random(); const verifier = random(); const encrypted = await this.#vault.crypt(verifier, 'pkce');
+      const state = random(); const verifier = random(); const fingerprint = this.#vault.fingerprint();
+      const encrypted = await this.#vault.crypt(JSON.stringify({ verifier, fingerprint }), 'pkce');
       const expiresAt = Math.min(this.#clock() + 600_000, Number(this.#env.BOT_AUTH_EXPIRES_AT));
       this.#db.transaction(() => {
-        if (!this.#vault.canAuthorize(this.#clock())) throw fault();
+        if (!this.#vault.canAuthorize(this.#clock()) || this.#vault.fingerprint() !== fingerprint) throw fault();
         const old = this.#db.prepare('SELECT * FROM bot_auth_session WHERE id=1').get();
         if (old && (old.setupHash === this.#env.BOT_AUTH_SETUP_HASH || (['pending', 'consumed'].includes(String(old.status)) && Number(old.expiresAt) > this.#clock()))) throw fault();
         this.#db.prepare('INSERT OR REPLACE INTO bot_auth_session VALUES (1,?,?,?,?,?,?)').run(this.#env.BOT_AUTH_SETUP_HASH!, hash(state), hash(browser), encrypted, expiresAt, 'pending');
@@ -166,7 +179,10 @@ export class BotAuthorization {
     try {
       const code = query.get('code');
       if (query.has('error') || !token(code) || code.length > 4096) throw fault();
-      const verifier = await this.#vault.crypt(String(row.verifier), 'pkce', true);
+      const prepared = JSON.parse(await this.#vault.crypt(String(row.verifier), 'pkce', true));
+      if (!opaque(prepared?.verifier) || !/^[a-f0-9]{64}$/.test(prepared?.fingerprint ?? '') ||
+          this.#vault.fingerprint() !== prepared.fingerprint) throw fault();
+      const verifier = prepared.verifier;
       const data = await this.google('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ client_id: this.#env.GOOGLE_CLIENT_ID!, client_secret: this.#env.GOOGLE_CLIENT_SECRET!,
           code, grant_type: 'authorization_code', redirect_uri: AUTH_ORIGIN + CALLBACK_PATH, code_verifier: verifier }) });
@@ -183,11 +199,16 @@ export class BotAuthorization {
         if (!Number.isSafeInteger(data.refresh_token_expires_in) || data.refresh_token_expires_in <= 60 || data.refresh_token_expires_in > 315_360_000) throw fault();
         expiresAt = this.#clock() + (data.refresh_token_expires_in - 60) * 1000;
       }
+      // A production migration must improve the known deadline, not simply issue another test grant.
+      const previous = this.#db.prepare('SELECT expiresAt FROM bot_credentials WHERE id=1').get();
+      if (previous && Number(previous.expiresAt) > this.#clock() && expiresAt !== 0 &&
+          (expiresAt <= Number(previous.expiresAt) || data.refresh_token_expires_in <= 604800)) throw fault();
       const encrypted = await this.#vault.crypt(data.refresh_token, 'refresh');
       this.#db.transaction(() => {
         const current = this.#db.prepare('SELECT stateHash,status FROM bot_auth_session WHERE id=1').get();
         if (!current || current.stateHash !== row.stateHash || current.status !== 'consumed' ||
-            !authConfigured(this.#env, this.#clock()) || Number(row.expiresAt) <= this.#clock() || !this.#vault.canAuthorize(this.#clock())) throw fault();
+            !authConfigured(this.#env, this.#clock()) || Number(row.expiresAt) <= this.#clock() ||
+            !this.#vault.canAuthorize(this.#clock()) || this.#vault.fingerprint() !== prepared.fingerprint) throw fault();
         this.#db.prepare('INSERT INTO bot_credentials VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET encrypted=excluded.encrypted,channelId=excluded.channelId,clientIdHash=excluded.clientIdHash,connectedAt=excluded.connectedAt,expiresAt=excluded.expiresAt').run(encrypted, this.#env.BOT_CHANNEL_ID, hash(this.#env.GOOGLE_CLIENT_ID!), this.#clock(), expiresAt);
         this.#db.prepare("UPDATE bot_auth_session SET status='connected' WHERE id=1").run();
       });

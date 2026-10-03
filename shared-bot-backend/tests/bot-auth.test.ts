@@ -17,6 +17,7 @@ function fixture() {
   const env: BotAuthEnv = { BOT_CHANNEL_ID: 'UC' + 'a'.repeat(22), GOOGLE_CLIENT_ID: 'fake-client', GOOGLE_CLIENT_SECRET: 'fake-secret',
     BOT_VAULT_KEY: randomBytes(32).toString('base64url'), BOT_AUTH_SETUP_HASH: hash(setup), BOT_AUTH_ENABLED: 'true', BOT_AUTH_EXPIRES_AT: String(now + 3600_000) };
   let exchanges = 0; let refreshes = 0; let lookups = 0; let wrongBot = false; let badRefresh = false; let deniedScope = false;
+  let refreshLifetime: number | undefined = 604800;
   const request: typeof fetch = async (url, init) => {
     assert.equal(init?.redirect, 'manual'); assert.ok(init?.signal);
     if (url === 'https://oauth2.googleapis.com/token') {
@@ -25,7 +26,7 @@ function fixture() {
       if (fields.get('grant_type') === 'authorization_code') {
         exchanges++; assert.equal(fields.get('redirect_uri'), AUTH_ORIGIN + CALLBACK_PATH);
         assert.match(fields.get('code_verifier')!, /^[A-Za-z0-9_-]{43}$/);
-        return Response.json({ access_token: 'fake-access', refresh_token: 'fake-refresh', expires_in: 3600, token_type: 'Bearer', scope: deniedScope ? 'unrelated' : BOT_SCOPE, refresh_token_expires_in: 604800 });
+        return Response.json({ access_token: 'fake-access', refresh_token: 'fake-refresh', expires_in: 3600, token_type: 'Bearer', scope: deniedScope ? 'unrelated' : BOT_SCOPE, refresh_token_expires_in: refreshLifetime });
       }
       refreshes++; assert.equal(fields.get('refresh_token'), 'fake-refresh');
       return badRefresh ? new Response('private-provider-error', { status: 400 }) : Response.json({ access_token: 'fake-refreshed', expires_in: 3600, token_type: 'Bearer' });
@@ -48,6 +49,7 @@ function fixture() {
   const callback = (state: string, cookie: string, query = '') => new Request(AUTH_ORIGIN + CALLBACK_PATH + '?state=' + state + '&code=fake-code' + query, { headers: { Cookie: cookie } });
   return { db, driver, env, setup, auth, landing, start, callback, request, clock: () => now,
     advance: (n: number) => { now += n; }, counts: () => ({ exchanges, refreshes, lookups }),
+    setRefreshLifetime: (value: number | undefined) => { refreshLifetime = value; },
     setWrongBot: () => { wrongBot = true; }, setBadRefresh: () => { badRefresh = true; }, setDeniedScope: () => { deniedScope = true; } };
 }
 
@@ -227,4 +229,110 @@ test('Bot OAuth renewal: known expiry survives provider cooldown without Google 
     });
     assert.deepEqual(f.counts(),{exchanges:0,refreshes:0,lookups:0});
   } finally { f.db.close(); }
+});
+
+async function approvedShortGrant(f: ReturnType<typeof fixture>) {
+  const vault = await expiredCredential(f);
+  const connected = f.clock() - 1000, expiry = connected + 604740_000;
+  f.db.prepare('UPDATE bot_credentials SET connectedAt=?,expiresAt=?').run(connected, expiry);
+  f.env.BOT_AUTH_REPLACE_GRANT = `${connected}:${expiry}`;
+  return vault;
+}
+
+test('Bot production migration: exact short-grant pin permits atomic replacement without a fixed Google deadline', async () => {
+  const f = fixture();
+  try {
+    const vault = await approvedShortGrant(f); f.setRefreshLifetime(undefined);
+    const original = JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get());
+    assert.equal(vault.canAuthorize(f.clock()), true);
+    const b = await f.landing(), redirect = await f.start(b);
+    assert.equal(redirect.status,303);
+    assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get()), original);
+    const state = new URL(redirect.headers.get('location')!).searchParams.get('state')!;
+    const replies = await Promise.all([f.auth().handle(f.callback(state,b.cookie)), f.auth().handle(f.callback(state,b.cookie))]);
+    assert.deepEqual(replies.map(r=>r.status).sort(),[303,403]);
+    assert.equal(f.db.prepare('SELECT status FROM bot_auth_session').get()!.status,'connected');
+    assert.equal(f.db.prepare('SELECT expiresAt FROM bot_credentials').get()!.expiresAt,0);
+    assert.equal(await vault.refreshToken(f.clock()),'fake-refresh');
+    assert.equal(vault.canAuthorize(f.clock()),false);
+    assert.deepEqual(f.counts(),{exchanges:1,refreshes:1,lookups:1});
+  } finally { f.db.close(); }
+});
+
+test('Bot production migration: no/stale pin, long/unknown expiry, foreign identity and disabled window are denied', async () => {
+  for (const mode of ['noPin','stalePin','long','unknown','foreignBot','foreignClient','disabled','elapsed']) {
+    const f = fixture();
+    try {
+      const vault = await approvedShortGrant(f);
+      if(mode==='noPin') delete f.env.BOT_AUTH_REPLACE_GRANT;
+      if(mode==='stalePin') f.env.BOT_AUTH_REPLACE_GRANT='1:2';
+      if(mode==='long') {
+        const expiry = f.clock()+8*86400_000;
+        f.db.prepare('UPDATE bot_credentials SET expiresAt=?').run(expiry);
+        f.env.BOT_AUTH_REPLACE_GRANT=`${f.clock()-1000}:${expiry}`;
+      }
+      if(mode==='unknown') f.db.prepare('UPDATE bot_credentials SET expiresAt=0').run();
+      if(mode==='foreignBot') f.db.prepare('UPDATE bot_credentials SET channelId=?').run('UC'+'b'.repeat(22));
+      if(mode==='foreignClient') f.db.prepare('UPDATE bot_credentials SET clientIdHash=?').run(hash('other-client'));
+      if(mode==='disabled') f.env.BOT_AUTH_ENABLED='false';
+      if(mode==='elapsed') f.env.BOT_AUTH_EXPIRES_AT=String(f.clock());
+      assert.equal(vault.canAuthorize(f.clock()),false);
+      assert.ok([404,409].includes((await f.auth().handle(new Request(AUTH_ORIGIN+AUTH_PATH))).status));
+      assert.deepEqual(f.counts(),{exchanges:0,refreshes:0,lookups:0});
+    } finally { f.db.close(); }
+  }
+});
+
+test('Bot production migration: failed/denied/wrong identity/another seven-day grant preserves current credentials', async () => {
+  for(const mode of ['denied','wrongBot','refresh','scope','short']) {
+    const f = fixture();
+    try {
+      await approvedShortGrant(f);
+      if(mode!=='short') f.setRefreshLifetime(undefined);
+      if(mode==='wrongBot') f.setWrongBot(); if(mode==='refresh') f.setBadRefresh(); if(mode==='scope') f.setDeniedScope();
+      const original = JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get());
+      const b=await f.landing(), redirect=await f.start(b);
+      const state=new URL(redirect.headers.get('location')!).searchParams.get('state')!;
+      await f.auth().handle(f.callback(state,b.cookie,mode==='denied'?'&error=access_denied':''));
+      assert.equal(f.db.prepare('SELECT status FROM bot_auth_session').get()!.status,'failed');
+      assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get()),original);
+    } finally { f.db.close(); }
+  }
+});
+
+test('Bot production migration: record replacement before OAuth exchange or during verification is not overwritten', async () => {
+  for(const phase of ['before','during']) {
+    const f=fixture();
+    try {
+      const vault=await approvedShortGrant(f); f.setRefreshLifetime(undefined);
+      const b=await f.landing(),redirect=await f.start(b);
+      const state=new URL(redirect.headers.get('location')!).searchParams.get('state')!;
+      const changed=await vault.crypt('concurrent-private-refresh','refresh');
+      const replace=()=>f.db.prepare('UPDATE bot_credentials SET encrypted=?').run(changed);
+      if(phase==='before')replace();
+      const transport:typeof fetch=async(url,init)=>{
+        const res=await f.request(url,init); if(String(url).includes('/channels?'))replace(); return res;
+      };
+      await new BotAuthorization(f.driver,f.env,transport,f.clock).handle(f.callback(state,b.cookie));
+      assert.equal(f.db.prepare('SELECT status FROM bot_auth_session').get()!.status,'failed');
+      assert.equal(await vault.refreshToken(f.clock()),'concurrent-private-refresh');
+      if(phase==='before') assert.deepEqual(f.counts(),{exchanges:0,refreshes:0,lookups:0});
+    } finally { f.db.close(); }
+  }
+});
+
+test('Bot production migration: removing operator approval during OAuth verification aborts the replacement', async () => {
+  const f=fixture();
+  try {
+    await approvedShortGrant(f); f.setRefreshLifetime(undefined);
+    const original=JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get());
+    const b=await f.landing(),redirect=await f.start(b);
+    const state=new URL(redirect.headers.get('location')!).searchParams.get('state')!;
+    const transport:typeof fetch=async(url,init)=>{
+      const res=await f.request(url,init); if(String(url).includes('/channels?'))delete f.env.BOT_AUTH_REPLACE_GRANT; return res;
+    };
+    await new BotAuthorization(f.driver,f.env,transport,f.clock).handle(f.callback(state,b.cookie));
+    assert.equal(f.db.prepare('SELECT status FROM bot_auth_session').get()!.status,'failed');
+    assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get()),original);
+  } finally {f.db.close();}
 });

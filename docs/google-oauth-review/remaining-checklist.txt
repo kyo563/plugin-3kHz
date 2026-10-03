@@ -2,6 +2,16 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
 更新: 2026-10-03 / 作者・運営: kyo563
 状態: 申請準備中。Google審査の提出・承認は未完了。
 
+2026-10-03 共通Bot長期運用への移行準備（以下より優先）
+  実行直前の許可後、joinqueue-bot-devもIn productionへ切替済み。
+  審査承認ではなく、保存済みBot認証の7日期限を変更したわけではない。
+  同じBot/clientの短期認証だけを明示pinで安全に更新する修正を
+  Worker ca12105eへ配置。バックエンド94件・型検査・ビルド成功。
+  health200・未認証投稿401・閉じた認証入口404を確認した。
+  利用者は30分間の入口開放を許可。本人による新setup hash登録、
+  Bot Google再認証、保存期限改善、入口閉鎖の確認は未完了。
+  詳細はshared-bot-renewal.txt冒頭。課金・投稿・削除・公開ZIPは不変。
+
 2026-10-03 22:52 JST ホームページ所有権登録完了（以下より優先）
   利用者が追加登録を許可。Search Consoleのjoinqueue.bot@gmail.comで
   URL-prefix https://kyo563.github.io/を登録し、既存HTMLタグによる
