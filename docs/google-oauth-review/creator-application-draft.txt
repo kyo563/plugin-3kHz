@@ -11,7 +11,11 @@ old secret. The operator directly registered the replacement in Cloudflare.
 Verified the CREATOR_GOOGLE_CLIENT_SECRET row is Secret / Value encrypted.
 The value was not opened, copied or tested; secret correctness and a real
 channel lookup remain unverified. No secret value is recorded in source or
-this document; no new grant feature enabled or deployed.
+this document. Later on 2026-10-03, the user authorized production deployment
+and enabling CHANNEL_GRANTS_ENABLED. Active version: 4478e232. Public privacy
+and home disclosures were updated (site commit efac109). Backend 77 simulated
+tests, typecheck/build and a production smoke check passed without Google
+consent/token exchange or YouTube posting. The synthetic pairing was cancelled.
 App display name: JoinQueue Bot.
 Public support and developer contact: joinqueue.bot@gmail.com.
 Home: https://kyo563.github.io/
@@ -24,7 +28,7 @@ https://www.googleapis.com/auth/youtube.readonly
 Google Console classifies this as sensitive. No email, profile, OpenID, write,
 moderation or force-ssl scope is requested by this creator-connection client.
 
-Scope justification — intended isolated implementation, NOT yet production
+Scope justification — isolated implementation deployed; real OAuth not yet demonstrated
 JoinQueue is a Windows participant-queue plugin for OneComme. Creators connect
 their own YouTube channels to an optional centrally operated notification bot.
 The server calls channels.list(part=id,mine=true) after consent to verify the
@@ -62,16 +66,19 @@ the server, GitHub Pages the public site, and Google/YouTube the OAuth/API.
 No Google passwords are requested by the plugin or support. Only kyo563 and
 the dedicated public service email identify the operator in public materials.
 
-Intended retention — implemented locally, NOT enabled in production
+Current connection lifetime and pending record-deletion operation
 Authenticated plugin status/connection checks and validated Bot requests extend
 the channel's last-use timestamp. New creator connections expire after 90 days
 without such use. Server alarms or automatic Google refresh checks do not count
 as user activity. Ownership data is separately re-fetched daily; connections
-whose data cannot be refreshed within 29 days are stopped. Posting-ledger data
-is retained for 29 days, not 90. Explicit disconnect/deletion and Google-side
-revocation are handled independently, not postponed until inactivity expiry.
-These claims must not be submitted as deployed behavior until the rollout,
-real grant tests and deletion-operation approval are complete.
+whose data cannot be refreshed within 29 days are stopped. Connection expiry
+stops use; automatic historical-record deletion and the server erasure API
+remain disabled (BOT_DATA_LIFECYCLE_ENABLED is false). The implemented 29-day
+posting-ledger pruning is not enabled in production. Explicit disconnect
+requests Google revocation and removes encrypted creator credentials after
+success, not all historical records. Do not certify automatic data deletion
+or complete policy compliance until the deletion operation is enabled and
+verified. Real grant tests and revocation demonstration are still needed.
 
 Real demonstration video — REQUIRED, NOT AVAILABLE YET
 YouTube Unlisted URL: not supplied; do not enter a mock link.
@@ -88,9 +95,9 @@ Submission blockers — do not certify these as complete
 - Audience remains External / Testing. Branding URLs/domains saved; the
   Verification Center currently says verification is not required in Testing.
   Production publishing and brand verification have not been executed.
-- Server creator-grant feature is disabled. Public privacy still describes
-  the actual legacy online/discard flow. Update it and new consent BEFORE
-  making the isolated offline feature available.
+- Server creator-grant feature is enabled and public privacy describes the
+  new flow and the currently disabled record-deletion operation. Real Google
+  consent/token exchange and channel lookup remain unverified.
 - Data erasure/retention activation was explicitly declined. Do not certify
   enabled compliant deletion/expiry. It requires a separate operational decision.
 - Real grant/revoke testing, capacity/monitoring and the demonstration video

@@ -1,6 +1,32 @@
 JoinQueue — 配信者認証の分離・暗号化保管
 更新: 2026-10-03 / 作者・運営: kyo563
-状態: ソース実装・模擬テスト済み。本番切替・Google審査提出は未実行。
+状態: 2026-10-03に本番コード配置・新配信者認証を有効化。Google審査未提出。
+
+最新の本番状態（下記の準備経緯より優先）
+- ユーザーの実行直前の許可後、CHANNEL_GRANTS_ENABLED=trueをProductionへ保存。
+  コード配置 a6258245、設定反映後のActive version 4478e232、トラフィック100%。
+  WorkerビルドSHA256:
+  99063a23c773a70ddfa6d2b139223ca8b338dd167677dafdbea3b52a6e1c776c。
+- 公開privacy.htmlとホームの英語説明を更新。公開サイトcommit efac109。
+  読み取り専用refresh tokenの暗号化保管、90日未利用での利用停止、
+  自動記録削除が無効であることを日英で説明。旧利用者は新同意・再認証が必要。
+- BOT_DATA_LIFECYCLE_ENABLEDは無効のまま。90日未利用時の全記録削除や
+  サーバー記録削除APIは有効化していない。明示解除のGoogle revoke後に
+  認証情報を除去する処理とは別。一般提供の削除運用は引き続き未完了。
+- 共通Bot用の秘密・vault・投稿承認ID・運営用OAuth入口・DO binding、
+  課金、Google External / Testing、PCの待機列・OBS設定、公開ZIPは未変更。
+- backend77件、型検査、Workerビルドが成功。検証済みビルドをエディターへ
+  貼り付け、改行の正規化後に全文一致を確認して配置した。
+- 本番smoke: health200、運営認証入口404、無認証投稿401、新方式の同意
+  ページ200と暗号化保存案内・no-store・Cookie保護を確認。試験用の未認証
+  ペアリング1件を作成して取り消した。Google同意・実token交換・Bot投稿は
+  行っていない。新secretの機能確認と実チャンネル接続はまだ本人操作が必要。
+- 再確認用: shared-bot-backend/scripts/smoke-creator-production.mjs。
+  これは本番へ仮のペアリングを1件作る明示実行用で、自動テストには含めない。
+- 証跡: work/google-oauth-review/creator-grants-enabled-production-20261003.png、
+  creator-grants-deployment-20261003.png、privacy-creator-grants-published-20261003.png。
+
+以下は有効化までの経緯（「未切替」「false」等は当時の状態）
 
 承認と現在の設定
 - ユーザーは配信者のreadonly更新用認証情報をサーバーで暗号化保管し、

@@ -2,6 +2,16 @@ JoinQueue — Google OAuth申請・一般提供までの残作業
 更新: 2026-10-03 / 作者・運営: kyo563
 状態: 申請準備中。Google審査の提出・承認は未完了。
 
+2026-10-03最新状況（以下の履歴記載より優先）
+  ユーザー許可後、新配信者認証コード配置とCHANNEL_GRANTS_ENABLED=trueの
+  本番切替を完了。Active version 4478e232、公開privacy/ホームcommit efac109。
+  模擬backend77件、型検査、ビルド、本番の新同意ページと認証境界のsmoke成功。
+  共通Bot、課金、DO、Google External / Testing、公開ZIPは未変更。
+  BOT_DATA_LIFECYCLE_ENABLEDは無効。90日未利用の利用停止と自動削除は別。
+  残作業は実Google同意/token交換/解除、審査動画、削除運用の確定、
+  ブランド公開・審査提出。一般公開・審査承認済みとは扱わない。
+  詳細と証跡はcreator-grants-rollout.txt冒頭を参照。
+
 完了した準備
 - 共通Bot方式、わんコメ受信、ローカル待機列、OBS表示の責務を分離。
 - 共通BotのGoogle秘密情報はバックエンドのみで保持。

@@ -1,4 +1,10 @@
-JoinQueue Bot プライバシーポリシー（確認用草案・未公開）
+JoinQueue Bot プライバシーポリシー（旧草案・履歴資料）
+2026-10-03追記: 新認証方式の本番有効化と公開ページ更新を完了。
+現行の公開本文はhttps://kyo563.github.io/privacy.htmlと公開サイトcommit
+efac109を正とする。この履歴の未有効/未公開/旧方式の文言を申請へ転記しない。
+本番は90日未利用で利用停止、自動記録削除は無効。下記第8節の削除を
+含む案はBOT_DATA_LIFECYCLE_ENABLED=trueの場合の予定で、現行本番ではない。
+実Google認証・解除は未検証、審査未提出。詳細: creator-grants-rollout.txt。
 作成日: 2026年10月1日
 運営者: kyo563
 お問い合わせ: joinqueue.bot@gmail.com
