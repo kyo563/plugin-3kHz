@@ -5,7 +5,7 @@ import { SqlBotStore, DEFAULT_LIMITS, type Limits, type Connection } from './sql
 export interface YouTubeGateway {
   profile?(): {id:string; name:string; icon:string} | null;
   /** Confirms the authenticated bot identity and validates live video's owner. */
-  resolveChat(videoId: string, ownerChannelId: string): Promise<string>;
+  resolveChat(videoId: string, ownerChannelId: string, connectionId?: string): Promise<string>;
   post(chatId: string, message: string): Promise<void>;
 }
 export interface AuditEvent { requestId: string; userId?: string; deviceId?: string; status: string; code?: string }
@@ -41,7 +41,7 @@ export class BotService {
       if (raced) return raced;
       reserved = true;
       // No waiting/backlog: expire instead of posting old notifications on reconnect.
-      const chatId = await this.youtube.resolveChat(post.videoId, connection.channelId);
+      const chatId = await this.youtube.resolveChat(post.videoId, connection.channelId, connection.id);
       await this.creatorAuthorization?.(connection);
       this.store.authenticate(authorization, this.clock());
       this.store.connection(post.channelConnectionId, userId, this.clock());

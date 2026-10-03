@@ -27,7 +27,7 @@ export function creatorConfigured(env: CreatorEnv): boolean {
     env.CREATOR_GOOGLE_CLIENT_ID !== env.GOOGLE_CLIENT_ID && /^[\w-]{43}$/.test(env.BOT_VAULT_KEY ?? '');
 }
 
-/** Server-only encrypted readonly grants. No token getter, HTTP export or Bot-vault mutation. */
+/** Server-only encrypted readonly grants. No public token getter or Bot-vault mutation. */
 export class CreatorGrants {
   private vault: BotVault;
   private pending = new Map<string, Promise<void>>();
@@ -40,7 +40,8 @@ export class CreatorGrants {
       expiresAt INTEGER NOT NULL, status TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS creator_grant_due ON creator_grants(nextCheckAt);
       CREATE INDEX IF NOT EXISTS creator_grant_channel ON creator_grants(channelId);
-      CREATE TABLE IF NOT EXISTS creator_revocations (channelHash TEXT PRIMARY KEY, revokedAt INTEGER NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS creator_revocations (channelHash TEXT PRIMARY KEY, revokedAt INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS creator_broadcast_budget (id TEXT PRIMARY KEY, startedAt INTEGER NOT NULL, count INTEGER NOT NULL);`);
   }
   configured(): void { if (!creatorConfigured(this.env)) throw new BotFault('SERVICE_DISABLED', 503); }
   async prepare(connectionId: string, channelId: string, refresh: unknown, lifetime?: unknown, authStartedAt = this.clock()) {
@@ -87,6 +88,53 @@ export class CreatorGrants {
     const task = this.check(connectionId); this.pending.set(connectionId, task);
     try { await task; } finally { this.pending.delete(connectionId); }
   }
+  private async refreshAccess(row: Record<string, unknown>): Promise<string> {
+    const refresh = await this.vault.crypt(String(row.encrypted), `creator-refresh:${row.id}:${row.channelId}`, true);
+    const r = await this.request('https://oauth2.googleapis.com/token', {method:'POST', redirect:'manual', signal:AbortSignal.timeout(8000),
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({grant_type:'refresh_token',
+        client_id:this.env.CREATOR_GOOGLE_CLIENT_ID!, client_secret:this.env.CREATOR_GOOGLE_CLIENT_SECRET!, refresh_token:refresh})});
+    const data = JSON.parse(await boundedText(r, 32768));
+    if (r.status === 400 && data?.error === 'invalid_grant') { this.invalidate(String(row.id)); throw new BotFault('CHANNEL_NOT_LINKED', 403); }
+    if (!r.ok || !token(data?.access_token) || data?.token_type?.toLowerCase() !== 'bearer' ||
+      !Number.isSafeInteger(data?.expires_in) || data.expires_in <= 60 || data.expires_in > 86400 ||
+      (data.scope !== undefined && data.scope !== CREATOR_SCOPE)) throw unavailable();
+    return data.access_token;
+  }
+  /** Metadata only, for the selected video. Never reads comments or posts as creator. */
+  async upcomingChat(connectionId: string, videoId: string, channelId: string): Promise<string> {
+    if (!/^[\w-]{11}$/.test(videoId) || !/^UC[\w-]{22}$/.test(channelId)) throw new BotFault('INVALID_MESSAGE');
+    await this.ensure(connectionId);
+    const row = this.db.prepare("SELECT * FROM creator_grants WHERE connectionId=? AND channelId=? AND status='active'").get(connectionId, channelId);
+    if (!row) throw new BotFault('CHANNEL_NOT_LINKED', 403);
+    // Bound refresh/metadata requests across all tenants, including failures.
+    this.db.transaction(() => {
+      const b = this.db.prepare('SELECT * FROM creator_broadcast_budget WHERE id=?').get('global');
+      const current = b && Number(b.startedAt) > this.clock() - 86_400_000;
+      if (current && Number(b.count) >= 200) throw new BotFault('RATE_LIMITED', 429, 3600);
+      this.db.prepare('INSERT OR REPLACE INTO creator_broadcast_budget VALUES (?,?,?)')
+        .run('global', current ? Number(b.startedAt) : this.clock(), current ? Number(b.count) + 1 : 1);
+    });
+    try {
+      const access = await this.refreshAccess(row);
+      const response = await this.request('https://www.googleapis.com/youtube/v3/liveBroadcasts?part=id,snippet,status&id=' + encodeURIComponent(videoId), {
+        method:'GET', redirect:'manual', signal:AbortSignal.timeout(8000), headers:{Authorization:'Bearer ' + access}});
+      const data = JSON.parse(await boundedText(response, 32768));
+      // Revocation/expiry during either await must never yield a usable chat ID.
+      const fresh = this.db.prepare("SELECT id,encrypted FROM creator_grants WHERE connectionId=? AND status='active'").get(connectionId);
+      const connection = this.db.prepare('SELECT channelId,revoked,lastUsedAt FROM connections WHERE id=?').get(connectionId);
+      if (fresh?.id !== row.id || fresh?.encrypted !== row.encrypted || !connection || connection.revoked === 1 ||
+          connection.channelId !== channelId || Number(connection.lastUsedAt) <= this.clock() - CONNECTION_IDLE_MS ||
+          (Number(row.expiresAt) > 0 && Number(row.expiresAt) <= this.clock())) throw new BotFault('CHANNEL_NOT_LINKED', 403);
+      if (!response.ok) throw response.status === 403 ? new BotFault('CHAT_UNAVAILABLE') : unavailable();
+      if (!Array.isArray(data?.items) || data.items.length !== 1 || data.items[0]?.id !== videoId) throw new BotFault('CHAT_UNAVAILABLE');
+      const broadcast = data.items[0];
+      if (broadcast.snippet?.channelId !== channelId) throw new BotFault('CHANNEL_MISMATCH', 403);
+      if (broadcast.snippet?.actualEndTime || !['created','ready','liveStarting','live','testStarting','testing'].includes(broadcast.status?.lifeCycleStatus)) throw new BotFault('LIVE_NOT_ACTIVE');
+      const chat = broadcast.snippet?.liveChatId;
+      if (typeof chat !== 'string' || !chat || chat.length > 1000 || /[\p{Cc}\p{Cf}]/u.test(chat)) throw new BotFault('CHAT_UNAVAILABLE');
+      return chat;
+    } catch (e) { throw e instanceof BotFault ? e : unavailable(); }
+  }
   private async check(connectionId: string): Promise<void> {
     const row = this.db.prepare('SELECT * FROM creator_grants WHERE connectionId=?').get(connectionId);
     if (!row || row.status !== 'active' || row.clientHash !== digest(this.env.CREATOR_GOOGLE_CLIENT_ID!)) throw new BotFault('CHANNEL_NOT_LINKED', 403);
@@ -103,17 +151,9 @@ export class CreatorGrants {
     // Reserve a retry window BEFORE awaiting. Restart/concurrency cannot flood Google.
     this.db.prepare("UPDATE creator_grants SET nextCheckAt=? WHERE id=? AND status='active'").run(this.clock() + RETRY_MS, String(row.id));
     try {
-      const refresh = await this.vault.crypt(String(row.encrypted), `creator-refresh:${row.id}:${row.channelId}`, true);
-      const r = await this.request('https://oauth2.googleapis.com/token', {method:'POST', redirect:'manual', signal:AbortSignal.timeout(8000),
-        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({grant_type:'refresh_token',
-          client_id:this.env.CREATOR_GOOGLE_CLIENT_ID!, client_secret:this.env.CREATOR_GOOGLE_CLIENT_SECRET!, refresh_token:refresh})});
-      const data = JSON.parse(await boundedText(r, 32768));
-      if (r.status === 400 && data?.error === 'invalid_grant') { this.invalidate(String(row.id)); throw new BotFault('CHANNEL_NOT_LINKED', 403); }
-      if (!r.ok || !token(data?.access_token) || data?.token_type?.toLowerCase() !== 'bearer' ||
-        !Number.isSafeInteger(data?.expires_in) || data.expires_in <= 60 || data.expires_in > 86400 ||
-        (data.scope !== undefined && data.scope !== CREATOR_SCOPE)) throw unavailable();
+      const access = await this.refreshAccess(row);
       // Refresh the API-derived ownership data itself, not just the OAuth token.
-      // Uses only channels.list(mine=true); comments still come exclusively from OneComme.
+      // Incoming comments still come exclusively from OneComme.
       this.db.transaction(() => {
         const budget = this.db.prepare('SELECT * FROM channel_oauth_budget WHERE id=1').get();
         const current = budget && Number(budget.startedAt) > this.clock() - 86_400_000;
@@ -122,7 +162,7 @@ export class CreatorGrants {
           .run(current ? Number(budget.startedAt) : this.clock(), current ? Number(budget.count) + 1 : 1);
       });
       const ownerResponse = await this.request('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true', {
-        redirect:'manual', signal:AbortSignal.timeout(8000), headers:{Authorization:'Bearer ' + data.access_token}});
+        redirect:'manual', signal:AbortSignal.timeout(8000), headers:{Authorization:'Bearer ' + access}});
       const owner = JSON.parse(await boundedText(ownerResponse, 32768));
       if (!ownerResponse.ok) throw unavailable();
       if (!Array.isArray(owner?.items) || owner.items.length !== 1 || owner.items[0]?.id !== row.channelId) {

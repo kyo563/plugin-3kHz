@@ -10,7 +10,8 @@ const obj = (v: unknown): Record<string, any> => v !== null && typeof v === 'obj
 export class YouTubeApi implements YouTubeGateway {
   private botProfile: {id:string; name:string; icon:string} | null = null;
   profile() { return this.botProfile; }
-  constructor(private readonly tokens: ServerTokenProvider, private readonly botChannelId: string, private readonly request: Fetch = fetch) {
+  constructor(private readonly tokens: ServerTokenProvider, private readonly botChannelId: string, private readonly request: Fetch = fetch,
+    private readonly upcomingChat?: (connectionId: string, videoId: string, ownerChannelId: string) => Promise<string>) {
     if (!/^UC[\w-]{22}$/.test(botChannelId)) throw new Error('Bot channel ID required');
   }
   private async call(path: string, body?: unknown): Promise<Record<string, any>> {
@@ -39,7 +40,7 @@ export class YouTubeApi implements YouTubeGateway {
     }
     return data;
   }
-  async resolveChat(videoId: string, ownerChannelId: string): Promise<string> {
+  async resolveChat(videoId: string, ownerChannelId: string, connectionId?: string): Promise<string> {
     if (!/^[\w-]{11}$/.test(videoId) || !/^UC[\w-]{22}$/.test(ownerChannelId)) throw new BotFault('INVALID_MESSAGE');
     const mine = await this.call('channels?part=id,snippet&mine=true');
     if (!Array.isArray(mine.items) || mine.items.length !== 1 || obj(mine.items[0]).id !== this.botChannelId) throw new BotFault('BOT_UNAVAILABLE', 503);
@@ -51,9 +52,12 @@ export class YouTubeApi implements YouTubeGateway {
     if (!Array.isArray(data.items) || data.items.length !== 1 || obj(data.items[0]).id !== videoId) throw new BotFault('LIVE_NOT_ACTIVE');
     const video = obj(data.items[0]); const live = obj(video.liveStreamingDetails);
     if (obj(video.snippet).channelId !== ownerChannelId) throw new BotFault('CHANNEL_MISMATCH', 403);
-    if (!live.actualStartTime || live.actualEndTime || obj(video.snippet).liveBroadcastContent !== 'live') throw new BotFault('LIVE_NOT_ACTIVE');
-    if (typeof live.activeLiveChatId !== 'string' || !live.activeLiveChatId || live.activeLiveChatId.length > 1000) throw new BotFault('CHAT_UNAVAILABLE');
-    return live.activeLiveChatId;
+    const state = obj(video.snippet).liveBroadcastContent;
+    if (live.actualEndTime || !['live', 'upcoming'].includes(state)) throw new BotFault('LIVE_NOT_ACTIVE');
+    if (typeof live.activeLiveChatId === 'string' && live.activeLiveChatId && live.activeLiveChatId.length <= 1000 && !/[\p{Cc}\p{Cf}]/u.test(live.activeLiveChatId)) return live.activeLiveChatId;
+    // Upcoming rooms may require verified creator readonly broadcast metadata.
+    if (state === 'upcoming' && this.upcomingChat && connectionId) return this.upcomingChat(connectionId, videoId, ownerChannelId);
+    throw new BotFault('CHAT_UNAVAILABLE');
   }
   async post(chatId: string, message: string): Promise<void> {
     if (!chatId || chatId.length > 1000 || !message || [...message].length > 200 || /[\p{Cc}\p{Cf}]/u.test(message)) throw new BotFault('INVALID_MESSAGE');

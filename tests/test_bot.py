@@ -52,6 +52,8 @@ def activate(bot):
 @pytest.mark.parametrize('code, expected', [
     ('BOT_AUTH_EXPIRED', '共通BotのGoogle認証が期限切れ'),
     ('BOT_UNAVAILABLE', '共通Botの認証またはYouTube接続'),
+    ('LIVE_NOT_ACTIVE', '終了済み・利用不可'),
+    ('CHAT_UNAVAILABLE', 'YouTube公式APIで確認できません'),
     ('UNKNOWN_PRIVATE_CODE', '共通Botサーバーに接続できません'),
 ])
 def test_server_bot_fault_is_distinct_from_network_and_keeps_connection(setup_bot, code, expected):
@@ -87,6 +89,21 @@ def test_optional_connection_test_works_while_stopped_and_is_throttled(setup_bot
     bridge.select('')
     with pytest.raises(BotError): bot.command('test')
     assert len(sent) == 1
+
+
+def test_upcoming_frame_can_check_without_posting_and_missing_frame_is_distinct(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.command('connect'); bot.command('status')
+    bridge.service_frames = [{'id': 'abcdefghijk', 'state': 'upcoming'}]
+    before = services.build_view_state()
+    assert bot.command('check')['authenticated']
+    assert not bot.running and not sent and services.build_view_state() == before
+    assert json.loads(calls[-1].content)['videoId'] == 'abcdefghijk'
+    bridge.select('')
+    attempts = len(calls)
+    with pytest.raises(BotError, match='開始前の枠も選択できます'):
+        bot.command('check')
+    assert len(calls) == attempts and not sent
 
 
 def test_connection_test_disabled_on_older_server_and_unknown_delivery_not_retried(setup_bot):

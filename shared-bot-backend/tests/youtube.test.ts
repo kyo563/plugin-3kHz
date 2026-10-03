@@ -41,14 +41,13 @@ test('YouTube: verified Bot profile is acquired without extra OAuth scopes and f
   }
 });
 
-test('YouTube: Botアカウント違い・所有者違い・開始前・終了済み・チャットなしは拒否', async () => {
+test('YouTube: Botアカウント違い・所有者違い・非ライブ・終了済み・チャットなしは拒否', async () => {
   const wrongBot = apiFixture([{ items: [{ id: owner }] }]);
   await assert.rejects(wrongBot.api.resolveChat(video.id, owner), fault('BOT_UNAVAILABLE'));
   assert.equal(wrongBot.calls.length, 1);
   for (const [item, code] of [
     [{ ...video, snippet: { ...video.snippet, channelId: bot } }, 'CHANNEL_MISMATCH'],
-    [{ ...video, snippet: { ...video.snippet, liveBroadcastContent: 'upcoming' } }, 'LIVE_NOT_ACTIVE'],
-    [{ ...video, liveStreamingDetails: { activeLiveChatId: 'chat' } }, 'LIVE_NOT_ACTIVE'],
+    [{ ...video, snippet: { ...video.snippet, liveBroadcastContent: 'none' } }, 'LIVE_NOT_ACTIVE'],
     [{ ...video, liveStreamingDetails: { ...video.liveStreamingDetails, actualEndTime: 'ended' } }, 'LIVE_NOT_ACTIVE'],
     [{ ...video, liveStreamingDetails: { actualStartTime: 'started' } }, 'CHAT_UNAVAILABLE'],
     [{ ...video, id: 'different01' }, 'LIVE_NOT_ACTIVE'],
@@ -57,6 +56,28 @@ test('YouTube: Botアカウント違い・所有者違い・開始前・終了�
     await assert.rejects(f.api.resolveChat(video.id, owner), fault(code));
     assert.equal(f.calls.filter(c => c.init?.method === 'POST').length, 0);
   }
+});
+
+test('YouTube: upcoming chat is accepted without actualStartTime and check never posts', async () => {
+  const upcoming={...video,snippet:{...video.snippet,liveBroadcastContent:'upcoming'},liveStreamingDetails:{activeLiveChatId:'prelive-chat'}};
+  const f=apiFixture([{items:[{id:bot}]},{items:[upcoming]}]);
+  assert.equal(await f.api.resolveChat(video.id,owner),'prelive-chat');
+  assert.ok(f.calls.every(c=>c.init?.method==='GET'));
+});
+
+test('YouTube: missing upcoming chat uses only the verified connection resolver; live/foreign/ended never fall back', async () => {
+  const upcoming={...video,snippet:{...video.snippet,liveBroadcastContent:'upcoming'},liveStreamingDetails:{}};
+  let resolved=0;
+  const transport:typeof fetch=async url=>Response.json(String(url).includes('/channels?')?{items:[{id:bot}]}:{items:[upcoming]});
+  const api=new YouTubeApi({async accessToken(){return 'test-server-only-token';}},bot,transport,async(id,v,c)=>{
+    assert.deepEqual([id,v,c],['connection-a',video.id,owner]);resolved++;return 'creator-chat';
+  });
+  assert.equal(await api.resolveChat(video.id,owner,'connection-a'),'creator-chat');
+  await assert.rejects(api.resolveChat(video.id,owner),fault('CHAT_UNAVAILABLE'));
+  await assert.rejects(api.resolveChat(video.id,bot,'connection-a'),fault('CHANNEL_MISMATCH'));
+  const disabled=apiFixture([{items:[{id:bot}]},{items:[upcoming]}]);
+  await assert.rejects(disabled.api.resolveChat(video.id,owner,'connection-a'),fault('CHAT_UNAVAILABLE'));
+  assert.equal(resolved,1);
 });
 
 test('YouTube: POSTのタイムアウト・5xx・壊れた応答はunknown、再試行しない', async () => {

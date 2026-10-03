@@ -78,3 +78,37 @@ BOT_AUTH_ENABLED=falseへ戻し、本番反映9fa21621と入口HTTP404を確認�
 %LOCALAPPDATA%/WaitingListAppOneComme-backups/redesign-20261001-213442
 バージョンは0.1.4を維持。GitHub公開ZIPの更新・実配信・OBS実描画・
 Bot起動/実投稿・全体停止解除は今回行っていない。
+
+開始前のチャット接続修正: 2026-10-03
+わんコメで開始前の枠を選択済みでも、サーバーがactualStartTimeとlive状態を
+要求して拒否し、旧クライアントが「配信中の枠を選択」と表示していた。
+upcomingの枠を許可し、通常の動画情報にチャットIDがない場合だけ、
+接続した配信者のreadonly認証でliveBroadcasts.listを実行する。
+対象は選択した動画IDだけ。所有チャンネル・未終了・チャットIDを確認。
+認証/接続解除の競合、期限、異なるチャンネル、失敗、日次予算を検証。
+クライアントは未選択とYouTubeからの拒否を別のエラーとして表示する。
+コメント取得は追加せず、配信開始/変更・投稿テストも実行しない。
+
+Worker 7d1082a6をProductionの100%へ反映した。
+bundle SHA256: bb6ce1da45d36cc226af4f6534dff43297c35b4e3fd188a6caba1dbe5a56352d
+ブラウザー編集欄とビルドコードの改行正規化後の完全一致を確認してDeploy。
+選択済み開始前の枠で、既存の認証を使用した「接続を確認」が成功した。
+画面:「対象配信の接続確認が完了しました。チャットには投稿していません。」
+Bot停止状態を維持。成功はBot投稿やメンバー限定の投稿対応を証明しない。
+所有確認・Bot本人確認・認証・レート制限・承認IDは維持。
+Googleスコープ/Testing・削除フラグ・課金設定・秘密値は変更していない。
+
+public policyに開始前枠のreadonlyメタデータ確認用途を追記した。
+公開サイトコミット470865cをpushし、公開ページHTTP200と追記を確認。
+APIでチャットを確認できない場合は接続を成功扱いにしない。
+YouTube公式仕様:
+https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/list
+https://developers.google.com/youtube/v3/live/docs/liveBroadcasts#snippet.liveChatId
+
+テスト: Python 442、JavaScript 79、共通バックエンド88、TypeScript成功。
+Windows実行ファイル再ビルド、候補ZIP検証208ファイル成功。
+候補: dist/onecomme-release-0.1.4-prelive-20261003
+ZIP SHA256: 2d9aae92b76daabeaf776d233b2b5ec5a36d44ad024990e0c9706a65b1a4ec57
+新しい案内とエラー文の導入先差し替え・候補実行ファイルsmokeは
+OneCommeとQueueWorkerが稼働中のため未実施。本人の終了連絡待ち。
+GitHub公開ZIPは今回変更していない。サーバー側修正は既存導入版にも適用。

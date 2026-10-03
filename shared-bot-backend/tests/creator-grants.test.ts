@@ -21,6 +21,17 @@ function fixture() {
     CHANNEL_GRANTS_ENABLED:'true',CHANNEL_CONNECT_ENABLED:'true',BOT_POSTING_ENABLED:'true',BOT_DATA_LIFECYCLE_ENABLED:'false'};
   const request:typeof fetch=async(url,init)=>{
     assert.equal(init?.redirect,'manual');assert.ok(init?.signal);
+    if(String(url).startsWith('https://www.googleapis.com/youtube/v3/liveBroadcasts?')) {
+      assert.equal(init?.method,'GET');
+      const u=new URL(String(url));assert.equal(u.searchParams.get('part'),'id,snippet,status');assert.equal(u.searchParams.get('id'),'abcdefghijk');
+      assert.equal(u.searchParams.has('mine'),false);
+      const suffix=new Headers(init?.headers).get('Authorization')!.slice(-1);
+      if(mode==='broadcast-fail') return Response.json({error:'PRIVATE'},{status:403});
+      if(mode==='broadcast-empty') return Response.json({items:[]});
+      return Response.json({items:[{id:mode==='broadcast-wrong-id'?'different01':'abcdefghijk',
+        snippet:{channelId:'UC'+(mode==='broadcast-foreign'?'z':suffix).repeat(22),...(mode==='broadcast-no-chat'?{}:{liveChatId:'creator-chat'})},
+        status:{lifeCycleStatus:mode==='broadcast-ended'?'complete':'ready'}}]});
+    }
     if(url==='https://www.googleapis.com/youtube/v3/channels?part=id&mine=true') {
       const suffix = new Headers(init?.headers).get('Authorization')!.slice(-1);
       if(mode==='owner-fail') return Response.json({error:'private diagnostic'},{status:503});
@@ -60,6 +71,43 @@ function fixture() {
     counts:()=>({refreshes,revokes}),assertBot:()=>assert.equal(db.prepare('SELECT encrypted FROM bot_credentials').get()!.encrypted,'PRESERVE-BOT-CIPHERTEXT')};
 }
 const code=(v:string)=>(e:unknown)=>e instanceof BotFault&&e.code===v;
+
+test('upcoming broadcast lookup is creator readonly metadata only, keeps tokens private and never posts',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a');assert.equal(await f.grants.upcomingChat(a.connection,'abcdefghijk',a.channel),'creator-chat');
+    assert.equal(f.counts().refreshes,1);f.assertBot();
+    assert.ok(!JSON.stringify(f.db.prepare('SELECT * FROM creator_grants').all()).includes('PRIVATE-CREATOR-ACCESS'));
+    assert.equal(f.db.prepare('SELECT count FROM creator_broadcast_budget').get()!.count,1);
+  }finally{f.db.close();}
+});
+
+test('upcoming lookup rejects foreign/missing/ended chat and sanitizes provider errors',async()=>{
+  for(const [mode,expected] of [['broadcast-foreign','CHANNEL_MISMATCH'],['broadcast-wrong-id','CHAT_UNAVAILABLE'],
+    ['broadcast-ended','LIVE_NOT_ACTIVE'],['broadcast-no-chat','CHAT_UNAVAILABLE'],['broadcast-empty','CHAT_UNAVAILABLE'],['broadcast-fail','CHAT_UNAVAILABLE'],
+    ['invalid','CHANNEL_NOT_LINKED'],['scope','CHANNEL_AUTH_UNAVAILABLE']] as const){
+    const f=fixture();try{const a=await f.seed('a');f.mode(mode);
+      await assert.rejects(f.grants.upcomingChat(a.connection,'abcdefghijk',a.channel),e=>{
+        assert.ok(e instanceof BotFault);assert.equal(e.code,expected);assert.ok(!e.message.includes('PRIVATE'));return true;
+      });f.assertBot();
+    }finally{f.db.close();}
+  }
+});
+
+test('upcoming lookup cannot use another channel grant, exceed budget or resurrect a revoked connection',async()=>{
+  const f=fixture();try{
+    const a=await f.seed('a'),c=await f.seed('c');
+    await assert.rejects(f.grants.upcomingChat(a.connection,'abcdefghijk',c.channel),code('CHANNEL_NOT_LINKED'));
+    assert.equal(f.counts().refreshes,0);
+    f.db.prepare('INSERT INTO creator_broadcast_budget VALUES (?,?,?)').run('global',f.now(),200);
+    await assert.rejects(f.grants.upcomingChat(a.connection,'abcdefghijk',a.channel),code('RATE_LIMITED'));
+    assert.equal(f.counts().refreshes,0);f.db.prepare('UPDATE creator_broadcast_budget SET count=0').run();
+    let release!:()=>void,reached!:()=>void;const entered=new Promise<void>(r=>{reached=r;});
+    f.pause(()=>new Promise<void>(r=>{release=r;reached();}));
+    const lookup=f.grants.upcomingChat(a.connection,'abcdefghijk',a.channel);
+    const rejected=assert.rejects(lookup,code('CHANNEL_NOT_LINKED'));
+    await entered;await f.grants.revoke(a.channel);release();await rejected;f.assertBot();
+  }finally{f.db.close();}
+});
 
 test('creator grants require explicitly isolated project and client; disabled/misconfigured fails closed',async()=>{
   const f=fixture();try{

@@ -101,9 +101,10 @@ export class BotCoordinator {
     const vault = new BotVault(driver, env);
     applyPostingApproval(driver, env.BOT_POSTING_ENABLED, env.BOT_POSTING_APPROVAL_ID, vault.connected());
     this.#authorization = new BotAuthorization(driver, env);
-    const youtube = new YouTubeApi(new GoogleRefreshTokens(env, fetch, Date.now,
-      () => vault.refreshToken()), env.BOT_CHANNEL_ID);
     this.#grants = new CreatorGrants(driver, env);
+    const youtube = new YouTubeApi(new GoogleRefreshTokens(env, fetch, Date.now,
+      () => vault.refreshToken()), env.BOT_CHANNEL_ID, fetch,
+      env.CHANNEL_GRANTS_ENABLED === 'true' ? (id, video, channel) => this.#grants.upcomingChat(id, video, channel) : undefined);
     this.#service = new BotService(this.#store, youtube, event => console.log(JSON.stringify({requestId:event.requestId, status:event.status, code:event.code})), Date.now, {},
       env.CHANNEL_GRANTS_ENABLED === 'true' ? connection => this.#grants.ensure(connection.id) : undefined);
     this.#connections = new ChannelConnections(driver, env, youtube);

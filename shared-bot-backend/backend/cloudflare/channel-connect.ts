@@ -152,7 +152,7 @@ export class ChannelConnections {
           this.db.prepare('INSERT OR REPLACE INTO channel_probe_budget VALUES (?,?,?)').run(key, current ? Number(budget.startedAt) : this.clock(), current ? Number(budget.count) + 1 : 1);
           this.db.prepare('INSERT OR REPLACE INTO channel_checks VALUES (?,?)').run(principal.deviceId, this.clock());
         });
-        await this.youtube.resolveChat(body.videoId, connection.channelId);
+        await this.youtube.resolveChat(body.videoId, connection.channelId, connection.id);
         this.store.authenticate(r.headers.get('Authorization')!, this.clock()); this.store.connection(connection.id, principal.userId, this.clock()); this.store.assertEnabled();
       }
       this.store.recordUse(connection.id, principal.userId, this.clock());
@@ -172,7 +172,7 @@ export class ChannelConnections {
       // Native form POST must retain its same-origin Origin header. no-referrer
       // serializes it as "null" and our strict boundary correctly rejects that.
       // Do not forward the pairing URL to Google: redirects retain no-referrer.
-      const disclosure = offline ? '読み取り専用の更新用認証情報をサーバーだけに暗号化保存し、Google権限の有効性確認・解除に使います。PCへ配布せず、コメント取得にも使いません。' : 'チャンネルの所有確認後、Googleのアクセストークンは継続保存せず、確認済みチャンネルIDと端末接続情報を保存します。';
+      const disclosure = offline ? '読み取り専用の更新用認証情報をサーバーだけに暗号化保存し、Google権限の有効性確認・解除と、選択した配信の所有者・チャット接続先の確認に使います。PCへ配布せず、コメント取得にも使いません。' : 'チャンネルの所有確認後、Googleのアクセストークンは継続保存せず、確認済みチャンネルIDと端末接続情報を保存します。';
       return html(`<h1>配信するチャンネルを接続</h1><p>プラグインの確認番号が ${id.slice(0, 8)} であることを確認してください。他人から届いたリンクでは接続しないでください。</p><p>自分の配信チャンネルで認証します。共通Bot用アカウントではありません。読み取り専用で所有チャンネルを確認します。</p><p>作者・運営：kyo563。${disclosure} Botを使う場合は、選んだ通知に必要な表示名・待機順などをサーバー経由でYouTubeへ送ります。</p><p><a href="https://kyo563.github.io/privacy.html" target="_blank" rel="noreferrer noopener">プライバシーポリシー</a> ／ <a href="https://kyo563.github.io/terms.html" target="_blank" rel="noreferrer noopener">利用に関するご案内</a> ／ <a href="https://www.youtube.com/t/terms" target="_blank" rel="noreferrer noopener">YouTube利用規約</a></p><form method="post"><input type="hidden" name="csrf" value="${nonce}"><p><label><input type="checkbox" name="privacy" value="${offline ? 'privacy-creator-grants-v1' : 'privacy-2026-10-01'}" required> プライバシーポリシーを確認し、情報の取り扱いに同意します。</label></p><button>Googleでチャンネルを確認する</button></form>`, { 'Set-Cookie': `${COOKIE}=${nonce}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`, 'Referrer-Policy': 'same-origin' });
     }
     const fields = new URLSearchParams(await boundedText(r, 1024));

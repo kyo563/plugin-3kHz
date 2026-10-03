@@ -3,7 +3,7 @@ import type { BotErrorCode, BotPostRequest, BotPostResponse, BotName, BotVariabl
 
 const messages: Record<BotErrorCode, string> = {
   UNAUTHENTICATED: '接続の認証が必要です。', CHANNEL_NOT_LINKED: 'この端末で利用できるチャンネル接続ではありません。',
-  CHANNEL_MISMATCH: '配信のチャンネルが接続先と一致しません。', LIVE_NOT_ACTIVE: '配信が開始されていないか、終了しています。',
+  CHANNEL_MISMATCH: '配信のチャンネルが接続先と一致しません。', LIVE_NOT_ACTIVE: '対象がライブ配信の枠ではないか、終了済み・利用不可です。',
   CHAT_UNAVAILABLE: 'ライブチャットを利用できません。', BOT_PERMISSION_REQUIRED: 'Botの投稿権限を確認してください。',
   RATE_LIMITED: '投稿間隔または投稿数の上限に達しました。', QUOTA_EXHAUSTED: '共通Botの利用上限に達しました。',
   DUPLICATE_CONFLICT: '同じイベントIDで異なる投稿要求は送れません。', INVALID_MESSAGE: '投稿要求の形式が正しくありません。',

@@ -29,8 +29,9 @@ ERRORS = {
     'BOT_AUTH_EXPIRED': '共通BotのGoogle認証が期限切れです。運営者によるBotの再認証が必要です。配信チャンネルの再接続は不要です。通知は再送しません。',
     'BOT_UNAVAILABLE': '共通Botの認証またはYouTube接続を確認できません。運営者による確認が必要です。通知は再送しません。',
     'CHANNEL_MISMATCH': '接続したチャンネルと配信の所有者が一致しません。',
-    'LIVE_NOT_ACTIVE': 'わんコメで配信中のYouTube枠を選択してください。',
-    'CHAT_UNAVAILABLE': '対象配信のチャットを利用できません。',
+    'LIVE_NOT_ACTIVE': '対象がライブ配信の枠ではないか、終了済み・利用不可です。わんコメの接続先を確認してください。',
+    'STREAM_NOT_SELECTED': 'わんコメで対象のYouTube枠に接続してください。開始前の枠も選択できます。',
+    'CHAT_UNAVAILABLE': '対象配信のチャット接続先をYouTube公式APIで確認できません。チャットの有効設定・公開範囲を確認してください。',
     'BOT_PERMISSION_REQUIRED': '@JoinQueueBotのモデレーター登録を確認してください。',
     'RATE_LIMITED': '間隔が短すぎます。時間を空けてください。この通知は再送しません。',
     'QUOTA_EXHAUSTED': '共通Botの利用上限に達しました。',
@@ -311,7 +312,7 @@ class AnnouncementBot:
                     self.send_lock.release()
             elif action in ('status', 'check', 'start', 'test'):
                 if action != 'status' and not video:
-                    raise BotError('LIVE_NOT_ACTIVE')
+                    raise BotError('STREAM_NOT_SELECTED')
                 with self.lock:
                     if action == 'start' and self.running and self.active_video == video:
                         return self.status()

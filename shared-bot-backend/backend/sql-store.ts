@@ -14,7 +14,7 @@ export interface Principal { userId: string; deviceId: string }
 export interface Connection { id: string; userId: string; channelId: string; verifiedAt: number; revoked: number }
 export interface Limits { userPerMinute: number; channelPerMinute: number; globalPerMinute: number; channelGapMs: number; globalGapMs: number; dailyUnits: number }
 export const DEFAULT_LIMITS: Limits = { userPerMinute: 12, channelPerMinute: 6, globalPerMinute: 20, channelGapMs: 10_000, globalGapMs: 1_000, dailyUnits: 8_000 };
-export const REQUEST_UNITS = 52; // channels.list + videos.list + liveChatMessages.insert; no refund on failure.
+export const REQUEST_UNITS = 53; // channels + video + optional creator broadcast + insert; no refund on failure.
 // 29 days leaves an hourly alarm margin below YouTube's 30-day data limit.
 export const CONNECTION_RETENTION_MS = 29 * 86_400_000;
 // Service inactivity is distinct from the API-data refresh deadline above.
