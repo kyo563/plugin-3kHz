@@ -41,3 +41,14 @@ BOT_AUTH_ENABLEDを最後にtrueにする。キーをチャットやURLへ含め
 結果確認後に入口をfalseへ戻す。成功だけではBot起動・投稿の証明としない。
 Google Testingの更新トークンが再び期限切れになる可能性に注意。
 https://support.google.com/cloud/answer/15549945?hl=en
+
+同日後続の本人操作への引き継ぎ
+本人がBOT_AUTH_SETUP_HASHを登録した。Cloudflareの更新履歴30dad421、
+Updated secret: BOT_AUTH_SETUP_HASH、本番100%を値を開かずに確認した。
+BOT_AUTH_EXPIRES_AT=1791031035526（2026-10-03 21:37:15 JST）へ更新し、
+BOT_AUTH_ENABLED=trueを最後に保存した。他のフラグ・秘密・承認IDは不変。
+公開入口へのHTTP GETで200と一回用設定キーのフォームを確認した。
+自動操作のChromeではERR_BLOCKED_BY_CLIENT。解除や迂回は行わず、
+固定リンクを本人のブラウザーから開くよう引き継ぐ。キー入力・Google同意は
+本人操作待ち。入口は上記期限後自動拒否し、結果確認後はfalseへ戻す。
+ここまででBot認証が更新された、Botが起動した、投稿できたとは扱わない。
