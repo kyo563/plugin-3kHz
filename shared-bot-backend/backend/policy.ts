@@ -70,8 +70,13 @@ export function parsePost(value: unknown): BotPostRequest {
     variables = { ...person(v), state: v.state as BotVariables['state'] };
     if (v.state === 'waiting') variables.position = number(v.position, 1, 500);
     else if (v.position !== undefined) throw new BotFault('INVALID_MESSAGE');
-    if (v.state !== 'not-queued') variables.group = number(v.group, 1, 1_000_000);
-    else if (v.group !== undefined) throw new BotFault('INVALID_MESSAGE');
+    if (v.state === 'waiting') {
+      // Older clients sent cumulative match groups. Validate but do not display them.
+      number(v.group, 1, 1_000_000);
+      variables.group = Math.ceil(variables.position! / 3);
+    } else if (v.state === 'now') {
+      if (v.group !== undefined) number(v.group, 1, 1_000_000);
+    } else if (v.group !== undefined) throw new BotFault('INVALID_MESSAGE');
   } else {
     keys(v, ['waitingCount', 'groupCount', 'groupSize']);
     if (p.recipient !== undefined) throw new BotFault('INVALID_MESSAGE');
@@ -101,7 +106,7 @@ export function renderPost(post: BotPostRequest): string {
     case 'called': return `NOW（第${post.variables.group}グループ）：${post.variables.members!.map(m => `${m.handle ?? m.name} さん`).join('、')}。参加の準備をお願いします。`;
     case 'position': return post.variables.state === 'waiting'
       ? `${name} さん、現在の待機順は${post.variables.position}番目、第${post.variables.group}グループです（NOWを除く）。`
-      : post.variables.state === 'now' ? `${name} さんはNOW（第${post.variables.group}グループ）です。`
+      : post.variables.state === 'now' ? `${name} さんは現在参加中です。`
         : `${name} さんは現在、待機列に登録されていません。`;
     case 'announcement': return `現在の待機人数は${post.variables.waitingCount}名、待機グループ数は${post.variables.groupCount}組です（NOWを除く・1組${post.variables.groupSize}名）。`;
   }

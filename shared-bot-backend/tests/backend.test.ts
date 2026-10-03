@@ -13,6 +13,25 @@ import type { BotPostRequest } from '../src/contracts/bot-api';
 
 const channel = `UC${'a'.repeat(22)}`;
 const anotherChannel = `UC${'b'.repeat(22)}`;
+test('position replies count NEXT as group one, accept legacy clients, and distinguish currently playing', async () => {
+  const f = fixture();
+  try {
+    const body = f.body({templateId:'position',recipient:{service:'youtube',userId:'viewer'},variables:{name:'Viewer',handle:'@viewer',state:'now'}});
+    for (const group of [undefined, 2, 1000000]) {
+      const post = parsePost({...body,variables:{...body.variables,...(group === undefined ? {} : {group})}});
+      assert.equal(renderPost(post),'@viewer さんは現在参加中です。');
+      assert.equal(post.variables.group,undefined);
+    }
+    for (const [position, group] of [[1,1],[3,1],[4,2],[6,2],[7,3]] as const) {
+      const post = parsePost({...body,variables:{...body.variables,state:'waiting',position,group:1000000}});
+      assert.equal(post.variables.group,group);
+      assert.equal(renderPost(post),`@viewer さん、現在の待機順は${position}番目、第${group}グループです（NOWを除く）。`);
+    }
+    assert.throws(()=>parsePost({...body,variables:{...body.variables,group:'2'}}));
+    assert.equal((await f.submit(body)).body.status,'sent');
+    assert.deepEqual(f.sent,['@viewer さんは現在参加中です。']);
+  } finally { f.store.close(); }
+});
 test('connection test only accepts a fixed message and uses existing authorization and limits', async () => {
   const f = fixture();
   try {

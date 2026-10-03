@@ -472,10 +472,10 @@ class AnnouncementBot:
         identity = UserIdentityService().build_comment_user_id('youtube', uid)
         variables = self._name({'youtube_handle': handle, 'display_name': display})
         if any(u['user_id'] == identity for u in state['current']):
-            return {**variables, 'state': 'now', 'group': group}
+            return {**variables, 'state': 'now'}
         for i, user in enumerate(state['waiting'], 1):
             if user['user_id'] == identity:
-                return {**variables, 'state': 'waiting', 'position': i, 'group': group + math.ceil(i / 3)}
+                return {**variables, 'state': 'waiting', 'position': i, 'group': math.ceil(i / 3)}
         return {**variables, 'state': 'not-queued'}
 
     def tick(self):

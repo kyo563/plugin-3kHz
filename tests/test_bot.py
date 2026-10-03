@@ -9,6 +9,7 @@ from app.main import create_app
 from app.schemas.comment import ReceivedComment
 from app.services.application_services import ApplicationServices
 from app.services.onecomme import OneCommeBridge
+from app.services.user_identity_service import UserIdentityService
 from app.services.bot import AnnouncementBot, BotSettings, BotStore, BOT_ORIGIN, BOT_ID, BotError
 
 class MemoryStore:
@@ -224,13 +225,29 @@ def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
     for i in range(8): services.receive_comment(comment(i))
     bridge.receive('abcdefghijk', 'Test', comment(6, '@JoinQueueBot @user7 順番？'))
     bot.tick()
-    assert sent[-1]['variables'] == {'name':'@user6','handle':'@user6','state':'waiting','position':4,'group':3}
+    assert sent[-1]['variables'] == {'name':'@user6','handle':'@user6','state':'waiting','position':4,'group':2}
     assert sent[-1]['recipient']['userId'] == comment(6).user_key
     now[0] += 10; bot.receive(comment(6, '@JoinQueueBot', 'again')); bot.tick(); assert len(sent) == 1
     bot.receive(comment(1, '@JoinQueueBot')); bot.tick(); assert sent[-1]['variables']['state'] == 'now'
+    assert 'group' not in sent[-1]['variables']
     now[0] += 10; bot.receive(comment(50, '@JoinQueueBot')); bot.tick(); assert sent[-1]['variables']['state'] == 'not-queued'
     assert not bot.receive(comment(60, '@JoinQueueBot-other'))
     assert not bot.receive(comment(60, '@@JoinQueueBot'))
+
+
+@pytest.mark.parametrize('matches', [0, 1, 20])
+def test_position_groups_start_at_next_independent_of_match_count(setup_bot, matches):
+    bot, bridge, services, now, sent, calls = setup_bot
+    users = [{'user_id': UserIdentityService().build_comment_user_id('youtube', comment(i).user_key)} for i in range(10)]
+    state = {'total_match_count': matches, 'current': users[:3], 'waiting': users[3:]}
+    for rank in (1, 3, 4, 6, 7):
+        sender = comment(rank + 2)
+        result = bot._variables('position', (sender.user_key, sender.youtube_handle, sender.display_name), state)
+        assert result['state'] == 'waiting' and result['position'] == rank
+        assert result['group'] == (rank + 2) // 3
+    sender = comment(0)
+    result = bot._variables('position', (sender.user_key, sender.youtube_handle, sender.display_name), state)
+    assert result['state'] == 'now' and 'group' not in result
 
 @pytest.mark.parametrize('mask', range(8))
 def test_three_switches_all_combinations(setup_bot, mask):
