@@ -1,0 +1,43 @@
+JoinQueue — 共通Botの既知の期限切れ認証更新
+作者・運営: kyo563 / 2026-10-03
+
+確認した状態
+Cloudflareの暗号化列を開かず、認証のメタデータだけを確認した。
+共通Bot認証: 2026-09-22 21:49:05 JSTに保存、2026-09-29 21:48:04 JSTに期限切れ。
+配信者の接続は別プロジェクト。配信者の再接続やモデレーター再登録で
+共通Botの期限切れは直らない。health 200はGoogle認証の有効性を証明しない。
+
+実装と本番反映
+同じBotチャンネル・OAuth clientで、期限が既知かつ期限切れの場合だけ
+限定時間の運営者認証入口から更新できるようにした。
+期限不明、有効な認証、Bot/client不一致の認証は上書きしない。
+古い暗号化情報は先に削除しない。OAuth同意、更新トークンの動作確認、
+Botチャンネル一致、競合確認を通過した後にだけ原子的に入れ替える。
+拒否・別Bot・トークン確認失敗・scope不足・競合・callback再利用をテスト。
+PKCE、state、CSRF、cookie、単回setup key、10分sessionの制限を維持。
+BOT_AUTH_EXPIREDをサーバーから安全なコードとして返し、クライアントでも
+期限切れと通信障害を区別する。Googleの生のエラーや秘密情報は返さない。
+認証期限切れの投稿失敗は既存の全体停止対象。承認IDの無断更新は行わない。
+
+本番Worker: 7835d414 (100%)
+bundle SHA256: 9148fd72bea55a9a8f2559581c7e2747ebbeb9c6d3d8c5b3eeeb4238d8bb3388
+ブラウザー編集欄からコピーしたコードとビルドの完全一致を確認してDeploy。
+本番health、未認証投稿の拒否、配信者接続案内、模擬接続の取消を確認。
+認証入口は閉じたまま。Google本認証と実投稿はまだ行っていない。
+課金、公開/Testing状態、削除設定、Bot起動/投稿承認は変更しない。
+
+テスト: Python 439、JavaScript 79（キー準備ツール3件含む）、共通バックエンド83成功、TypeScript成功。
+Windows worker再ビルド、0.1.4候補ZIP検証成功（208ファイル）。
+候補ZIP SHA256: eb04ed6c770bf519b28f4f4052dab3a81bdfcfca4b1ad594a7a997bb20f46cae
+導入済みプラグインはわんコメ終了後にバックアップ付きで入れ替える。
+
+本人への引き継ぎ
+scripts/operator-bot-renewalをloopbackだけで配信する。キーは本人の
+クリックでブラウザー内に生成し、ネットワーク/ファイルへ送信・保存しない。
+本人がBOT_AUTH_SETUP_HASHのSecret欄へハッシュを登録する。
+登録後、運営者の許可に基づきBOT_AUTH_EXPIRES_ATを短時間の期限へ更新し、
+BOT_AUTH_ENABLEDを最後にtrueにする。キーをチャットやURLへ含めない。
+本人が固定の運営者認証画面へキーを入力し、@JoinQueueBotでGoogle承認。
+結果確認後に入口をfalseへ戻す。成功だけではBot起動・投稿の証明としない。
+Google Testingの更新トークンが再び期限切れになる可能性に注意。
+https://support.google.com/cloud/answer/15549945?hl=en

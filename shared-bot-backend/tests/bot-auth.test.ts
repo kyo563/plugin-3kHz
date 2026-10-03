@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomBytes } from 'node:crypto';
 import { AUTH_ORIGIN, AUTH_PATH, CALLBACK_PATH, BOT_SCOPE, BotAuthorization, BotVault, authBoundary, type BotAuthEnv } from '../backend/cloudflare/bot-auth';
 import { GoogleRefreshTokens } from '../backend/cloudflare/tokens';
+import { BotFault } from '../backend/policy';
 import type { SqlDriver } from '../backend/sql-store';
 
 const hash = (v: string) => createHash('sha256').update(v).digest('hex');
@@ -132,4 +133,98 @@ test('Bot OAuth: 別Bot・refresh失敗・scope不足・拒否は保存せず同
       assert.equal(page.status, 400); assert.ok(!(await page.text()).includes('private-provider-error'));
     } finally { f.db.close(); }
   }
+});
+
+async function expiredCredential(f: ReturnType<typeof fixture>) {
+  const vault = new BotVault(f.driver, f.env);
+  const encrypted = await vault.crypt('old-expired-refresh', 'refresh');
+  f.db.prepare('INSERT INTO bot_credentials VALUES (1,?,?,?,?,?)').run(encrypted, f.env.BOT_CHANNEL_ID,
+    hash(f.env.GOOGLE_CLIENT_ID!), f.clock() - 604800_000, f.clock());
+  return vault;
+}
+
+test('Bot OAuth renewal: expired same-Bot grant is kept until verified replacement, callback remains single-use', async () => {
+  const f = fixture();
+  try {
+    const vault = await expiredCredential(f);
+    const original = JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get());
+    assert.equal(vault.canAuthorize(f.clock()), true);
+    await assert.rejects(vault.refreshToken(f.clock()), (e: any) => e.code === 'BOT_AUTH_EXPIRED');
+    const b = await f.landing(); const redirect = await f.start(b);
+    assert.equal(redirect.status, 303);
+    assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get()), original);
+    const state = new URL(redirect.headers.get('location')!).searchParams.get('state')!;
+    const result = await Promise.all([f.auth().handle(f.callback(state, b.cookie)), f.auth().handle(f.callback(state, b.cookie))]);
+    assert.deepEqual(result.map(r => r.status).sort(), [303, 403]);
+    assert.deepEqual(f.counts(), {exchanges:1, refreshes:1, lookups:1});
+    assert.equal(await vault.refreshToken(f.clock()), 'fake-refresh');
+    assert.equal(vault.canAuthorize(f.clock()), false);
+    assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM bot_credentials').get()!.n, 1);
+    assert.equal((await f.auth().handle(new Request(AUTH_ORIGIN + AUTH_PATH))).status, 409);
+  } finally { f.db.close(); }
+});
+
+test('Bot OAuth renewal: denial/wrong Bot/refresh failure/scope failure retain expired ciphertext unchanged', async () => {
+  for (const mode of ['denied','wrongBot','refresh','scope']) {
+    const f = fixture();
+    try {
+      await expiredCredential(f);
+      const original = JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get());
+      if (mode === 'wrongBot') f.setWrongBot(); if (mode === 'refresh') f.setBadRefresh(); if (mode === 'scope') f.setDeniedScope();
+      const b = await f.landing(); const redirect = await f.start(b);
+      const state = new URL(redirect.headers.get('location')!).searchParams.get('state')!;
+      await f.auth().handle(f.callback(state, b.cookie, mode === 'denied' ? '&error=access_denied' : ''));
+      assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM bot_credentials').get()), original);
+      assert.equal(f.db.prepare('SELECT status FROM bot_auth_session').get()!.status, 'failed');
+      assert.equal((await f.auth().handle(f.callback(state, b.cookie))).status, 403);
+    } finally { f.db.close(); }
+  }
+});
+
+test('Bot OAuth renewal: active/unknown expiry/foreign Bot or client grants cannot be overwritten', async () => {
+  for (const mode of ['active','unknown','foreignBot','foreignClient']) {
+    const f = fixture();
+    try {
+      const vault = await expiredCredential(f);
+      if (mode === 'active') f.db.prepare('UPDATE bot_credentials SET expiresAt=?').run(f.clock()+1);
+      if (mode === 'unknown') f.db.prepare('UPDATE bot_credentials SET expiresAt=0').run();
+      if (mode === 'foreignBot') f.db.prepare('UPDATE bot_credentials SET channelId=?').run('UC'+'b'.repeat(22));
+      if (mode === 'foreignClient') f.db.prepare('UPDATE bot_credentials SET clientIdHash=?').run(hash('other-client'));
+      assert.equal(vault.canAuthorize(f.clock()), false);
+      assert.equal((await f.auth().handle(new Request(AUTH_ORIGIN+AUTH_PATH))).status,409);
+      assert.deepEqual(f.counts(), {exchanges:0,refreshes:0,lookups:0});
+    } finally { f.db.close(); }
+  }
+});
+
+test('Bot OAuth renewal: concurrent replacement during Google verification is not overwritten', async () => {
+  const f = fixture();
+  try {
+    await expiredCredential(f);
+    const b=await f.landing(); const redirect=await f.start(b);
+    const state=new URL(redirect.headers.get('location')!).searchParams.get('state')!;
+    const transport: typeof fetch = async (url,init) => {
+      const response=await f.request(url,init);
+      if (String(url).includes('/channels?')) f.db.prepare('UPDATE bot_credentials SET expiresAt=?').run(f.clock()+100000);
+      return response;
+    };
+    const auth=new BotAuthorization(f.driver,f.env,transport,f.clock);
+    await auth.handle(f.callback(state,b.cookie));
+    assert.equal(f.db.prepare('SELECT status FROM bot_auth_session').get()!.status,'failed');
+    assert.equal(f.db.prepare('SELECT expiresAt FROM bot_credentials').get()!.expiresAt,f.clock()+100000);
+    assert.equal(await new BotVault(f.driver,f.env).refreshToken(f.clock()),'old-expired-refresh');
+  } finally { f.db.close(); }
+});
+
+test('Bot OAuth renewal: known expiry survives provider cooldown without Google calls or secret leakage', async () => {
+  const f=fixture();
+  try {
+    const vault=await expiredCredential(f);
+    const provider=new GoogleRefreshTokens(f.env,f.request,f.clock,()=>vault.refreshToken(f.clock()));
+    for (let i=0;i<2;i++) await assert.rejects(provider.accessToken(), (e:any) => {
+      assert.ok(e instanceof BotFault); assert.equal(e.code,'BOT_AUTH_EXPIRED');
+      assert.ok(!e.message.includes('old-expired-refresh')); return true;
+    });
+    assert.deepEqual(f.counts(),{exchanges:0,refreshes:0,lookups:0});
+  } finally { f.db.close(); }
 });

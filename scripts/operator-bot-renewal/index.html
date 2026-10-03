@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>共通Botの再認証準備 — 運営者専用</title>
+<style>
+body{font:16px/1.7 system-ui;background:#f4f7f5;color:#20362c;margin:0;padding:32px}main{max-width:820px;margin:auto;background:white;padding:28px;border-radius:16px}h1{font-size:24px}button{padding:10px 16px;margin:6px 0;cursor:pointer}input{box-sizing:border-box;width:100%;padding:10px;font:14px monospace}label{display:block;margin-top:18px}small{display:block;color:#52655a}#status{min-height:28px;color:#086844}a{color:#096647}
+</style>
+<main>
+<h1>共通Botの再認証準備（運営者専用）</h1>
+<p>この画面はご自身のPC内だけで動きます。新しい一回用の設定キーを作成し、Cloudflareの設定を更新します。Googleのクライアントシークレットを作り直す操作ではありません。</p>
+<p>値はチャットへ送らないでください。ページを再読み込み・閉じると作成した値は失われます。Google認証を完了するまで開いたままにしてください。</p>
+<button id="generate" type="button">新しい一回用キーを作成</button>
+<label>1. Cloudflareに登録するハッシュ<input id="hash" readonly autocomplete="off" spellcheck="false"></label>
+<button id="copy-hash" type="button" disabled>ハッシュをコピー</button>
+<p>Cloudflareの <code>joinqueue-bot-backend</code> → Settings → Variables and Secrets で、<code>BOT_AUTH_SETUP_HASH</code> を編集します。種類を <strong>Secret</strong> のまま、コピーしたハッシュをValue欄へ貼り付けてDeployで保存してください。他のSecretは変更しません。</p>
+<p>保存できたら「一回用ハッシュを登録しました」とお知らせください。こちらで短時間だけ認証入口を開きます。</p>
+<label>2. 認証入口で使用する一回用設定キー<input id="key" type="password" readonly autocomplete="off" spellcheck="false"></label>
+<button id="copy-key" type="button" disabled>設定キーをコピー</button>
+<p>入口を開いた後、<a href="https://joinqueue-bot-backend.joinqueue.workers.dev/operator/bot-auth" target="_blank" rel="noopener noreferrer">共通Botの運営者認証画面</a>へ進み、設定キーを貼り付けます。Googleでは <strong>joinqueue.bot@gmail.com / @JoinQueueBot</strong> を選び、ご自身で承認してください。普段配信するアカウントではありません。</p>
+<small>Google認証が成功するまでは、古いBot認証情報を保持します。この操作ではBotの起動・投稿は行いません。待機列・設定・配信者の接続は変更しません。</small>
+<p id="status" role="status" aria-live="polite"></p>
+</main>
+<script src="bootstrap.js"></script>
+</html>

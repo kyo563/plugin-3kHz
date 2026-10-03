@@ -7,7 +7,9 @@ const messages: Record<BotErrorCode, string> = {
   CHAT_UNAVAILABLE: 'ライブチャットを利用できません。', BOT_PERMISSION_REQUIRED: 'Botの投稿権限を確認してください。',
   RATE_LIMITED: '投稿間隔または投稿数の上限に達しました。', QUOTA_EXHAUSTED: '共通Botの利用上限に達しました。',
   DUPLICATE_CONFLICT: '同じイベントIDで異なる投稿要求は送れません。', INVALID_MESSAGE: '投稿要求の形式が正しくありません。',
-  BOT_UNAVAILABLE: 'Botに接続できません。', DELIVERY_UNKNOWN: '投稿結果を確認できません。重複防止のため自動再送しません。',
+  BOT_UNAVAILABLE: '共通Botの認証またはYouTube接続を確認できません。運営者による確認が必要です。',
+  BOT_AUTH_EXPIRED: '共通BotのGoogle認証が期限切れです。運営者によるBotの再認証が必要です。',
+  DELIVERY_UNKNOWN: '投稿結果を確認できません。重複防止のため自動再送しません。',
   REQUEST_EXPIRED: '通知が古いため投稿しません。', SERVICE_DISABLED: 'Bot投稿は停止中です。',
   CHANNEL_AUTH_UNAVAILABLE: '配信者のGoogle権限を確認できません。時間をおいて接続を確認してください。',
 };

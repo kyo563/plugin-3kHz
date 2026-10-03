@@ -73,6 +73,15 @@ export class BotVault {
       status TEXT NOT NULL);`);
   }
   connected(): boolean { return !!this.#db.prepare('SELECT id FROM bot_credentials WHERE id=1').get(); }
+  /** Renew only a known-expired grant for the same configured Bot/client.
+   * Keep the old ciphertext until a replacement has passed every OAuth check. */
+  canAuthorize(now: number): boolean {
+    const row = this.#db.prepare('SELECT channelId,clientIdHash,expiresAt FROM bot_credentials WHERE id=1').get();
+    if (!row) return true;
+    const expiry = Number(row.expiresAt);
+    return row.channelId === this.#env.BOT_CHANNEL_ID && row.clientIdHash === hash(this.#env.GOOGLE_CLIENT_ID ?? '') &&
+      Number.isSafeInteger(expiry) && expiry > 0 && expiry <= now;
+  }
   async crypt(value: string, purpose: string, decrypt = false): Promise<string> {
     if (!opaque(this.#env.BOT_VAULT_KEY)) throw fault();
     const key = await crypto.subtle.importKey('raw', Buffer.from(this.#env.BOT_VAULT_KEY, 'base64url'), 'AES-GCM', false, [decrypt ? 'decrypt' : 'encrypt']);
@@ -89,8 +98,8 @@ export class BotVault {
   }
   async refreshToken(now = Date.now()): Promise<string> {
     const row = this.#db.prepare('SELECT * FROM bot_credentials WHERE id=1').get();
-    if (!row || row.channelId !== this.#env.BOT_CHANNEL_ID || row.clientIdHash !== hash(this.#env.GOOGLE_CLIENT_ID ?? '') ||
-        (Number(row.expiresAt) !== 0 && Number(row.expiresAt) <= now)) throw new BotFault('BOT_UNAVAILABLE', 503);
+    if (!row || row.channelId !== this.#env.BOT_CHANNEL_ID || row.clientIdHash !== hash(this.#env.GOOGLE_CLIENT_ID ?? '')) throw new BotFault('BOT_UNAVAILABLE', 503);
+    if (Number(row.expiresAt) !== 0 && Number(row.expiresAt) <= now) throw new BotFault('BOT_AUTH_EXPIRED', 503);
     return this.crypt(String(row.encrypted), 'refresh', true);
   }
 }
@@ -109,10 +118,10 @@ export class BotAuthorization {
         const row = this.#db.prepare('SELECT * FROM bot_auth_session WHERE id=1').get();
         if (!row || !cookieValue(request) || !same(String(row.browserHash), hash(cookieValue(request))) || Number(row.expiresAt) <= this.#clock()) throw fault();
         const success = row.status === 'connected' && this.#vault.connected();
-        return response(`<meta charset="utf-8"><title>JoinQueue Bot 認証結果</title><h1>${success ? 'Botの認証が完了しました' : '認証を完了できませんでした'}</h1><p>${success ? '登録済みBotチャンネルとの一致を確認し、認証情報をサーバーに暗号化保存しました。Bot投稿は停止中です。' : '認証を再試行する場合は、運営者が新しい一回用の認証入口を用意してください。'}</p>`, success ? 200 : 400);
+        return response(`<meta charset="utf-8"><title>JoinQueue Bot 認証結果</title><h1>${success ? 'Botの認証が完了しました' : '認証を完了できませんでした'}</h1><p>${success ? '登録済みBotチャンネルとの一致を確認し、認証情報をサーバーに暗号化保存しました。この操作ではBotの起動・投稿は行いません。' : '認証を再試行する場合は、運営者が新しい一回用の認証入口を用意してください。'}</p>`, success ? 200 : 400);
       }
       if (url.pathname === CALLBACK_PATH) return await this.callback(request);
-      if (this.#vault.connected()) return response('Botは接続済みです。上書き認証はできません。', 409);
+      if (!this.#vault.canAuthorize(this.#clock())) return response('有効なBot認証、または設定の異なる認証が保存されています。上書き認証はできません。', 409);
       if (request.method === 'GET') {
         const nonce = random();
         return response(`<meta charset="utf-8"><title>JoinQueue Bot 運営者認証</title><h1>共通Botの認証（運営者専用）</h1><p>配信者向けの接続画面ではありません。@JoinQueueBotだけを認証します。</p><form method="post" autocomplete="off"><input type="hidden" name="csrf" value="${nonce}"><label>一回用の設定キー<input type="password" name="setup" required autocomplete="off" maxlength="43"></label><button>Googleの認証へ進む</button></form>`, 200,
@@ -126,7 +135,7 @@ export class BotAuthorization {
       const state = random(); const verifier = random(); const encrypted = await this.#vault.crypt(verifier, 'pkce');
       const expiresAt = Math.min(this.#clock() + 600_000, Number(this.#env.BOT_AUTH_EXPIRES_AT));
       this.#db.transaction(() => {
-        if (this.#vault.connected()) throw fault();
+        if (!this.#vault.canAuthorize(this.#clock())) throw fault();
         const old = this.#db.prepare('SELECT * FROM bot_auth_session WHERE id=1').get();
         if (old && (old.setupHash === this.#env.BOT_AUTH_SETUP_HASH || (['pending', 'consumed'].includes(String(old.status)) && Number(old.expiresAt) > this.#clock()))) throw fault();
         this.#db.prepare('INSERT OR REPLACE INTO bot_auth_session VALUES (1,?,?,?,?,?,?)').run(this.#env.BOT_AUTH_SETUP_HASH!, hash(state), hash(browser), encrypted, expiresAt, 'pending');
@@ -149,7 +158,7 @@ export class BotAuthorization {
       const current = this.#db.prepare('SELECT * FROM bot_auth_session WHERE id=1').get();
       if (!current || current.status !== 'pending' || Number(current.expiresAt) <= this.#clock() ||
           current.setupHash !== this.#env.BOT_AUTH_SETUP_HASH || !same(String(current.stateHash), hash(state)) ||
-          !same(String(current.browserHash), hash(browser)) || this.#vault.connected()) throw fault();
+          !same(String(current.browserHash), hash(browser)) || !this.#vault.canAuthorize(this.#clock())) throw fault();
       // Consume BEFORE any network await; replay/concurrent requests never exchange twice.
       this.#db.prepare("UPDATE bot_auth_session SET status='consumed',verifier='' WHERE id=1").run();
       return current;
@@ -178,8 +187,8 @@ export class BotAuthorization {
       this.#db.transaction(() => {
         const current = this.#db.prepare('SELECT stateHash,status FROM bot_auth_session WHERE id=1').get();
         if (!current || current.stateHash !== row.stateHash || current.status !== 'consumed' ||
-            !authConfigured(this.#env, this.#clock()) || Number(row.expiresAt) <= this.#clock() || this.#vault.connected()) throw fault();
-        this.#db.prepare('INSERT INTO bot_credentials VALUES (1,?,?,?,?,?)').run(encrypted, this.#env.BOT_CHANNEL_ID, hash(this.#env.GOOGLE_CLIENT_ID!), this.#clock(), expiresAt);
+            !authConfigured(this.#env, this.#clock()) || Number(row.expiresAt) <= this.#clock() || !this.#vault.canAuthorize(this.#clock())) throw fault();
+        this.#db.prepare('INSERT INTO bot_credentials VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET encrypted=excluded.encrypted,channelId=excluded.channelId,clientIdHash=excluded.clientIdHash,connectedAt=excluded.connectedAt,expiresAt=excluded.expiresAt').run(encrypted, this.#env.BOT_CHANNEL_ID, hash(this.#env.GOOGLE_CLIENT_ID!), this.#clock(), expiresAt);
         this.#db.prepare("UPDATE bot_auth_session SET status='connected' WHERE id=1").run();
       });
     } catch { this.#db.prepare("UPDATE bot_auth_session SET status='failed' WHERE id=1 AND status='consumed' AND stateHash=?").run(String(row.stateHash)); }

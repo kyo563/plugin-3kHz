@@ -16,7 +16,7 @@ export class YouTubeApi implements YouTubeGateway {
   private async call(path: string, body?: unknown): Promise<Record<string, any>> {
     let token: string;
     try { token = await this.tokens.accessToken(); if (!token) throw new Error(); }
-    catch { throw new BotFault('BOT_UNAVAILABLE', 503); }
+    catch (error) { throw new BotFault(error instanceof BotFault && error.code === 'BOT_AUTH_EXPIRED' ? 'BOT_AUTH_EXPIRED' : 'BOT_UNAVAILABLE', 503); }
     let response: Response;
     try {
       response = await this.request.call(globalThis, api + path, { method: body === undefined ? 'GET' : 'POST',

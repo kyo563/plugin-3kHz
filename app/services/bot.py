@@ -26,6 +26,8 @@ ERRORS = {
     'UNAUTHENTICATED': '接続が失効しました。接続解除後に再接続してください。',
     'CHANNEL_NOT_LINKED': '配信チャンネルを接続してください。',
     'CHANNEL_AUTH_UNAVAILABLE': '配信者のGoogle権限を確認できません。時間をおいて接続を確認してください。',
+    'BOT_AUTH_EXPIRED': '共通BotのGoogle認証が期限切れです。運営者によるBotの再認証が必要です。配信チャンネルの再接続は不要です。通知は再送しません。',
+    'BOT_UNAVAILABLE': '共通Botの認証またはYouTube接続を確認できません。運営者による確認が必要です。通知は再送しません。',
     'CHANNEL_MISMATCH': '接続したチャンネルと配信の所有者が一致しません。',
     'LIVE_NOT_ACTIVE': 'わんコメで配信中のYouTube枠を選択してください。',
     'CHAT_UNAVAILABLE': '対象配信のチャットを利用できません。',

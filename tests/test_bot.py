@@ -49,6 +49,27 @@ def activate(bot):
     bot.command('connect'); bot.command('status'); bot.command('start')
 
 
+@pytest.mark.parametrize('code, expected', [
+    ('BOT_AUTH_EXPIRED', '共通BotのGoogle認証が期限切れ'),
+    ('BOT_UNAVAILABLE', '共通Botの認証またはYouTube接続'),
+    ('UNKNOWN_PRIVATE_CODE', '共通Botサーバーに接続できません'),
+])
+def test_server_bot_fault_is_distinct_from_network_and_keeps_connection(setup_bot, code, expected):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.command('connect'); bot.command('status')
+    device, connection = bot.device, bot.connection.copy()
+    bot.http.close()
+    attempts = []
+    def reply(request):
+        attempts.append(request)
+        return httpx.Response(503, json={'error': {'code': code, 'message': 'PRIVATE_TOKEN'}})
+    bot.http = httpx.Client(transport=httpx.MockTransport(reply))
+    with pytest.raises(BotError, match=expected): bot.command('check')
+    assert bot.device == device and bot.connection == connection
+    assert not bot.running and len(attempts) == 1 and not sent
+    assert 'PRIVATE_TOKEN' not in str(bot.status()) and code != bot.error
+
+
 def test_optional_connection_test_works_while_stopped_and_is_throttled(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     bot.command('connect'); bot.command('status')

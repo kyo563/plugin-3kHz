@@ -54,7 +54,7 @@ export class BotService {
       result = failure(requestId, error instanceof BotFault ? error : new BotFault(dispatching ? 'DELIVERY_UNKNOWN' : 'BOT_UNAVAILABLE', 503));
       // A provider quota/auth/connectivity failure must not cause every client to
       // keep hitting the shared bot. Operator review is needed to re-enable it.
-      if (reserved && ['QUOTA_EXHAUSTED', 'BOT_UNAVAILABLE'].includes(result.body.error?.code ?? '')) {
+      if (reserved && ['QUOTA_EXHAUSTED', 'BOT_UNAVAILABLE', 'BOT_AUTH_EXPIRED'].includes(result.body.error?.code ?? '')) {
         try { this.store.setEnabled(false); } catch { /* Broken storage already fails closed. */ }
       }
     }

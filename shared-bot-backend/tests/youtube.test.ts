@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { YouTubeApi } from '../backend/youtube';
+import { BotFault } from '../backend/policy';
 
 const bot = `UC${'a'.repeat(22)}`; const owner = `UC${'b'.repeat(22)}`;
 const video = { id: 'abcdefghijk', snippet: { channelId: owner, liveBroadcastContent: 'live' },
@@ -87,4 +88,12 @@ test('YouTube: トークン取得失敗・不正な入力ではHTTPを送らな�
   await assert.rejects(api.resolveChat('https://evil.invalid', owner), fault('INVALID_MESSAGE'));
   await assert.rejects(api.post('chat', 'a'.repeat(201)), fault('INVALID_MESSAGE'));
   assert.equal(calls, 0);
+});
+
+test('YouTube: known Bot expiry keeps its public code and never attempts posting', async () => {
+  let calls=0;
+  const api=new YouTubeApi({async accessToken(){throw new BotFault('BOT_AUTH_EXPIRED',503);}},bot,async()=>{calls++; throw new Error('PRIVATE');});
+  await assert.rejects(api.resolveChat(video.id,owner),fault('BOT_AUTH_EXPIRED'));
+  await assert.rejects(api.post('chat','hello'),fault('BOT_AUTH_EXPIRED'));
+  assert.equal(calls,0);
 });

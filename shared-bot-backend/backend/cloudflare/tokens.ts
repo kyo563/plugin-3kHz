@@ -15,6 +15,7 @@ export class GoogleRefreshTokens implements ServerTokenProvider {
   #cached?: { token: string; expiresAt: number };
   #pending?: Promise<string>;
   #retryAt = 0;
+  #retryFault = new BotFault('BOT_UNAVAILABLE', 503);
   #readRefresh?: () => Promise<string>;
   constructor(secrets: GoogleBotSecrets, request: typeof fetch = fetch, clock = Date.now, readRefresh?: () => Promise<string>) {
     this.#secrets = { GOOGLE_CLIENT_ID: secrets.GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET: secrets.GOOGLE_CLIENT_SECRET,
@@ -25,7 +26,7 @@ export class GoogleRefreshTokens implements ServerTokenProvider {
   async accessToken(): Promise<string> {
     if (this.#cached && this.#cached.expiresAt > this.#clock()) return this.#cached.token;
     if (this.#pending) return this.#pending;
-    if (this.#clock() < this.#retryAt) throw new BotFault('BOT_UNAVAILABLE', 503);
+    if (this.#clock() < this.#retryAt) throw this.#retryFault;
     this.#pending = this.refresh();
     try { return await this.#pending; }
     finally { this.#pending = undefined; }
@@ -52,10 +53,11 @@ export class GoogleRefreshTokens implements ServerTokenProvider {
       if (expiresAt <= this.#clock()) throw new Error();
       this.#cached = { token: p.access_token, expiresAt };
       return p.access_token;
-    } catch {
+    } catch (error) {
       this.#cached = undefined; this.#retryAt = this.#clock() + 60_000;
       // Never propagate Google's response, a fetch error, or any secret binding.
-      throw new BotFault('BOT_UNAVAILABLE', 503);
+      this.#retryFault = new BotFault(error instanceof BotFault && error.code === 'BOT_AUTH_EXPIRED' ? 'BOT_AUTH_EXPIRED' : 'BOT_UNAVAILABLE', 503);
+      throw this.#retryFault;
     }
   }
 }
