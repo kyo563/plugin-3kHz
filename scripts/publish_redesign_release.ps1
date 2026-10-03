@@ -2,6 +2,8 @@ param([string]$ReleaseDirectory = 'dist\onecomme-release-0.1.4-redesign-final')
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $candidate = Join-Path $repoRoot $ReleaseDirectory
+if (-not (Test-Path -LiteralPath (Join-Path $candidate 'Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip'))) { throw 'Missing candidate ZIP' }
+if (-not (Test-Path -LiteralPath (Join-Path $candidate 'SHA256SUMS.txt'))) { throw 'Missing candidate checksums' }
 $backup = Join-Path $repoRoot ('dist\release-backup-redesign-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $backup | Out-Null
 $env:GIT_TERMINAL_PROMPT = '0'
@@ -34,7 +36,7 @@ foreach ($item in $staged) {
     $null = Invoke-RestMethod -Method Patch -Headers $headers -Uri "$api/releases/assets/$($item.new.id)" -ContentType 'application/json' -Body (@{name=$item.name} | ConvertTo-Json)
 }
 $body = Get-Content -LiteralPath (Join-Path $repoRoot 'docs\RELEASE_ONECOMME_0.1.4.md') -Raw -Encoding utf8
-$json = @{body=$body;draft=$false;prerelease=$false} | ConvertTo-Json
+$json = @{body=$body;draft=$false;prerelease=$false;make_latest='true'} | ConvertTo-Json
 $null = Invoke-RestMethod -Method Patch -Headers $headers -Uri "$api/releases/$($release.id)" -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($json))
 foreach ($item in $staged) {
     $new = Invoke-RestMethod -Headers $headers -Uri "$api/releases/assets/$($item.new.id)"
