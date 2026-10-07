@@ -1,7 +1,8 @@
 from fastapi.testclient import TestClient
 from app.main import create_app
 from app.schemas.description import DEFAULT_DESCRIPTION
-from app.schemas.description import ONECOMME_DEFAULT_DESCRIPTION, LEGACY_DEFAULT_DESCRIPTION
+from app.schemas.description import (ONECOMME_DEFAULT_DESCRIPTION, LEGACY_DEFAULT_DESCRIPTION,
+                                    LEGACY_ONECOMME_DEFAULT_DESCRIPTION)
 from app.services.application_services import ApplicationServices
 
 
@@ -30,8 +31,9 @@ def test_onecomme_default_contains_requested_participation_and_bot_guidance(tmp_
     assert text.startswith(DEFAULT_DESCRIPTION + '\n\n参加回数が少ない方を優先させる場合があります。')
     assert '【Botの使い方】' in text
     assert '待機順を確認する場合は、@JoinQueueBotへリプライしてください。' in text
-    assert '特定の質問文言は不要です。' in text
-    assert '同じ方への回答は3分に1回です。' in text
+    assert text.endswith('【Botの使い方】\n待機順を確認する場合は、@JoinQueueBotへリプライしてください。\n※Botが稼働している場合に利用できます。')
+    for removed in ('特定の質問文言は不要です。', '対戦中の場合は「現在参加中です」とお知らせします。', '同じ方への回答は3分に1回です。'):
+        assert removed not in text
     path = str(tmp_path / 'onecomme.db')
     for restarted in (False, True):
         with TestClient(create_app(db_path=path, desktop=True, onecomme=True), base_url='http://127.0.0.1') as c:
@@ -43,12 +45,19 @@ def test_onecomme_default_contains_requested_participation_and_bot_guidance(tmp_
 def test_onecomme_migrates_exact_old_defaults_but_preserves_custom_text(tmp_path):
     path = str(tmp_path / 'legacy-onecomme.db')
     services = ApplicationServices(db_path=path, desktop=True, onecomme=True)
-    for text in (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION):
+    for text in (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION, LEGACY_ONECOMME_DEFAULT_DESCRIPTION):
         services.persistence_service.mutate_state(lambda s: s.update(description_text=text))
         assert ApplicationServices(db_path=path, desktop=True, onecomme=True).persistence_service.get_state()['description_text'] == ONECOMME_DEFAULT_DESCRIPTION
-    for custom in ('', DEFAULT_DESCRIPTION + '\n独自の案内'):
+    for custom in ('', DEFAULT_DESCRIPTION + '\n独自の案内', LEGACY_ONECOMME_DEFAULT_DESCRIPTION + '\n独自の案内'):
         services.persistence_service.mutate_state(lambda s: s.update(description_text=custom))
         assert ApplicationServices(db_path=path, desktop=True, onecomme=True).persistence_service.get_state()['description_text'] == custom
+
+
+def test_shorter_onecomme_default_does_not_migrate_standalone_custom_description(tmp_path):
+    path = str(tmp_path / 'standalone.db')
+    services = ApplicationServices(db_path=path, desktop=True)
+    services.persistence_service.mutate_state(lambda s: s.update(description_text=LEGACY_ONECOMME_DEFAULT_DESCRIPTION))
+    assert ApplicationServices(db_path=path, desktop=True).persistence_service.get_state()['description_text'] == LEGACY_ONECOMME_DEFAULT_DESCRIPTION
 
 
 def test_legacy_default_updates_but_custom_text_is_preserved(tmp_path):

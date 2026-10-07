@@ -1,5 +1,6 @@
 from __future__ import annotations
-from app.schemas.description import DEFAULT_DESCRIPTION, LEGACY_DEFAULT_DESCRIPTION
+from app.schemas.description import (DEFAULT_DESCRIPTION, LEGACY_DEFAULT_DESCRIPTION,
+                                    ONECOMME_DEFAULT_DESCRIPTION, LEGACY_ONECOMME_DEFAULT_DESCRIPTION)
 
 from app.schemas.avatar import normalize_avatar_url
 
@@ -25,6 +26,9 @@ class SQLitePersistenceService:
                  description_default: str = DEFAULT_DESCRIPTION):
         self._overlay_settings_model = overlay_settings_model
         self._description_default = description_default
+        self._legacy_descriptions = (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION)
+        if description_default == ONECOMME_DEFAULT_DESCRIPTION:
+            self._legacy_descriptions += (LEGACY_ONECOMME_DEFAULT_DESCRIPTION,)
         self._initial_state = deepcopy(initial_state)
         self._db_path = db_path or os.getenv("WAITING_LIST_DB_PATH") or DEFAULT_DB_PATH
         self._lock = threading.RLock()
@@ -175,7 +179,7 @@ class SQLitePersistenceService:
         return {
             "name_overrides": json.loads(app_state["name_overrides"]) if "name_overrides" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name")},
             "overlay_settings": self._overlay_settings_model.model_validate(json.loads(app_state.get("overlay_settings", "{}"))).model_dump(),
-            "description_text": (self._description_default if app_state.get("description_text") in (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION)
+            "description_text": (self._description_default if app_state.get("description_text") in self._legacy_descriptions
                                  else app_state.get("description_text", self._description_default)),
             "comment_names": json.loads(app_state["comment_names"]) if "comment_names" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name") and u["declared_player_name"] != (u.get("youtube_nickname") or u.get("display_name"))},
             "participation_history": json.loads(app_state.get("participation_history", "[]")),
