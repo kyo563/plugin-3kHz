@@ -280,6 +280,26 @@ test('participant counts show current stream separately and refresh at a new str
 });
 
 
+test('priority help is separate from the toggle and shows the requested explanation on hover or focus', () => {
+    const html=fs.readFileSync('static/control.html','utf8');
+    const css=fs.readFileSync('static/control-display.css','utf8');
+    assert.match(html, /<span id="priority-help"[^>]+tabindex="0"[^>]+aria-describedby="priority-help-tooltip"/);
+    assert.match(html, /<span id="priority-help-tooltip" role="tooltip">参加回数が少ないユーザーを優先的に待機列に割り込ませるモード<\/span>/);
+    assert.ok(html.indexOf('id="priority-help"') > html.indexOf('初回参加優先モード：確認中</button>'));
+    assert.doesNotMatch(html.match(/<span id="priority-help"[^>]*>/)[0], /data-api=/);
+    assert.match(css, /\.priority-help:hover #priority-help-tooltip/);
+    assert.match(css, /\.priority-help:focus #priority-help-tooltip/);
+    const h=harness(()=>Promise.resolve(reply(state(1))));
+    h.sandbox.renderState(state(1));
+    assert.match(h.element('#toggle-priority').textContent,/初回参加優先モード：ON/);
+});
+
+test('history action uses the requested restart wording without changing its operation', () => {
+    const html=fs.readFileSync('static/control.html','utf8');
+    assert.match(html, /<button id="history-start" type="button">新たに履歴を取り直す<\/button>/);
+    assert.doesNotMatch(html, /新しい配信の履歴を開始/);
+});
+
 test('priority toggle appears once in the top status block below reception', () => {
     const html=fs.readFileSync('static/control.html','utf8');
     assert.equal((html.match(/id="toggle-priority"/g)||[]).length,1);

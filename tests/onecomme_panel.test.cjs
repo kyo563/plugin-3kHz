@@ -45,7 +45,7 @@ test('manual choice persists through polling and reconnects using the chosen ser
 
 test('unavailable choices cannot reconnect; disappearing edited choice is not silently replaced',async()=>{
   const f=await fixture();
-  for (const change of [{connected:false},{connected:true,services:[{service_id:'row',id:'',name:'未解決'}]},
+  for (const change of [{connected:false},{connected:true,services:[{id:'',name:'未解決'}]},
     {services:[{service_id:'row',id:'abcdefghijk',enabled:false}]},{services:[{service_id:'row',id:'abcdefghijk',state:'ended'}]}]) {
     Object.assign(f.state,change); await f.refresh();
     assert.equal(f.el('onecomme-select').disabled,true);
@@ -57,6 +57,17 @@ test('unavailable choices cannot reconnect; disappearing edited choice is not si
   await f.refresh();
   assert.equal(f.el('onecomme-stream').value,'');
   assert.equal(f.el('onecomme-select').disabled,true);
+});
+
+test('unresolved OneComme row can be chosen without Google video metadata',async()=>{
+  const f=await fixture();
+  Object.assign(f.state,{selected:'',selected_name:'限定配信',ready_to_receive:true,
+    services:[{service_id:'row',id:'',enabled:true,state:'unknown',name:'限定配信'}]});
+  await f.refresh();
+  assert.equal(f.el('onecomme-select').disabled,false);
+  assert.match(f.el('onecomme-target').textContent,/限定配信.*連動中/);
+  await f.click('onecomme-select');
+  assert.deepEqual(f.posts[0],{path:'/api/onecomme/remember',body:{service_id:'row'}});
 });
 
 test('stop preserves explicit manual stop and legacy frames can still be selected',async()=>{
@@ -79,4 +90,33 @@ test('transition buttons send explicit choice with displayed video and revision'
   assert.equal(f.el('onecomme-new-session').textContent,'保存済みの状態に戻る');
   await f.click('onecomme-new-session');
   assert.equal(f.posts[1].body.carry,false);
+});
+
+test('manual URL guide uses the concise fallback wording',()=>{
+  const html=fs.readFileSync('static/onecomme-panel.html','utf8');
+  assert.match(html, /<p id="onecomme-url-guide">自動で連携されない場合はURLを直接貼り付けて読み込ませてください<\/p>/);
+  assert.doesNotMatch(html, /限定公開・メンバー限定配信のURLも指定できます。/);
+  assert.match(html, /aria-describedby="onecomme-url-guide"/);
+});
+
+test('manual URL input preserves drafts, saves resolved URLs, and binds unresolved chosen sources',async()=>{
+  const f=await fixture();
+  const input=f.el('onecomme-url');
+  input.value='https://youtu.be/abcdefghijk';input.listeners.input();
+  await f.refresh();
+  assert.equal(input.value,'https://youtu.be/abcdefghijk');
+  assert.equal(f.el('onecomme-url-select').disabled,false);
+  await f.click('onecomme-url-select');
+  assert.deepEqual(f.posts[0],{path:'/api/onecomme/select-url',body:{url:'https://youtu.be/abcdefghijk'}});
+  f.state.services=[{service_id:'row',id:'',name:'限定配信',enabled:true,state:'unknown'}];
+  f.state.selected='';f.state.manual_url='https://www.youtube.com/watch?v=abcdefghijk';
+  f.state.url_service_id='row';f.state.ready_to_receive=true;
+  await f.refresh();
+  assert.equal(input.value,f.state.manual_url);
+  assert.match(f.el('onecomme-url-status').textContent,/連携中/);
+  await f.click('onecomme-url-select');
+  assert.equal(f.posts[1].body.service_id,'row');
+  input.value=' ';input.listeners.input();
+  assert.equal(f.el('onecomme-url-select').disabled,true);
+  await f.click('onecomme-url-select');assert.equal(f.posts.length,2);
 });

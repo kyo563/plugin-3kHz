@@ -43,7 +43,7 @@
 <p id="bot-notifications-hint">チャンネル認証が完了すると通知を選択できます。</p>
 <form id="bot-form"><fieldset id="bot-notification-fields" disabled><legend>使用する通知</legend>
 <label><input id="bot-now" type="checkbox"> 次の対戦へ進んだとき、NOWの3名をまとめて呼び出す</label>
-<label><input id="bot-reply" type="checkbox"> @JoinQueueBotへの呼びかけに本人の待機順・グループを返信する</label>
+<label><input id="bot-reply" type="checkbox"> @JoinQueueBotへのリプライに、本人の待機順・グループを返信する（同じユーザーは3分に1回）</label>
 <label><input id="bot-periodic" type="checkbox"> 待機人数・待機グループ数を定期案内する</label>
 <label>案内間隔<select id="bot-interval"><option value="15">15分</option><option value="30">30分</option></select></label>
 <label>初回の定期案内は今から<select id="bot-initial-delay" aria-label="初回の定期案内までの時間" style="display:inline-block;width:auto"><option value="15">15分後</option><option value="30" selected>30分後</option><option value="45">45分後</option><option value="60">60分後</option></select>から通知開始とします。</label>

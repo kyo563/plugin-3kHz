@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from html.parser import HTMLParser
+import json
 import pytest
 from fastapi.testclient import TestClient
 from app.main import create_app
@@ -49,6 +50,10 @@ def test_redesigned_pages_have_unique_ids_and_legacy_redirects(tmp_path):
             assert removed not in page
         assert 'この画面の表示設定（名前の表示方式・配置・文言・文字サイズ・背景色と透過度・自動縮小・自由編集・フォント指定）を初期値に戻します。' in page
         assert '表示文言が変更できます' in page
+        for label in ('受付中の文言', '現在対局中の見出し', '次回グループの見出し', '待機グループ数の見出し'):
+            assert f'<label>{label} <input id="setup-label-' in page
+        for label in ('NOWの見出し', 'NEXTの見出し', 'QUEUEの見出し'):
+            assert f'<label>{label} ' not in page
         assert '※OBS表示用のフォントや透過度の変更は設定画面から可能です' in page
         assert page.index('cancel-commands') < page.index('display-labels-title') < page.index('settings-obs-panel" role=')
         for key in ('open_label', 'now_label', 'next_label', 'queue_label'):
@@ -75,6 +80,39 @@ def test_redesigned_pages_have_unique_ids_and_legacy_redirects(tmp_path):
         assert 'waiting-expand' in c.get('/control').text
         assert c.get('/obs-setup',follow_redirects=False).headers['location'] == '/settings?tab=obs'
         assert c.get('/bot',follow_redirects=False).headers['location'] == '/settings?tab=bot'
+
+
+def test_onecomme_label_defaults_reset_and_saved_custom_labels_survive(tmp_path):
+    db = str(tmp_path / 'labels.db')
+    defaults = dict(open_label='受付中', now_label='現在の対戦', next_label='次回', queue_label='待機人数')
+    for restarted in (False, True):
+        with TestClient(create_app(db_path=db, desktop=True, onecomme=True), base_url='http://127.0.0.1') as c:
+            c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
+            settings = c.get('/api/settings/overlay').json()
+            assert {key: settings[key] for key in defaults} == (dict(defaults, now_label='カスタム') if restarted else defaults)
+            if not restarted:
+                c.post('/api/settings/overlay', json=dict(settings, now_label='カスタム'))
+                continue
+            before = c.get('/api/state').json()
+            reset = c.post('/api/settings/overlay', json={'name_mode': 'youtube'}).json()
+            assert {key: reset[key] for key in defaults} == defaults
+            assert c.get('/api/overlay-state').json()['appearance'] == reset
+            after = c.get('/api/state').json()
+            for key in ('current', 'waiting', 'total_match_count', 'participation_counts'):
+                assert before[key] == after[key]
+            class ResetDefaults(HTMLParser):
+                values = None
+                def handle_starttag(self, tag, attrs):
+                    attrs = dict(attrs)
+                    if attrs.get('id') == 'setup-reset-labels':
+                        self.values = json.loads(attrs['data-defaults'])
+            parsed = ResetDefaults()
+            parsed.feed(c.get('/settings').text)
+            assert parsed.values == {f'setup-label-{key}': value for key, value in defaults.items()}
+    with TestClient(create_app(db_path=str(tmp_path/'standalone.db'), desktop=True), base_url='http://127.0.0.1') as c:
+        c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
+        settings = c.get('/api/settings/overlay').json()
+        assert [settings[key] for key in ('now_label', 'next_label', 'queue_label')] == ['NOW', 'NEXT', 'QUEUE']
 
 
 def test_selected_stream_restores_but_old_comments_do_not(tmp_path):

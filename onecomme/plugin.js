@@ -16,13 +16,15 @@ function youtubeVideo(url) {
 }
 
 // Only public Service fields leave OneComme, and only for our local worker.
-function serviceFrame(s) {
+function serviceFrame(s, receivedYoutube = false) {
     if (!s || typeof s.id !== 'string' || !s.id || s.id.length > 200 || typeof s.enabled !== 'boolean') return null;
     const meta = s.meta || {};
     const id = youtubeVideo(s.url) || youtubeVideo(meta.url);
     let youtube = !!id;
     try { youtube ||= ['youtube.com','www.youtube.com','m.youtube.com','youtu.be'].includes(new URL(s.url).hostname); } catch (_) {}
-    if (!youtube) return null;
+    // filterComment already identifies the platform. Missing/private video
+    // metadata must not prevent forwarding its official YouTube comments.
+    if (!youtube && !receivedYoutube) return null;
     const name = [meta.title, s.name].find(v => typeof v === 'string' && v.trim()) || 'YouTube';
     const start = typeof meta.startTime === 'number' && Number.isFinite(meta.startTime) && meta.startTime > 0 ? meta.startTime : null;
     const ended = [meta.actualEndTime, meta.endTimestamp].some(v => typeof v === 'number' && v > 0);
@@ -38,6 +40,7 @@ function convert(comment, userData) {
     if (typeof d.userId !== 'string' || !d.userId.trim() || d.userId.length > 512 || /[\p{Cc}\p{Cf}]/u.test(d.userId)) return null;
     if (![d.id, d.liveId, d.name, d.timestamp].every(v => typeof v === 'string' && v.length > 0)) return null;
     if (typeof d.comment !== 'string' || d.comment.length > 4096 || d.name.length > 200 || d.id.length > 512 || d.liveId.length > 200) return null;
+    if (!d.liveId.trim() || /[\p{Cc}\p{Cf}\p{Cs}]/u.test(d.liveId)) return null;
     const handle = [d.screenName, d.name].find(v => typeof v === 'string' && /^@[^\s]{1,199}$/.test(v));
     const memo = userData?.id === d.userId && (userData.service === undefined || userData.service === 'youtube') && typeof userData.memo === 'string'
         ? userData.memo.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').slice(0, 4000) : null;
@@ -53,9 +56,41 @@ function convert(comment, userData) {
 function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
     let worker = null, ready = null, timer = null, buffer = '', generation = 0;
     let queue = [], draining = false, dropped = 0, services = null, revision = 0, sentRevision = 0, heartbeatDue = false;
+    let receiptSince = new Map(), serviceURLs = new Map(), receiptHistory = new Map(), removedServices = new Set(), startedAt = 0;
+    function resetReceipt(id) {
+        receiptSince.set(id, Date.now());
+        receiptHistory.delete(id);
+    }
+    function preserveReceipt(frame, old) {
+        // Resolution of a channel URL is not a different stream. Explicit video
+        // changes, disconnects and meta.clear must invalidate the old receipt.
+        if (old?.receive_id && frame.enabled && old.enabled && frame.state !== 'ended' &&
+            (!frame.id || !old.id || frame.id === old.id)) frame.receive_id = old.receive_id;
+        return frame;
+    }
     function updateServices(items) {
         if (!Array.isArray(items)) return;
-        services = new Map((items.length > 32 ? [] : items).map(serviceFrame).filter(Boolean).map(s => [s.service_id,s]));
+        const next = new Map();
+        for (const item of items.length > 32 ? [] : items) {
+            const previous = typeof item?.id === 'string' ? services?.get(item.id) : null;
+            const frame = serviceFrame(item, !!previous?.receive_id && serviceURLs.get(item.id) === item.url);
+            if (!frame) continue;
+            const old = services?.get(frame.service_id);
+            const sameURL = serviceURLs.get(frame.service_id) === item.url;
+            if (sameURL) preserveReceipt(frame, old);
+            if (!old || !sameURL || !frame.enabled || (old.id && frame.id && old.id !== frame.id) || frame.state === 'ended')
+                resetReceipt(frame.service_id);
+            serviceURLs.set(frame.service_id, item.url);
+            next.set(frame.service_id, frame);
+        }
+        for (const id of services?.keys() || []) if (!items.some(s => s?.id === id)) removedServices.add(id);
+        for (const item of items) if (typeof item?.id === 'string') removedServices.delete(item.id);
+        // Bound memory without resurrecting removed rows in this plugin session.
+        if (removedServices.size > 128) removedServices = new Set([...removedServices].slice(-128));
+        services = next;
+        receiptSince = new Map([...receiptSince].filter(([id]) => next.has(id)));
+        serviceURLs = new Map([...serviceURLs].filter(([id]) => next.has(id)));
+        receiptHistory = new Map([...receiptHistory].filter(([id]) => next.has(id)));
         revision++;
         void drain();
     }
@@ -101,6 +136,7 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
             if (worker) return;
             generation++; ready = null; queue = []; buffer = ''; dropped = 0; error = '起動中です';
             services = null; revision = sentRevision = 0; heartbeatDue = false;
+            receiptSince = new Map(); serviceURLs = new Map(); receiptHistory = new Map(); removedServices = new Set(); startedAt = Date.now();
             updateServices(initialData?.services);
             const mine = generation;
             worker = spawnWorker(path.join(dir, 'runtime', 'QueueWorker.exe'), [], {
@@ -142,13 +178,18 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
                 const m = data?.data || meta;
                 const frame = serviceFrame(s && {...s, meta:{...s.meta, ...m}});
                 if (frame && services?.has(frame.service_id)) {
+                    const old = services.get(frame.service_id);
+                    preserveReceipt(frame, old);
+                    if ((old.id && frame.id && old.id !== frame.id) || !frame.enabled || frame.state === 'ended')
+                        resetReceipt(frame.service_id);
                     services.set(frame.service_id,frame); revision++; void drain();
                 }
             }
             if (type === 'meta.clear' && services?.has(data)) {
                 // Do not retain a resolved old video while a channel URL reconnects.
                 const old = services.get(data);
-                services.set(data,{...old,id:'',url:'',state:'unknown',start_time:null});
+                services.set(data,{...old,id:'',url:'',state:'unknown',start_time:null,receive_id:''});
+                resetReceipt(data);
                 revision++; void drain();
             }
         },
@@ -157,6 +198,38 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
             if (ready) {
                 const event = convert(comment, userData);
                 if (event) {
+                    // Use the official callback's Service, not names or Google
+                    // metadata, to bind comments from restricted rooms locally.
+                    let frame = serviceFrame(service, true);
+                    const old = frame && services?.get(frame.service_id);
+                    if (frame) event.service_id = frame.service_id;
+                    if (frame && frame.enabled && !removedServices.has(frame.service_id) && (old || !services || services.size < 32)) {
+                        if (!services) services = new Map();
+                        if (old) frame = {...old};
+                        else serviceURLs.set(frame.service_id, service.url);
+                        const at = Date.parse(comment.data.timestamp);
+                        const floor = Math.max(startedAt, receiptSince.get(frame.service_id) || startedAt);
+                        if (frame.enabled && frame.state !== 'ended' && Number.isFinite(at) && at + 20 >= floor && at <= Date.now() + 60000) {
+                            {
+                                const history = receiptHistory.get(frame.service_id) || {at:0, retired:new Set()};
+                                if (frame.receive_id && frame.receive_id !== event.frame_id) {
+                                    // Fresh official events can move an unresolved channel
+                                    // row to its next stream, but cannot switch back to an
+                                    // old room because of delayed/history comments.
+                                    if (at <= history.at || history.retired.has(event.frame_id) || history.retired.size >= 32) {
+                                        dropped++; return comment;
+                                    }
+                                    history.retired.add(frame.receive_id);
+                                }
+                                frame.receive_id = event.frame_id;
+                                history.at = Math.max(history.at, at);
+                                receiptHistory.set(frame.service_id, history);
+                            }
+                            if (JSON.stringify(frame) !== JSON.stringify(old)) {
+                                services.set(frame.service_id, frame); revision++;
+                            }
+                        }
+                    }
                     if (queue.length >= 500) dropped++;
                     else { queue.push(event); void drain(); }
                 } else if (comment?.service === 'youtube' && comment.data && !comment.data.autoModerated && comment.data.meta?.type !== 'system') {

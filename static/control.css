@@ -28,6 +28,9 @@ input { padding:6px; min-width:0; max-width:100%; } input[type="file"] { font-si
 #logs { max-height:220px; overflow:auto; font-size:12px; } #logs .participant-label { display:block; white-space:normal; overflow-wrap:anywhere; }
 .priority-on { background:#155e45 !important; color:#c4ffdd !important; border:1px solid #5ce4a7 !important; padding:4px 7px; border-radius:5px; font-weight:700; }
 .priority-off { background:#303743; color:#c3cad5; padding:4px 7px; border-radius:5px; }
+.priority-control { display:flex; align-items:center; gap:8px; position:relative; }
+.priority-control > #toggle-priority { flex:1; min-width:0; }
+.priority-help { display:none; }
 #total-matches { padding:4px 7px; border:1px solid #789bcf; border-radius:5px; background:#20324e; color:#e2edff; font-weight:700; }
 dialog { background:#161b24; color:#f4f4f4; border:1px solid #526780; border-radius:8px; width:min(480px,calc(100vw - 24px)); max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); padding:12px; overflow:auto; }
 dialog::backdrop { background:#0009; } dialog li { margin:8px 0; } dialog button { margin:3px 0; }

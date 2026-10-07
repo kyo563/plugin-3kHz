@@ -7,9 +7,9 @@ async function fixture(saved={}, search='?setup=1') {
   const elements = {}, posts = [];
   const el = id => elements[id] ||= {hidden:false,disabled:false,checked:false,value:'参加希望',textContent:'',dataset:{},append(child){child.parent=this;},prepend(child){child.parent=this;},dispatchEvent(){},classList:{add(){}},focus(){},closest(){return {classList:{add(){}}};}};
   el('setup-reset-commands').dataset.defaults=JSON.stringify({'join-commands':'参加希望','cancel-commands':'参加辞退\n参加を辞退'});
-  el('setup-reset-labels').dataset.defaults=JSON.stringify({'setup-label-open_label':'受付中','setup-label-now_label':'NOW','setup-label-next_label':'NEXT','setup-label-queue_label':'QUEUE'});
+  el('setup-reset-labels').dataset.defaults=JSON.stringify({'setup-label-open_label':'受付中','setup-label-now_label':'現在の対戦','setup-label-next_label':'次回','setup-label-queue_label':'待機人数'});
   let prefs = {completed:false,deferred:false,step:0,use_bot:false,use_obs:true,...saved};
-  const state = {connected:false,authenticated:false,fail:false,obsSave:true,botSave:true};
+  const state = {connected:false,authenticated:false,fail:false,obsSave:true,botSave:true,unresolved:false,ready:false};
   const location = {href:'http://localhost/settings'+search,search,assign(url){state.navigation=url;}};
   const context = {document:{getElementById:el,querySelectorAll:()=>[],body:{dataset:{},classList:{add(){},remove(){}}}},location,
     history:{replaceState(){}},URL,URLSearchParams,AbortSignal,Event,
@@ -21,16 +21,31 @@ async function fixture(saved={}, search='?setup=1') {
         if(path==='/api/setup') prefs=value;
         return {ok:true,json:async()=>path==='/api/setup'?prefs:{}};
       }
-      const data=path==='/api/setup'?prefs:path==='/api/onecomme/status'?{connected:state.connected,selected:state.connected?'live':''}:path==='/api/bot'?{authenticated:state.authenticated}: {last_access_seconds:null};
+      const data=path==='/api/setup'?prefs:path==='/api/onecomme/status'?{connected:state.connected,selected:state.connected&&!state.unresolved?'live':'',ready_to_receive:state.ready}:path==='/api/bot'?{authenticated:state.authenticated}: {last_access_seconds:null};
       return {ok:true,json:async()=>data};
     }};
   vm.runInNewContext(fs.readFileSync('static/setup-wizard.js','utf8'),context);
   await tick();
   return {el,state,posts,prefs:()=>prefs,async click(id){await el(id).onclick(); await tick();}};
 }
+test('first setup explains the automatic connection, success state, and manual reconnection',async()=>{
+  const f=await fixture();
+  assert.equal(f.el('setup-instruction').textContent,
+    'このプラグインでは、わんコメがコメントを受信している配信に自動で接続します。\n下記の「接続先の配信」に、利用する配信が表示されていれば接続完了です。「次へ」で進んでください。\n未接続、または別の配信が表示されている場合は、「別の配信に連携し直す」から接続先を選び直してください。');
+  assert.match(fs.readFileSync('static/setup.css','utf8'), /#setup-instruction, #setup-summary\s*\{\s*white-space:pre-line;/);
+  assert.equal(f.posts.length,0);
+});
+
+test('final setup step explains that setup can be repeated from settings',async()=>{
+  const f=await fixture({step:4});
+  assert.equal(f.el('setup-instruction').textContent,
+    '設定内容を確認し、「次へ」でセットアップを完了してください。\nこの初回セットアップは設定から再度行うことができます。');
+  assert.equal(f.posts.length,0);
+});
+
 test('setup checks connection, saves keywords, and finishes using only Next without Bot or OBS',async()=>{
   const f=await fixture();
-  await f.click('setup-next'); assert.equal(f.prefs().step,0); assert.match(f.el('setup-result').textContent,/わんコメで配信に接続/);
+  await f.click('setup-next'); assert.equal(f.prefs().step,0); assert.match(f.el('setup-result').textContent,/わんコメのプラグインを有効/);
   f.state.connected=true;
   await f.click('setup-next'); assert.equal(f.prefs().step,1);
   f.el('join-commands').value='参加希望\n参加する';
@@ -43,6 +58,22 @@ test('setup checks connection, saves keywords, and finishes using only Next with
   f.el('setup-use-obs').checked=false;
   await f.click('setup-next'); assert.equal(f.prefs().step,4);
   await f.click('setup-next'); assert.equal(f.prefs().completed,true); assert.equal(f.state.navigation,'/control');
+});
+
+test('restricted room setup advances on a linked receiving row without video metadata or Bot',async()=>{
+  const f=await fixture();
+  Object.assign(f.state,{connected:true,unresolved:true,ready:true});
+  await f.click('setup-next');
+  assert.equal(f.prefs().step,1);
+  assert.equal(f.prefs().use_bot,false);
+  assert.equal(f.posts.some(p=>p.path.startsWith('/api/bot')),false);
+});
+
+test('setup requires only the OneComme plugin link, not any URL or resolved stream',async()=>{
+  const f=await fixture();
+  Object.assign(f.state,{connected:true,unresolved:true,ready:false});
+  await f.click('setup-next');assert.equal(f.prefs().step,1);
+  assert.equal(f.posts.some(p=>p.path.includes('select-url')),false);
 });
 test('setup resumes saved step and never advances after failed save',async()=>{
   const f=await fixture({step:1});
@@ -111,7 +142,7 @@ test('section resets only change their own drafts and Next saves them',async()=>
   f.el('join-commands').value='参加する';
   await f.click('setup-reset-labels');
   assert.equal(f.el('join-commands').value,'参加する');
-  for(const [key,value] of Object.entries({open_label:'受付中',now_label:'NOW',next_label:'NEXT',queue_label:'QUEUE'})) assert.equal(f.el('setup-label-'+key).value,value);
+  for(const [key,value] of Object.entries({open_label:'受付中',now_label:'現在の対戦',next_label:'次回',queue_label:'待機人数'})) assert.equal(f.el('setup-label-'+key).value,value);
   assert.equal(f.posts.length,0);
   await f.click('setup-next');
   assert.equal(f.prefs().step,2);

@@ -3,6 +3,8 @@ from __future__ import annotations
 from threading import RLock
 
 from app.initial_state import TEST_USERS, initial_state
+from app.schemas.overlay_settings import OverlaySettings, OneCommeOverlaySettings
+from app.schemas.description import DEFAULT_DESCRIPTION, ONECOMME_DEFAULT_DESCRIPTION
 from app.services.overlay_state_service import OverlayStateService
 from app.services.queue_service import GROUP_SIZE, OPEN_SLOT_LABEL, QueueService
 from app.services.sqlite_persistence_service import SQLitePersistenceService
@@ -16,12 +18,14 @@ from app.services.manual_test_provider import ManualTestProvider
 class ApplicationServices:
     """One service graph per running application, created after the DB lock."""
 
-    def __init__(self, *, db_path: str | None = None, desktop: bool = False):
+    def __init__(self, *, db_path: str | None = None, desktop: bool = False, onecomme: bool = False):
         self.comment_lock = RLock()
         self.add_counter = 0
         self.queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL)
         self.overlay_service = OverlayStateService()
-        self.persistence_service = SQLitePersistenceService(initial_state(desktop=desktop), db_path)
+        self.persistence_service = SQLitePersistenceService(initial_state(desktop=desktop), db_path,
+            overlay_settings_model=OneCommeOverlaySettings if onecomme else OverlaySettings,
+            description_default=ONECOMME_DEFAULT_DESCRIPTION if onecomme else DEFAULT_DESCRIPTION)
         self.external_provider = ExternalChatProvider()
         self.manual_provider = ManualTestProvider()
         self.receive_service = CommentReceiveService(log_writer=self.add_log)

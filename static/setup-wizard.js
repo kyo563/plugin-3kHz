@@ -2,11 +2,11 @@
   const el = id => document.getElementById(id);
   const tabs = ['general','general','bot','obs','general'];
   const titles = ['対象配信を確認','参加キーワード・表示文言を設定','Botの設定を進めます。','OBS表示の利用を選択','設定内容を確認'];
-  const instructions = ['わんコメでYouTube配信に接続すると、下に対象が自動表示されます。表示内容を確認して「次へ」を押してください。',
+  const instructions = ['このプラグインでは、わんコメがコメントを受信している配信に自動で接続します。\n下記の「接続先の配信」に、利用する配信が表示されていれば接続完了です。「次へ」で進んでください。\n未接続、または別の配信が表示されている場合は、「別の配信に連携し直す」から接続先を選び直してください。',
     '参加・辞退に使う文言と、OBSの表示文言を確認してください。「次へ」で保存します。',
     'Botを標準モデレーターに設定し、対象の配信を選択することで利用可能になります。',
     'OBS表示用の設定を編集します。',
-    '設定内容を確認し、「次へ」でセットアップを完了してください。'];
+    '設定内容を確認し、「次へ」でセットアップを完了してください。\nこの初回セットアップは設定から再度行うことができます。'];
   let prefs, busy = false;
   async function api(path, value) {
     const r = await fetch(path, {signal:AbortSignal.timeout(10000), ...(value === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)})});
@@ -71,7 +71,7 @@
     if (prefs.step === 4) {
       el('setup-summary').textContent = '状態を確認中…';
       Promise.all([api('/api/onecomme/status'), api('/api/bot'), api('/api/obs-status')]).then(([stream,bot,obs]) => {
-        el('setup-summary').textContent = `わんコメ：${stream.connected ? '接続済み' : '未接続'}\n配信：${stream.selected || '未選択（配信開始時に選択）'}\nBot：${prefs.use_bot ? (bot.authenticated ? 'チャンネル接続済み' : '認証が必要') : '使用しない'}${bot.ready ? '・稼働中' : '・停止中'}\nOBS：${prefs.use_obs ? (obs.last_access_seconds !== null && obs.last_access_seconds < 10 ? '表示ページ接続あり' : '利用準備済み・表示未確認') : '使用しない'}`;
+        el('setup-summary').textContent = `わんコメ：${stream.connected ? '接続済み' : '未接続'}\n配信：${stream.selected_name || stream.selected || (stream.ready_to_receive ? '接続枠と連動中・コメント待ち' : '未接続')}\nBot：${prefs.use_bot ? (bot.authenticated ? 'チャンネル接続済み' : '認証が必要') : '使用しない'}${bot.ready ? '・稼働中' : '・停止中'}\nOBS：${prefs.use_obs ? (obs.last_access_seconds !== null && obs.last_access_seconds < 10 ? '表示ページ接続あり' : '利用準備済み・表示未確認') : '使用しない'}`;
       }).catch(e => {el('setup-summary').textContent = e.message;});
     }
   }
@@ -94,7 +94,7 @@
     let nextPrefs = {...prefs};
     if (prefs.step === 0) {
       const s = await api('/api/onecomme/status');
-      if (!s.connected || !s.selected) throw new Error('わんコメで配信に接続してください。対象が自動表示されない場合は「別の配信に連携し直す」から選択してください。');
+      if (!s.connected || s.pending || s.selection_reason === 'stopped') throw new Error('わんコメのプラグインを有効にしてください。連携停止中・配信切り替え確認待ちの場合は連携を再開してください。');
     }
     if (prefs.step === 1) {
       if (el('join-commands').disabled || el('cancel-commands').disabled) throw new Error('設定を読み込み中です。読み込めない場合はページを開き直してください。');

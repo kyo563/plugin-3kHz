@@ -5,7 +5,7 @@
 .setup-active[data-setup-step="0"] #settings-general-panel > :not(#setup-connection),
 .setup-active[data-setup-step="1"] #settings-general-panel > :not(.setup-commands),
 .setup-active[data-setup-step="4"] [role="tabpanel"] { display:none; }
-#setup-summary { white-space:pre-line; }
+#setup-instruction, #setup-summary { white-space:pre-line; }
 .setup-active[data-setup-step="1"] #save-display-labels,
 .setup-active[data-setup-step="1"] #save-commands { display:none; }
 .setup-wording-reset { display:none; }

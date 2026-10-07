@@ -21,7 +21,10 @@ DEFAULT_DB_PATH = "data/waiting_list.sqlite3"
 
 
 class SQLitePersistenceService:
-    def __init__(self, initial_state: dict, db_path: str | None = None):
+    def __init__(self, initial_state: dict, db_path: str | None = None, *, overlay_settings_model: type[OverlaySettings] = OverlaySettings,
+                 description_default: str = DEFAULT_DESCRIPTION):
+        self._overlay_settings_model = overlay_settings_model
+        self._description_default = description_default
         self._initial_state = deepcopy(initial_state)
         self._db_path = db_path or os.getenv("WAITING_LIST_DB_PATH") or DEFAULT_DB_PATH
         self._lock = threading.RLock()
@@ -171,9 +174,9 @@ class SQLitePersistenceService:
 
         return {
             "name_overrides": json.loads(app_state["name_overrides"]) if "name_overrides" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name")},
-            "overlay_settings": OverlaySettings.model_validate(json.loads(app_state.get("overlay_settings", "{}"))).model_dump(),
-            "description_text": (DEFAULT_DESCRIPTION if app_state.get("description_text") == LEGACY_DEFAULT_DESCRIPTION
-                                 else app_state.get("description_text", DEFAULT_DESCRIPTION)),
+            "overlay_settings": self._overlay_settings_model.model_validate(json.loads(app_state.get("overlay_settings", "{}"))).model_dump(),
+            "description_text": (self._description_default if app_state.get("description_text") in (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION)
+                                 else app_state.get("description_text", self._description_default)),
             "comment_names": json.loads(app_state["comment_names"]) if "comment_names" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name") and u["declared_player_name"] != (u.get("youtube_nickname") or u.get("display_name"))},
             "participation_history": json.loads(app_state.get("participation_history", "[]")),
             "total_match_count": int(app_state.get("total_match_count", "0")),
@@ -203,10 +206,10 @@ class SQLitePersistenceService:
                 ("revision", str(next_revision)),
                 ("comment_names", json.dumps(state.get("comment_names", {}), ensure_ascii=False)),
                 ("participation_history", json.dumps(state.get("participation_history", []), ensure_ascii=False)),
-                ("description_text", state.get("description_text", DEFAULT_DESCRIPTION)),
+                ("description_text", state.get("description_text", self._description_default)),
                 ("total_match_count", str(state.get("total_match_count", 0))),
                 ("name_overrides", json.dumps(state.get("name_overrides", {}), ensure_ascii=False)),
-                ("overlay_settings", json.dumps(state.get("overlay_settings", OverlaySettings().model_dump()), ensure_ascii=False)),
+                ("overlay_settings", json.dumps(state.get("overlay_settings", self._overlay_settings_model().model_dump()), ensure_ascii=False)),
                 ("is_open", "1" if state["is_open"] else "0"),
                 ("priority_mode", "1" if state["priority_mode"] else "0"),
                 ("cooldown_seconds", str(state["cooldown_seconds"])),

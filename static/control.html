@@ -17,7 +17,10 @@
         <div class="status">
             <span id="conn">接続状態: 接続待ち</span>
             <span id="open"></span>
-            <button id="toggle-priority" type="button" data-api="/api/control/toggle-priority" aria-pressed="false" title="クリックしてON／OFFを切り替え" disabled>初回参加優先モード：確認中</button>
+            <div class="priority-control">
+                <button id="toggle-priority" type="button" data-api="/api/control/toggle-priority" aria-pressed="false" title="クリックしてON／OFFを切り替え" disabled>初回参加優先モード：確認中</button>
+                <span id="priority-help" class="priority-help" tabindex="0" role="img" aria-label="初回参加優先モードの説明" aria-describedby="priority-help-tooltip">ⓘ<span id="priority-help-tooltip" role="tooltip">参加回数が少ないユーザーを優先的に待機列に割り込ませるモード</span></span>
+            </div>
             <span id="total-matches" title="NOWに参加者がいる状態で次の対戦へ進めた回数。全リセットで0に戻ります。" aria-live="polite">総対戦回数：確認中</span>
             <span id="display-connection">表示ページ: 確認中</span>
             <button id="reconnect" type="button" hidden>再接続</button>
@@ -80,7 +83,7 @@
             <p id="history-summary" role="status"></p>
             <ol id="history-list"></ol>
             <label>新しい配信の名前<input id="history-label" maxlength="100" placeholder="例：9月20日の配信"></label>
-            <button id="history-start" type="button">新しい配信の履歴を開始</button>
+            <button id="history-start" type="button">新たに履歴を取り直す</button>
             <p>参加回数を0回から数え直します</p>
         </details>
         <details class="operator-tools">

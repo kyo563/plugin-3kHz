@@ -26,6 +26,7 @@ class Event(BaseModel):
     frame_id: str = Field(min_length=1, max_length=200)
     frame_name: str = Field(min_length=1, max_length=200)
     comment: ReceivedComment
+    service_id: str | None = Field(default=None, min_length=1, max_length=200)
 
     @model_validator(mode="after")
     def youtube_identity(self):
@@ -52,6 +53,13 @@ class ServiceFrame(BaseModel):
     url: str = Field(default='', max_length=100, pattern=r'^(?:https://www\.youtube\.com/watch\?v=[A-Za-z0-9_-]{11})?$')
     start_time: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     state: Literal['live','upcoming','unknown','ended'] = 'unknown'
+    receive_id: str = Field(default='', max_length=200)
+
+    @model_validator(mode='after')
+    def valid_receive_id(self):
+        if self.receive_id and (not self.receive_id.strip() or any(unicodedata.category(c) in ('Cc', 'Cf', 'Cs') for c in self.receive_id)):
+            raise ValueError('わんコメの配信識別情報が不正です')
+        return self
 
 
 class Heartbeat(BaseModel):
@@ -61,6 +69,20 @@ class Heartbeat(BaseModel):
 
 class RememberFrame(BaseModel):
     service_id: str = Field(min_length=1, max_length=200)
+
+
+class URLSelection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    url: str = Field(min_length=1, max_length=2048)
+    service_id: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+@router.post('/api/onecomme/select-url')
+def select_url(payload: URLSelection, request: Request):
+    try:
+        return request.app.state.onecomme.select_url(payload.url, payload.service_id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
 
 
 class Transition(BaseModel):
@@ -106,4 +128,4 @@ def heartbeat(payload: Heartbeat, request: Request):
 
 @router.post("/api/onecomme/comment")
 def comment(payload: Event, request: Request):
-    return request.app.state.onecomme.receive(payload.frame_id, payload.frame_name, payload.comment)
+    return request.app.state.onecomme.receive(payload.frame_id, payload.frame_name, payload.comment, payload.service_id)

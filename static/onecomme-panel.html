@@ -10,6 +10,12 @@
                 <p id="onecomme-choice-hint" role="status"></p>
                 <button id="onecomme-select" type="button">この配信に連携する</button>
                 <button id="onecomme-stop" type="button">連携を停止</button>
+                <h3>URLを指定して連携する</h3>
+                <label for="onecomme-url">YouTubeのライブ配信URL</label>
+                <input id="onecomme-url" type="url" maxlength="2048" placeholder="https://www.youtube.com/watch?v=…" aria-describedby="onecomme-url-guide">
+                <p id="onecomme-url-guide">自動で連携されない場合はURLを直接貼り付けて読み込ませてください</p>
+                <button id="onecomme-url-select" type="button">このURLで連携する</button>
+                <p id="onecomme-url-status" role="status"></p>
                 <p>選んだ接続は保存され、次回以降もわんコメの接続欄に合わせて更新されます。対象の配信がリストにない場合は、わんコメ側で再接続を行って再度立ち上げ直してください</p>
             </details>
             <section id="onecomme-transition" class="panel" hidden aria-label="配信切り替えの確認">

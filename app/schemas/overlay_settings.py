@@ -56,3 +56,10 @@ class OverlaySettings(BaseModel):
     background_transparency: int = Field(default=100, ge=0, le=100)
     text_color: str = Field(default="#ffffff", pattern=r"^#[0-9a-fA-F]{6}$")
     fonts: FontSettings = Field(default_factory=FontSettings)
+
+
+class OneCommeOverlaySettings(OverlaySettings):
+    """OneComme defaults; the standalone edition keeps its existing labels."""
+    now_label: str = Field(default="現在の対戦", max_length=40)
+    next_label: str = Field(default="次回", max_length=40)
+    queue_label: str = Field(default="待機人数", max_length=40)

@@ -1,5 +1,10 @@
 /* Only loaded by the OneComme management page; OBS and standalone stay unchanged. */
 body[data-onecomme] .wrap { width:100%; max-width:none; min-height:100dvh; }
+body[data-onecomme] .priority-help { display:inline-flex; align-items:center; justify-content:center; flex:none; width:28px; height:28px; color:#9ac5ff; font-size:21px; border-radius:50%; cursor:help; }
+body[data-onecomme] .priority-help:focus-visible { outline:2px solid #8ac8ff; outline-offset:2px; }
+body[data-onecomme] #priority-help-tooltip { visibility:hidden; opacity:0; position:absolute; z-index:20; top:calc(100% + 5px); left:0; width:max-content; max-width:min(26rem,calc(100vw - 28px)); padding:8px 10px; border:1px solid #72829a; border-radius:6px; background:#20324e; color:#f4f4f4; font-size:13px; line-height:1.5; text-align:left; overflow-wrap:anywhere; box-shadow:0 4px 12px #0008; }
+body[data-onecomme] .priority-help:hover #priority-help-tooltip,
+body[data-onecomme] .priority-help:focus #priority-help-tooltip { visibility:visible; opacity:1; }
 #control-display-options { display:flex; flex-wrap:wrap; gap:6px 16px; margin:10px 0 0; padding:6px 10px 10px; border:1px solid #3b4f75; border-radius:6px; min-width:0; }
 #control-display-options legend { font-weight:700; }
 #control-display-options label { display:inline-flex; align-items:center; gap:4px; cursor:pointer; }

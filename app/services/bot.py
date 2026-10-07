@@ -21,6 +21,7 @@ from app.services.user_identity_service import UserIdentityService
 BOT_ORIGIN = 'https://joinqueue-bot-backend.joinqueue.workers.dev'
 BOT_ID = 'UCV3VeoFI04L79MqwuApT-Hg'
 BOT_HANDLE = '@JoinQueueBot'
+POSITION_REPLY_COOLDOWN_SECONDS = 180
 ERRORS = {
     'SERVICE_DISABLED': '共通Botは運営側で停止中です。',
     'UNAUTHENTICATED': '接続が失効しました。接続解除後に再接続してください。',
@@ -433,9 +434,11 @@ class AnnouncementBot:
             if not self.running or not self.settings.reply_position:
                 return True
             uid = comment.user_key
-            if self.clock() - self.reply_times.get(uid, -100) < 60:
+            now = self.clock()
+            previous = self.reply_times.get(uid)
+            if previous is not None and now - previous < POSITION_REPLY_COOLDOWN_SECONDS:
                 return True
-            self.reply_times[uid] = self.clock()
+            self.reply_times[uid] = now
             while len(self.reply_times) > 1000:
                 self.reply_times.popitem(last=False)
         event = 'mention-' + hashlib.sha256((self.active_video + ':' + key).encode()).hexdigest()

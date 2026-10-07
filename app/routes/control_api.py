@@ -192,7 +192,7 @@ def api_restore(payload: RestorePayload, request: Request):
     return services.build_view_state()
 
 
-from app.schemas.overlay_settings import OverlaySettings
+from app.schemas.overlay_settings import OverlaySettings, OneCommeOverlaySettings
 
 @router.get("/api/settings/overlay")
 def api_get_overlay_settings(request: Request):
@@ -201,6 +201,8 @@ def api_get_overlay_settings(request: Request):
 @router.post("/api/settings/overlay")
 def api_save_overlay_settings(payload: OverlaySettings, request: Request):
     services = get_services(request)
+    if request.app.state.onecomme_mode:
+        payload = OneCommeOverlaySettings.model_validate(payload.model_dump(exclude_unset=True))
     services.persistence_service.mutate_state(lambda s: s.update(overlay_settings=payload.model_dump()))
     return payload.model_dump()
 

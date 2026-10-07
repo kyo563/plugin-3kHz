@@ -36,7 +36,7 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         application.state.services = services if services is not None else ApplicationServices(
-            db_path=selected_db, desktop=selected_desktop
+            db_path=selected_db, desktop=selected_desktop, onecomme=onecomme
         )
         application.state.youtube = YouTubeChat(application.state.services)
         if onecomme:

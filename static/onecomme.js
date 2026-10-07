@@ -8,14 +8,21 @@
     const transition = document.getElementById('onecomme-transition');
     const newSession = document.getElementById('onecomme-new-session');
     const carrySession = document.getElementById('onecomme-carry-session');
+    const urlInput = document.getElementById('onecomme-url');
+    const urlButton = document.getElementById('onecomme-url-select');
+    let urlEdited = false;
+    const selectable = choice => !!choice && (choice.service_id || choice.id) && choice.enabled !== false && choice.state !== 'ended';
     function updateChoice() {
         const choice = choices.get(select?.value);
         const hint = document.getElementById('onecomme-choice-hint');
-        if (button) button.disabled = busy || !connected || !choice?.id || choice.enabled === false || choice.state === 'ended';
+        if (button) button.disabled = busy || !connected || !selectable(choice);
         if (stop) stop.disabled = busy || !connected;
-        if (hint) hint.textContent = !connected ? 'わんコメからの接続を待っています。' : !choices.size ? 'わんコメで配信に接続すると、ここに表示されます。' : !choice ? '連携する配信を選んでください。' : choice.enabled === false ? 'この配信は、先にわんコメ側で接続してください。' : choice.state === 'ended' ? 'この配信は終了しています。別の配信を選んでください。' : !choice.id ? 'わんコメから配信情報が届くのを待っています。' : `選択中：${choice.name}`;
+        if (urlButton) urlButton.disabled = busy || !urlInput?.value.trim();
+        if (urlInput) urlInput.disabled = busy;
+        if (hint) hint.textContent = !connected ? 'わんコメからの接続を待っています。' : !choices.size ? 'わんコメで配信に接続すると、ここに表示されます。' : !choice ? '連携する配信を選んでください。' : choice.enabled === false ? 'この配信は、先にわんコメ側で接続してください。' : choice.state === 'ended' ? 'この配信は終了しています。別の配信を選んでください。' : !choice.id ? 'この接続枠と連携できます。コメントを受信すると対象配信へ自動で紐付きます。' : `選択中：${choice.name}`;
     }
     select?.addEventListener('change', () => { edited = true; updateChoice(); });
+    urlInput?.addEventListener('input', () => { urlEdited = true; updateChoice(); });
     async function refresh() {
         try {
             const response = await fetch('/api/onecomme/status', {signal: AbortSignal.timeout(5000)});
@@ -23,11 +30,14 @@
             const s = await response.json();
             pending = s.pending;
             connected = s.connected;
+            if (urlInput && !urlEdited) urlInput.value = s.manual_url || '';
+            const urlStatus = document.getElementById('onecomme-url-status');
+            if (urlStatus) urlStatus.textContent = s.manual_url ? `保存したURL：${s.manual_url} ／ ${s.ready_to_receive ? 'わんコメの接続枠と連携中' : 'わんコメの受信対象を確認中'}` : '';
             const rows = s.services || [];
             const next = JSON.stringify([rows,s.frames,s.selected,s.pinned_service,s.selection_mode]);
             choices = new Map(rows.length ? rows.map(f=>['service:'+f.service_id,f]) : (s.frames || []).map(f=>['video:'+f.id,f]));
             if (select && signature !== next) {
-                const active = rows.find(f=>s.selection_mode === 'auto' ? f.service_id === s.pinned_service : f.id === s.selected);
+                const active = rows.find(f=>s.url_service_id ? f.service_id === s.url_service_id : s.selection_mode === 'auto' ? f.service_id === s.pinned_service : (f.queue_id || f.id) === s.selected);
                 const chosen = edited ? select.value : active ? 'service:'+active.service_id : s.selected ? 'video:'+s.selected : '';
                 select.replaceChildren(new Option('配信を選択してください', ''));
                 for (const [key,f] of choices) {
@@ -40,7 +50,7 @@
             }
             const remembered = document.getElementById('onecomme-remembered');
             const savedRow = rows.find(f=>f.service_id === s.pinned_service);
-            if (remembered) remembered.textContent = s.pinned_service ? `保存した接続先：${savedRow?.service_name || savedRow?.name || '現在見つかりません（別の接続先へは切り替えません）'}` : '接続先が決まると自動で保存します。';
+            if (remembered) remembered.textContent = s.manual_url ? 'URL指定で連携します。別の配信へは自動で切り替えません。' : s.pinned_service ? `保存した接続先：${savedRow?.service_name || savedRow?.name || '現在見つかりません（別の接続先へは切り替えません）'}` : '接続先が決まると自動で保存します。';
             if (transition) {
                 transition.hidden = !pending;
                 if (pending) {
@@ -50,16 +60,18 @@
                     newSession.disabled = carrySession.disabled = busy || !s.connected;
                 }
             }
-            status.textContent = `${s.connected ? (s.selected ? 'わんコメ連携中' : 'わんコメの配信情報を確認中') : 'わんコメからの接続待ち'} ／ コマンド ${s.commands}件`;
+            status.textContent = `${s.connected ? (s.selected || s.ready_to_receive ? 'わんコメ連携中' : s.selection_mode === 'auto' ? 'わんコメ連携中（新着コメント待ち）' : 'わんコメの受信対象を確認中') : 'わんコメからの接続待ち'} ／ コマンド ${s.commands}件`;
             if (pending) status.textContent = '配信切り替えの確認待ち ／ 設定画面で前回の待機者の扱いを選んでください';
             const target = document.getElementById('onecomme-target');
             if (target) {
-                const selected = s.services?.find(frame => frame.id === s.selected);
+                const selected = s.services?.find(frame => (frame.queue_id || frame.id) === s.selected);
                 const state = {live:'配信中',upcoming:'開始前',ended:'終了',unknown:'開始状態未確認'}[selected?.state];
-                const reason = {waiting:'わんコメで対象のYouTube配信に接続してください。',resolving:'わんコメで配信先を確認中です。情報が届くと自動表示します。',multiple:'複数の配信があり対象を特定できません。「別の配信に連携し直す」から選んでください。',stopped:'連携を停止しています。「別の配信に連携し直す」から再開できます。'};
+                const reason = {waiting:'わんコメで対象のYouTube配信に接続してください。',resolving:'わんコメの接続枠と連動中です。コメントを受信すると配信に自動で紐付きます。',multiple:'複数の配信があり対象を特定できません。「別の配信に連携し直す」から選んでください。',stopped:'連携を停止しています。「別の配信に連携し直す」から再開できます。'};
                 reason.missing = '保存した接続先が見つかりません。「別の配信に連携し直す」から選び直してください。';
                 reason.confirm = '次の配信への切り替えを確認してください。';
-                target.textContent = s.selected ? `対象：${s.selected_name || s.selected}${state ? ` ／ ${state}` : ''}（${s.selection_mode === 'auto' ? '自動' : '手動'}）${s.connected ? '' : ' ※わんコメ未接続'}` : reason[s.selection_reason] || reason.waiting;
+                reason.url_waiting = 'URLを保存しました。わんコメで同じ配信に接続してください。配信情報がない場合は受信中の接続枠を選び、このURLで連携してください。';
+                reason.url_mismatch = '保存したURLとわんコメの接続先が変わったため、連携を停止しました。URLと接続枠を確認してください。';
+                target.textContent = s.selected ? `対象：${s.selected_name || s.selected}${state ? ` ／ ${state}` : ''}（${s.selection_mode === 'auto' ? '自動' : '手動'}）${s.connected ? '' : ' ※わんコメ未接続'}` : s.ready_to_receive ? `対象：${s.selected_name} ／ わんコメと連動中（コメント待ち）` : reason[s.selection_reason] || reason.waiting;
             }
             if (s.dropped) status.textContent += ` ／ ${s.dropped}件を処理できませんでした。参加者一覧をご確認ください`;
             const reasons = {unselected:'選択した配信以外のコメントです',history:'選択前の履歴、または時刻が合わないコメントです',invalid_timestamp:'コメントの時刻形式を確認できません',ignored:'参加・辞退キーワード以外のコメントです',bot_handled:'Botへの呼びかけとして処理しました',processed:'コメントを判定しました。受付中止・連続操作制限・NOW参加中などは管理画面の操作ログで確認できます'};
@@ -71,8 +83,16 @@
     }
     button?.addEventListener('click', async () => {
         const choice = choices.get(select.value);
-        if (busy || !connected || !choice?.id || choice.enabled === false || choice.state === 'ended') return;
+        if (busy || !connected || !selectable(choice)) return;
         await action(choice.service_id ? '/api/onecomme/remember' : '/api/onecomme/select', choice.service_id ? {service_id:choice.service_id} : {frame_id:choice.id,mode:'manual'});
+    });
+    urlButton?.addEventListener('click', async () => {
+        if (busy || !urlInput?.value.trim()) return;
+        const choice = choices.get(select?.value);
+        // Match resolved URLs on the server; honor an explicit source choice
+        // for duplicates or unresolved rows. Never guess from a display name.
+        await action('/api/onecomme/select-url', {url:urlInput.value.trim(),
+            ...(choice?.service_id && (edited || !choice.id) && selectable(choice) ? {service_id:choice.service_id} : {})});
     });
     async function action(path, body) {
         if (busy) return;
@@ -83,6 +103,7 @@
             const r = await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(5000)});
             if (!r.ok) { const data = await r.json(); throw new Error(typeof data.detail === 'string' ? data.detail : '変更できませんでした。'); }
             edited = false; signature = '';
+            urlEdited = false;
             if (result) result.textContent = '保存しました。';
         } catch (e) { if (result) result.textContent = e.message; }
         finally { busy = false; await refresh(); }

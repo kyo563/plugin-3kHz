@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from app.main import create_app
 from app.schemas.description import DEFAULT_DESCRIPTION
+from app.schemas.description import ONECOMME_DEFAULT_DESCRIPTION, LEGACY_DEFAULT_DESCRIPTION
 from app.services.application_services import ApplicationServices
 
 
@@ -22,6 +23,32 @@ def test_description_save_restart_backup_and_reset(tmp_path):
         assert c.get('/api/settings/description').json()['text'] == text
         assert c.post('/api/settings/description',json={'text':''}).json() == {'text':''}
         assert 'description_text' not in c.get('/api/overlay-state').json()
+
+
+def test_onecomme_default_contains_requested_participation_and_bot_guidance(tmp_path):
+    text = ONECOMME_DEFAULT_DESCRIPTION
+    assert text.startswith(DEFAULT_DESCRIPTION + '\n\n参加回数が少ない方を優先させる場合があります。')
+    assert '【Botの使い方】' in text
+    assert '待機順を確認する場合は、@JoinQueueBotへリプライしてください。' in text
+    assert '特定の質問文言は不要です。' in text
+    assert '同じ方への回答は3分に1回です。' in text
+    path = str(tmp_path / 'onecomme.db')
+    for restarted in (False, True):
+        with TestClient(create_app(db_path=path, desktop=True, onecomme=True), base_url='http://127.0.0.1') as c:
+            c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
+            assert c.get('/api/settings/description').json() == {'text': text}
+            assert c.get('/api/control/backup').json()['state']['description_text'] == text
+
+
+def test_onecomme_migrates_exact_old_defaults_but_preserves_custom_text(tmp_path):
+    path = str(tmp_path / 'legacy-onecomme.db')
+    services = ApplicationServices(db_path=path, desktop=True, onecomme=True)
+    for text in (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION):
+        services.persistence_service.mutate_state(lambda s: s.update(description_text=text))
+        assert ApplicationServices(db_path=path, desktop=True, onecomme=True).persistence_service.get_state()['description_text'] == ONECOMME_DEFAULT_DESCRIPTION
+    for custom in ('', DEFAULT_DESCRIPTION + '\n独自の案内'):
+        services.persistence_service.mutate_state(lambda s: s.update(description_text=custom))
+        assert ApplicationServices(db_path=path, desktop=True, onecomme=True).persistence_service.get_state()['description_text'] == custom
 
 
 def test_legacy_default_updates_but_custom_text_is_preserved(tmp_path):

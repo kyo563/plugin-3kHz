@@ -21,6 +21,12 @@ async function fixture(authenticated=false, deletionAvailable=false) {
   await new Promise(resolve=>setImmediate(resolve));
   return {el,calls,bodies,context};
 }
+test('position reply guidance has no question keyword requirement and explains per-user cooldown',()=>{
+  const html=fs.readFileSync('static/bot.html','utf8');
+  assert.match(html, /@JoinQueueBotへのリプライに、本人の待機順・グループを返信する（同じユーザーは3分に1回）/);
+  assert.doesNotMatch(html, /「順番」が含まれる場合/);
+});
+
 test('notification guide stays visible but controls and start require authentication',async()=>{
   for(const auth of [false,true]) {
     const f=await fixture(auth);

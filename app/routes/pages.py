@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
 from app.schemas.command_settings import CommandSettings
-from app.schemas.overlay_settings import OverlaySettings
+from app.schemas.overlay_settings import OneCommeOverlaySettings
 
 router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -81,7 +81,11 @@ def settings_page(request: Request):
         # Share the actual OBS controls with the basic/setup page, not copies.
         labels = []
         label_defaults = {}
-        overlay_defaults = OverlaySettings()
+        overlay_defaults = OneCommeOverlaySettings()
+        for old, new in (('NOWの見出し', '現在対局中の見出し'),
+                         ('NEXTの見出し', '次回グループの見出し'),
+                         ('QUEUEの見出し', '待機グループ数の見出し')):
+            overlay = overlay.replace(f'<label>{old} ', f'<label>{new} ')
         for key in ('open_label', 'now_label', 'next_label', 'queue_label'):
             start = overlay.index('<label>', overlay.rfind('\n', 0, overlay.index(f'name="{key}"')))
             end = overlay.index('</label>', start) + len('</label>')

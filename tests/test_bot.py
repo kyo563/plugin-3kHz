@@ -130,7 +130,7 @@ def test_connection_test_disabled_on_older_server_and_unknown_delivery_not_retri
 def test_start_is_idempotent_preserving_timer_queue_and_generation(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     activate(bot)
-    bot.receive(comment(3, '@JoinQueueBot'))
+    bot.receive(comment(3, '@JoinQueueBot 順番は？'))
     before = (bot.next_guide, bot.generation, list(bot.queue), len(calls))
     now[0] += 300
     assert bot.command('start')['ready']
@@ -147,10 +147,10 @@ def test_bad_single_notification_does_not_stop_next_notification(setup_bot, code
         attempts.append(json.loads(request.content))
         return httpx.Response(400, json={'error':{'code':code}}) if len(attempts) == 1 else httpx.Response(200, json={'status':'sent'})
     bot.http = httpx.Client(transport=httpx.MockTransport(reply))
-    bot.receive(comment(3, '@JoinQueueBot')); bot.tick()
+    bot.receive(comment(3, '@JoinQueueBot 順番は？')); bot.tick()
     assert bot.running and len(attempts) == 1
     now[0] += 10
-    bot.receive(comment(4, '@JoinQueueBot')); bot.tick()
+    bot.receive(comment(4, '@JoinQueueBot 順番は？')); bot.tick()
     assert bot.running and len(attempts) == 2
     assert attempts[0]['eventId'] != attempts[1]['eventId']
 
@@ -227,12 +227,61 @@ def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
     bot.tick()
     assert sent[-1]['variables'] == {'name':'@user6','handle':'@user6','state':'waiting','position':4,'group':2}
     assert sent[-1]['recipient']['userId'] == comment(6).user_key
-    now[0] += 10; bot.receive(comment(6, '@JoinQueueBot', 'again')); bot.tick(); assert len(sent) == 1
-    bot.receive(comment(1, '@JoinQueueBot')); bot.tick(); assert sent[-1]['variables']['state'] == 'now'
+    now[0] += 10; bot.receive(comment(6, '@JoinQueueBot 順番は？', 'again')); bot.tick(); assert len(sent) == 1
+    bot.receive(comment(1, '@JoinQueueBot 順番は？')); bot.tick(); assert sent[-1]['variables']['state'] == 'now'
     assert 'group' not in sent[-1]['variables']
-    now[0] += 10; bot.receive(comment(50, '@JoinQueueBot')); bot.tick(); assert sent[-1]['variables']['state'] == 'not-queued'
+    now[0] += 10; bot.receive(comment(50, '@JoinQueueBot 順番は？')); bot.tick(); assert sent[-1]['variables']['state'] == 'not-queued'
     assert not bot.receive(comment(60, '@JoinQueueBot-other'))
     assert not bot.receive(comment(60, '@@JoinQueueBot'))
+
+
+@pytest.mark.parametrize('text, expected', [
+    ('@JoinQueueBot 順番', True),
+    ('@JoinQueueBot 順番は？', True),
+    ('@JoinQueueBot 自分の順番を教えてください', True),
+    ('私の順番は？ @joinqueuebot', True),
+    ('@JoinQueueBot、順番を確認したいです', True),
+    ('順番は？', False),
+    ('@JoinQueueBot', True),
+    ('@JoinQueueBot こんにちは', True),
+    ('@otherbot 順番', False),
+    ('@JoinQueueBot-other 順番', False),
+    ('@@JoinQueueBot 順番', False),
+])
+def test_position_requires_bot_reply_but_no_question_keyword(setup_bot, text, expected):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    assert bot.receive(comment(6, text)) is expected
+    bot.tick()
+    assert len(sent) == int(expected)
+    assert len(bot.reply_times) == int(expected)
+
+
+def test_position_cooldown_is_180_seconds_per_user_and_allows_first_at_zero(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    now[0] = 0
+    activate(bot)
+    bot.receive(comment(6, '@JoinQueueBot', 'first'))
+    bot.tick()
+    assert len(sent) == 1
+    # Another user is accepted immediately; only the existing transport gap delays posting.
+    bot.receive(comment(7, '@JoinQueueBot', 'other-user'))
+    assert len(bot.queue) == 1 and comment(7).user_key in bot.reply_times
+    now[0] = 10
+    bot.tick()
+    assert len(sent) == 2 and sent[-1]['recipient']['userId'] == comment(7).user_key
+    now[0] = 179.999
+    bot.receive(comment(6, '@JoinQueueBot', 'too-soon'))
+    bot.tick()
+    assert len(sent) == 2
+    now[0] = 180
+    bot.receive(comment(6, '@JoinQueueBot', 'after-cooldown'))
+    bot.tick()
+    assert len(sent) == 3 and sent[-1]['recipient']['userId'] == comment(6).user_key
+    now[0] = 400
+    bot.receive(comment(6, '@JoinQueueBot', 'after-cooldown'))
+    bot.tick()
+    assert len(sent) == 3  # A duplicate message is never answered twice.
 
 
 @pytest.mark.parametrize('matches', [0, 1, 20])
@@ -256,7 +305,7 @@ def test_three_switches_all_combinations(setup_bot, mask):
     bot.configure(BotSettings(enabled=True, announce_now=bool(mask & 1), reply_position=bool(mask & 2), periodic=bool(mask & 4), interval_minutes=15, initial_delay_minutes=15))
     for i in range(6): services.receive_comment(comment(i))
     services.move_next(); bot.tick()
-    now[0] += 10; bot.receive(comment(4, '@JoinQueueBot')); bot.tick()
+    now[0] += 10; bot.receive(comment(4, '@JoinQueueBot 順番は？')); bot.tick()
     now[0] = 100 + 15*60; bot.tick()
     assert [s['templateId'] for s in sent] == [k for i,k in enumerate(('called','position','announcement')) if mask & (1 << i)]
 
@@ -328,14 +377,14 @@ def test_no_replay_after_switch_off_and_no_old_google_auth_read(setup_bot):
     restored = AnnouncementBot(services, bridge, bot.store, client=httpx.Client(transport=httpx.MockTransport(lambda r: pytest.fail('network'))))
     assert not restored.running and restored.device is None and restored.settings.interval_minutes == 30
     assert 'old-secret' not in str(restored.status()); restored.stop()
-    activate(bot); bot.receive(comment(6, '@JoinQueueBot'))
+    activate(bot); bot.receive(comment(6, '@JoinQueueBot 順番は？'))
     bot.configure(BotSettings(enabled=True, reply_position=False))
     bot.configure(BotSettings(enabled=True)); now[0] += 10; bot.tick(); assert not sent
     assert bot.store.data['credentials']['refresh_token'] == 'old-secret'
 
 def test_ambiguous_post_stops_and_never_retries(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
-    activate(bot); bot.receive(comment(6, '@JoinQueueBot'))
+    activate(bot); bot.receive(comment(6, '@JoinQueueBot 順番は？'))
     attempts = []
     def fail(request):
         attempts.append(request); raise httpx.ReadTimeout('PRIVATE')
