@@ -1,0 +1,31 @@
+待機列整理アプリ わんコメ版0.1.4 追加更新公開記録
+作者：kyo563
+公開日：2026-10-08
+
+正式リリース：onecomme-v0.1.4（release id 400028895）
+https://github.com/kyo563/plugin-3kHz/releases/tag/onecomme-v0.1.4
+draft=false / prerelease=false / latest=true をGitHub APIで確認。
+
+配布に対応するソース：8f82f9eab9d3e0bca5ffb09c5361f6a264ab361f
+公開説明：2e9b505b9a3eec8d1941bf9e7b638a35aea4d87d
+公開ブランチ：codex/release-onecomme-0.1.4
+既存タグ01e8a85161fc10fa54e29f0a355f00e90fee7870は変更しない。
+
+配布出力：dist/onecomme-release-0.1.4-public-20261008
+本体ZIP：Taikiretsu-Seiri-App-OneComme-0.1.4-windows-x64.zip
+サイズ：22867153 bytes
+SHA256：e467146c89cf1444fd17f9157ae79049980c9735d8f1c9ff6061de04731181cf
+新しい本体asset id：619249007
+新しいチェックサムasset id：619249173
+チェックサムSHA256：db56a96e82affc639af35ab53dc8b19f797dddb268e400c71aafc5e00dec7562
+テンプレートasset id 600885041 / SHA256 37cbfdeb16c8e17d9bbc0eb4c249e0eb6f3e51e4695972fbfbf5a8d05e1b2b0eは未変更。
+
+旧本体ZIP・旧チェックサム・公開説明をdist/release-backup-redesign-20261008-014742へ退避。
+新ファイルを一時名でアップロードし、再ダウンロードのSHA256一致を確認。
+正式名へ変更後にも再ダウンロード一致を確認し、退避済みの旧asset id 608004895・608005058のみ削除した。ローカルバックアップは保持。
+
+検証：Python488件・JavaScript95件、計583件成功。
+ZIP208ファイルの構成・チェックサム・機密データの非同梱を検査。
+配布実行ファイルを隔離保存先で起動し、URL・動画情報なしの公式形式合成メンバーコメントから参加登録、OBS用データ、Botなしセットアップ、再起動復元を確認。
+実際の限定配信・OBS実機描画・今回変更したBot返信の実投稿は未確認。
+Google認証・Cloudflare設定・課金・利用者保存データ・独立版は変更していない。
