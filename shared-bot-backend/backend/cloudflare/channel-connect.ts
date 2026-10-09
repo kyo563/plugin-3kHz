@@ -98,20 +98,36 @@ export class ChannelConnections {
         if (this.env.CHANNEL_CONNECT_ENABLED !== 'true' || !this.env.GOOGLE_CLIENT_ID || !this.env.GOOGLE_CLIENT_SECRET || !opaque(this.env.BOT_VAULT_KEY) ||
           (this.env.CHANNEL_GRANTS_ENABLED === 'true' && !creatorConfigured(this.env))) throw new BotFault('SERVICE_DISABLED', 503);
         const id = randomUUID(), key = random(), now = this.clock(), expiresAt = now + 600_000;
-        this.db.transaction(() => {
+        const prepared = this.db.transaction(() => {
           // This header is created only by our edge Worker from Cloudflare's client IP.
           // Rotating a self-chosen device token cannot consume other clients' allowance.
           const source = r.headers.get('X-JoinQueue-Source');
           if (!source || !/^[a-f0-9]{64}$/.test(source)) throw denied();
+          // Retry must never revoke an authenticated owner, even when OAuth
+          // completed between the client's status probe and this request.
+          const existing = this.db.prepare('SELECT * FROM channel_pairings WHERE tokenHash=?').get(tokenHash);
+          if (existing?.status === 'connected') return false;
+          // A formerly verified, now revoked device cannot become a new
+          // unverified pairing. Its owner must use the confirmed disconnect
+          // flow and a fresh device; preserve its operational records here.
+          if (existing?.deviceId || existing?.connectionId || existing?.channelId) throw denied();
+          // Do not interrupt a callback while it exchanges/stores Google grants.
+          if (existing?.status === 'consumed' && Number(existing.expiresAt) > now)
+            throw new BotFault('AUTH_IN_PROGRESS', 409);
           this.db.prepare('DELETE FROM channel_source_budget WHERE startedAt<=?').run(now - 86_400_000);
           const budget = this.db.prepare('SELECT * FROM channel_source_budget WHERE source=?').get(source);
           const current = budget && Number(budget.startedAt) > now - 86_400_000;
           if (current && Number(budget.count) >= 20) throw new BotFault('RATE_LIMITED', 429, 3600);
           this.db.prepare('INSERT OR REPLACE INTO channel_source_budget VALUES (?,?,?)').run(source, current ? Number(budget.startedAt) : now, current ? Number(budget.count) + 1 : 1);
           this.db.prepare("DELETE FROM channel_pairings WHERE expiresAt<=? AND status!='connected'").run(now);
+          // Only unverified attempts may be replaced. Old browser links and
+          // OAuth state then stop working; the bearer device remains unchanged.
+          this.db.prepare("DELETE FROM channel_pairings WHERE tokenHash=? AND status!='connected'").run(tokenHash);
           this.db.prepare('INSERT INTO channel_pairings (id,tokenHash,browserKey,createdAt,expiresAt,status) VALUES (?,?,?,?,?,?)').run(id, tokenHash, digest(key), now, expiresAt, 'new');
+          return true;
         });
-        return json({ authorizationUrl: AUTH_ORIGIN + '/connect?id=' + id + '&key=' + key, expiresAt, confirmation: id.slice(0, 8) });
+        if (prepared) return json({ authorizationUrl: AUTH_ORIGIN + '/connect?id=' + id + '&key=' + key, expiresAt, confirmation: id.slice(0, 8) });
+        // Already connected: use the same permission checks and response as status.
       }
       const pairing = this.db.prepare('SELECT * FROM channel_pairings WHERE tokenHash=?').get(tokenHash);
       if (!pairing) throw denied();
@@ -128,7 +144,7 @@ export class ChannelConnections {
       if (pairing.status !== 'connected') {
         if (pairing.status === 'revoked' || pairing.status === 'failed' || Number(pairing.expiresAt) <= this.clock()) throw denied();
         if (!u.pathname.endsWith('/status')) throw new BotFault('CHANNEL_NOT_LINKED', 403);
-        return json({ status: 'pending' });
+        return json({ status: 'pending', stage: pairing.status, pairingId: pairing.id, expiresAt: Number(pairing.expiresAt) });
       }
       const principal = this.store.authenticate(r.headers.get('Authorization')!, this.clock());
       const connection = this.store.connection(String(pairing.connectionId), principal.userId, this.clock());

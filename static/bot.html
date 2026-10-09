@@ -17,29 +17,30 @@
 <li>「配信チャンネルを接続」を押すと、認証リンクと照合番号が表示されます。</li>
 <li>「ブラウザーでチャンネルを認証する」を開き、照合番号を確認します。</li>
 <li>開いたページの「Googleでチャンネルを確認する」を押し、普段配信するGoogleアカウントとチャンネルを選びます。Googleの同意画面でアプリ名・要求される権限を確認して許可します。</li>
-<li>認証が完了したらこの画面へ戻り、「認証結果を確認」を押します。</li>
+<li>認証が完了したらこの画面へ戻ります。認証結果を自動で確認し、「チャンネル接続済み」と表示されれば完了です。</li>
 </ol>
 <button id="bot-connect" type="button">配信チャンネルを接続</button>
 <p><a id="bot-login-link" hidden target="_blank" rel="noopener noreferrer">ブラウザーでチャンネルを認証する</a> <span id="bot-confirmation"></span></p>
 <button id="bot-status-check" type="button">認証結果を確認</button>
+<button id="bot-reauth-open" type="button" hidden>認証し直す</button>
 <p id="bot-auth-result" role="status"></p>
 <p id="bot-status" role="status">確認中…</p>
 <p>配信チャンネルの確認にはYouTubeの読み取り専用権限を使用します。チャット投稿は共通Botが行います。</p>
-<details><summary>認証できないとき</summary><p>普段配信しているアカウント・チャンネルを選んだか確認してください。認証の取消やリンクの期限切れが起きた場合は、下の「配信チャンネルの変更・接続解除」から解除し、もう一度接続してください。アクセスが拒否される場合は、表示されたエラーを運営へお知らせください。OBSドック内で認証できない場合は、認証リンクを通常ブラウザーで開いてください。</p></details>
+<details><summary>認証できないとき</summary><p>途中で終了した場合やリンクが失効した場合は「認証を再開・やり直す」を押してください。先に保存済みの認証状態を確認し、必要な場合だけリンクを発行します。それでも進めない場合やチャンネルを選び直す場合は「認証し直す」を使用します。通信エラー時はPCの接続情報を保持します。アクセスが拒否される場合は、表示されたエラーを運営へお知らせください。OBSドック内で認証できない場合は、認証リンクを通常ブラウザーで開いてください。</p></details>
 </section>
-<section class="panel" id="bot-stream-step"><h2>3. 対象の配信に接続する</h2>
+<section class="panel" id="bot-stream-step"><h2>3. 通知を選んでBotを起動する</h2>
+<h3>接続先の配信</h3>
 <ol class="bot-steps">
 <li>わんコメで対象のYouTube配信に接続します。</li>
 <li>下の対象配信を確認します。異なる場合は「別の配信に連携し直す」を開き、配信を選んで「この配信に連携する」を押します。</li>
-<li>認証したチャンネルの配信であることを確認し、「接続を確認」を押します。</li>
+<li>認証したチャンネルの配信であることを確認します。接続確認は「Botを起動」で自動的に行います。</li>
 </ol>
 <div id="bot-stream-picker"></div>
 <p id="bot-stream-settings-link"><a href="/settings?tab=general">基本設定で接続先の配信を確認・変更する</a></p>
 <p>開始前でも、チャットが有効な配信枠は接続対象です。わんコメの接続先と同じ枠を確認します。</p>
-<button id="bot-check" type="button">接続を確認</button>
+<details><summary>起動せずに接続だけ確認する</summary><button id="bot-check" type="button">接続を確認</button></details>
 <p id="bot-login-result" role="status"></p>
-</section>
-<section class="panel" id="bot-notifications"><h2>4. 通知選択</h2>
+<div id="bot-notifications"><h3>通知選択</h3>
 <p id="bot-notifications-hint">チャンネル認証が完了すると通知を選択できます。</p>
 <form id="bot-form"><fieldset id="bot-notification-fields" disabled><legend>使用する通知</legend>
 <label><input id="bot-now" type="checkbox"> 次の対戦へ進んだとき、NOWの3名をまとめて呼び出す</label>
@@ -47,14 +48,15 @@
 <label><input id="bot-periodic" type="checkbox"> 待機人数・待機グループ数を定期案内する</label>
 <label>案内間隔<select id="bot-interval"><option value="15">15分</option><option value="30">30分</option></select></label>
 <label>初回の定期案内は今から<select id="bot-initial-delay" aria-label="初回の定期案内までの時間" style="display:inline-block;width:auto"><option value="15">15分後</option><option value="30" selected>30分後</option><option value="45">45分後</option><option value="60">60分後</option></select>から通知開始とします。</label>
-<button type="submit">Bot設定を保存</button></fieldset><p id="bot-save-result" role="status"></p></form></section>
-<section class="panel" id="bot-start-step"><h2>5. Botを起動する</h2>
-<p>チャンネル認証・対象配信の接続確認・通知設定が終わったら「Botを起動」を押します。「Bot稼働中」になれば準備完了です。</p>
+<button type="submit">Bot設定を保存</button></fieldset><p id="bot-save-result" role="status"></p></form></div>
+<div id="bot-start-step"><h3>Botを起動する</h3>
+<p>「Botを起動」で通知設定を保存し、対象配信の接続を確認して起動します。「Bot稼働中」になれば準備完了です。次回以降は保存した設定を引き継ぎます。</p>
 <p id="bot-running-status" role="status"></p><p id="bot-last"></p>
 <button id="bot-start" type="button">Botを起動</button>
 <button id="bot-stop" type="button">Botを停止</button>
 <p id="bot-start-result" role="status"></p>
 <button id="bot-test" type="button">接続テスト（チャットへ投稿）</button>
+</div>
 <details><summary>停止・再起動時の動作</summary><p>再起動時は停止状態です。停止・設定変更時に未送信通知を破棄します。送信済み・送信中の投稿は取り消せません。配信変更や接続切断時も停止します。</p></details>
 <details><summary>配信チャンネルの変更・接続解除</summary><p>変更する場合は解除後に別の配信チャンネルを接続してください。共通Bot自体は変更しません。待機列・履歴は保持します。サーバーで接続を失効できない場合はキーを残し、通信復旧後にやり直します。</p>
 <label><input id="bot-disconnect-confirm" type="checkbox"> 接続を解除することを確認しました</label>
@@ -63,6 +65,10 @@
 <p>対応サーバーへの認証結果を確認すると操作できます。接続できない場合は<a href="mailto:joinqueue.bot@gmail.com">運営へ削除を依頼</a>してください。パスワードや接続キーを送らないでください。</p><button id="bot-erase-open" type="button" disabled>サーバー記録の削除へ</button></details>
 <p><a href="https://kyo563.github.io/privacy.html" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a> ／ <a href="https://security.google.com/settings/security/permissions" target="_blank" rel="noopener noreferrer">Google側のアクセス許可を管理</a></p>
 </section>
+<dialog id="bot-reauth-dialog" aria-labelledby="bot-reauth-title"><h2 id="bot-reauth-title">配信チャンネルを認証し直しますか？</h2>
+<p>Botを停止し、現在の接続を解除して新しい認証リンクを発行します。同じGoogleアカウントで接続した他のチャンネル・端末にも影響する場合があります。待機列・履歴・表示設定・通知設定は削除しません。再認証後もBotは停止したままです。</p>
+<p>通信エラーだけの場合は、まず「認証結果を確認」または「認証を再開・やり直す」を使用してください。</p>
+<button id="bot-reauth-cancel" type="button" autofocus>キャンセル</button><button id="bot-reauth-confirm" type="button">接続を解除して認証し直す</button></dialog>
 <dialog id="bot-erase-dialog" aria-labelledby="bot-erase-title"><h2 id="bot-erase-title">サーバー記録を削除しますか？</h2><p>このチャンネルの全端末でBot接続が解除されます。PC内の待機列・表示設定は保持します。この操作は取り消せません。</p><label>確認のため「サーバー記録を削除」と入力してください<input id="bot-erase-text" autocomplete="off"></label><button id="bot-erase-cancel" type="button" autofocus>キャンセル</button><button id="bot-erase-confirm" type="button" disabled>削除する</button></dialog>
 <dialog id="bot-test-dialog" aria-labelledby="bot-test-title"><h2 id="bot-test-title">配信チャットに投稿しますか？</h2>
 <p>選択中の配信に「JoinQueueBot 接続テスト」を1件投稿します。登録の必須手順ではありません。投稿は取り消せません。</p>

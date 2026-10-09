@@ -12,7 +12,7 @@ import sqlite3
 from threading import Event, Lock, RLock, Thread
 import time
 import unicodedata
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 import httpx
 from pydantic import BaseModel, ConfigDict, StrictBool, field_validator
@@ -26,6 +26,7 @@ ERRORS = {
     'SERVICE_DISABLED': '共通Botは運営側で停止中です。',
     'UNAUTHENTICATED': '接続が失効しました。接続解除後に再接続してください。',
     'CHANNEL_NOT_LINKED': '配信チャンネルを接続してください。',
+    'AUTH_IN_PROGRESS': 'Google認証の結果を処理中です。少し待って「認証結果を確認」を押してください。',
     'CHANNEL_AUTH_UNAVAILABLE': '配信者のGoogle権限を確認できません。時間をおいて接続を確認してください。',
     'BOT_AUTH_EXPIRED': '共通BotのGoogle認証が期限切れです。運営者によるBotの再認証が必要です。配信チャンネルの再接続は不要です。通知は再送しません。',
     'BOT_UNAVAILABLE': '共通Botの認証またはYouTube接続を確認できません。運営者による確認が必要です。通知は再送しません。',
@@ -113,12 +114,12 @@ class BotStore:
             row = c.execute('SELECT value FROM bot_data WHERE key=?', (key,)).fetchone()
         if not row:
             return default
-        raw = protect(row[0], True) if key in ('shared_device', 'credentials') else row[0]
+        raw = protect(row[0], True) if key in ('shared_device', 'shared_pairing', 'credentials') else row[0]
         return json.loads(raw)
 
     def write(self, key, value):
         raw = json.dumps(value, ensure_ascii=False).encode('utf8')
-        if key in ('shared_device', 'credentials'):
+        if key in ('shared_device', 'shared_pairing', 'credentials'):
             raw = protect(raw)
         with self.connection() as c:
             c.execute('INSERT OR REPLACE INTO bot_data VALUES (?,?)', (key, raw))
@@ -144,8 +145,9 @@ class UnavailableBotStore:
 
 
 class AnnouncementBot:
-    def __init__(self, services, bridge, store, *, client=None, clock=time.monotonic):
+    def __init__(self, services, bridge, store, *, client=None, clock=time.monotonic, wall_clock=time.time):
         self.services, self.bridge, self.store, self.clock = services, bridge, store, clock
+        self.wall_clock = wall_clock
         self.http = client or httpx.Client(timeout=25, trust_env=False, follow_redirects=False)
         self.lock, self.command_lock, self.send_lock = RLock(), Lock(), Lock()
         self.stopped = Event()
@@ -170,6 +172,18 @@ class AnnouncementBot:
         self.storage_error = bool(self.error)
         # Old Google credentials are never read, reused, uploaded or deleted.
         self.connection = self.authorization_url = self.confirmation = self.checked = None
+        self.authorization_expires_at = None
+        self.auth_preparing = self.auth_expired = self.auth_pending = False
+        if self.device and not self.storage_error:
+            try:
+                pairing = store.read('shared_pairing')
+                if pairing is not None:
+                    if not isinstance(pairing, dict) or pairing.get('deviceHash') != hashlib.sha256(self.device.encode()).hexdigest():
+                        raise ValueError()
+                    self._restore_pairing(pairing)
+            except Exception:
+                # A damaged/old pending link must not strand an otherwise valid device.
+                self.error = '認証リンクを復元できません。「認証を再開・やり直す」で接続状態を確認してください。接続キーは保持しています。'
         self.bot_profile = {'id': BOT_ID, 'name': 'JoinQueueBot', 'handle': BOT_HANDLE}
         self.test_available = False
         self.deletion_available = False
@@ -202,15 +216,76 @@ class AnnouncementBot:
 
     def status(self):
         with self.lock:
+            live_pairing = self._pairing_live() and self.connection is None
+            expired = self.auth_expired or (self.authorization_expires_at is not None and not live_pairing)
+            auth_state = ('authenticated' if self.connection else 'preparing' if self.auth_preparing else
+                          'expired' if expired else 'pending' if self.auth_pending else 'unverified' if self.device else 'disconnected')
             return {'settings': self.settings.model_dump(),
                     'account': self.bot_profile.copy(), 'test_available': self.test_available,
                     'deletion_available': self.deletion_available,
                     'authenticated': self.connection is not None, 'ready': self.running,
                     'channel_id': self.connection['channelId'] if self.connection else None,
                     'error': self.error, 'last_result': self.last_result, 'pending': len(self.queue),
-                    'authorization_url': self.authorization_url, 'confirmation': self.confirmation,
-                    'has_connection_key': self.device is not None, 'login_pending': bool(self.authorization_url),
+                    'authorization_url': self.authorization_url if live_pairing else None,
+                    'confirmation': self.confirmation if live_pairing else None,
+                    'authorization_expires_at': self.authorization_expires_at,
+                    'auth_state': auth_state,
+                    'has_connection_key': self.device is not None, 'login_pending': live_pairing,
                     'next_announcement_seconds': max(0, math.ceil(self.next_guide - self.clock())) if self.running and self.next_guide is not None else None}
+
+    def _pairing_live(self):
+        return bool(self.authorization_url and self.authorization_expires_at is not None
+                    and self.wall_clock() * 1000 < self.authorization_expires_at)
+
+    def _restore_pairing(self, data):
+        url = urlsplit(data.get('authorizationUrl', ''))
+        query = parse_qs(url.query, keep_blank_values=True)
+        confirmation, expires = data.get('confirmation'), data.get('expiresAt')
+        if (url.scheme + '://' + url.netloc != BOT_ORIGIN or url.path != '/connect' or url.fragment
+                or set(query) != {'id', 'key'} or any(len(v) != 1 for v in query.values())
+                or not re.fullmatch(r'[a-f0-9-]{36}', query['id'][0])
+                or not re.fullmatch(r'[A-Za-z0-9_-]{43}', query['key'][0])
+                or not isinstance(confirmation, str) or not re.fullmatch(r'[a-f0-9]{8}', confirmation)
+                or confirmation != query['id'][0][:8] or type(expires) is not int or expires <= 0):
+            raise BotError()
+        self.authorization_url, self.confirmation, self.authorization_expires_at = data['authorizationUrl'], confirmation, expires
+        self.auth_expired = False
+        self.auth_pending = True
+
+    def _clear_pairing(self):
+        self.store.write('shared_pairing', None)
+        self.authorization_url = self.confirmation = self.authorization_expires_at = None
+        self.auth_pending = False
+
+    def _accept_connection(self, data):
+        if (data.get('status') != 'connected' or not re.fullmatch(r'UC[\w-]{22}', str(data.get('channelId', '')))
+                or not re.fullmatch(r'[a-f0-9-]{36}', str(data.get('connectionId', '')))):
+            raise BotError()
+        self._clear_pairing()
+        self.connection = {k: data[k] for k in ('channelId', 'connectionId')}
+        self.auth_expired = False
+        self.test_available = isinstance(data.get('features'), dict) and data['features'].get('connectionTest') is True
+        self.deletion_available = isinstance(data.get('features'), dict) and data['features'].get('dataDeletion') is True
+        profile = data.get('bot')
+        if isinstance(profile, dict) and profile.get('id') == BOT_ID:
+            from app.schemas.avatar import normalize_avatar_url
+            name = profile.get('name')
+            if isinstance(name, str) and 0 < len(name) <= 200:
+                self.bot_profile = {'id': BOT_ID, 'name': name, 'handle': BOT_HANDLE,
+                                    'icon': normalize_avatar_url(profile.get('icon'))}
+
+    def _observe_pending(self, data):
+        if self.connection:
+            self.pause()
+            self.connection = None
+        # Once the Google form was submitted its landing URL is no longer usable.
+        cached_id = parse_qs(urlsplit(self.authorization_url).query).get('id', [None])[0] if self.authorization_url else None
+        if (data.get('stage') in ('pending', 'consumed')
+                or (data.get('pairingId') is not None and data['pairingId'] != cached_id)):
+            self._clear_pairing()
+        self.auth_pending = True
+        self.auth_expired = False
+        self.error = ''
 
     def configure(self, settings):
         with self.lock:
@@ -270,19 +345,49 @@ class AnnouncementBot:
             video = bridge['selected'] if bridge['connected'] and re.fullmatch(r'[A-Za-z0-9_-]{11}', bridge['selected']) else ''
             epoch = self.generation
             if action == 'connect':
+                self.auth_preparing = True
                 if self.device:
-                    raise ValueError('保存済みの接続があります。認証結果を確認するか、先に接続解除してください。')
-                token = secrets.token_urlsafe(32)
-                self.store.write('shared_device', token)
-                self.device = token
+                    try:
+                        data = self._api('/v1/connections/status')
+                    except BotError as exc:
+                        if exc.code != 'UNAUTHENTICATED':
+                            raise
+                        self.pause()
+                        epoch = self.generation
+                        self.connection = None
+                        self._clear_pairing()
+                        self.auth_expired = True
+                    else:
+                        if data.get('status') == 'connected':
+                            with self.lock:
+                                self._accept_connection(data)
+                            self.error = ''
+                            return self.status()
+                        if data.get('status') != 'pending':
+                            raise BotError()
+                        self._observe_pending(data)
+                        if self._pairing_live():
+                            self.auth_preparing = False
+                            return self.status()
+                else:
+                    token = secrets.token_urlsafe(32)
+                    self.store.write('shared_device', token)
+                    self.device = token
+                # Reuse the device: server atomically restarts only UNAUTHENTICATED
+                # pairings and preserves a connection that completed concurrently.
                 data = self._api('/v1/connections/start')
-                url = urlsplit(data.get('authorizationUrl', ''))
-                if (url.scheme + '://' + url.netloc != BOT_ORIGIN or url.path != '/connect'
-                        or url.fragment or not re.fullmatch(r'[a-f0-9]{8}', str(data.get('confirmation', '')))):
-                    raise BotError()
                 with self.lock:
-                    if epoch == self.generation:
-                        self.authorization_url, self.confirmation = data['authorizationUrl'], data['confirmation']
+                    if epoch != self.generation or self.stopped.is_set():
+                        raise BotError()
+                    if data.get('status') == 'connected':
+                        self._accept_connection(data)
+                    else:
+                        self._restore_pairing(data)
+                        if not self._pairing_live():
+                            raise BotError()
+                        self.store.write('shared_pairing', {k: data[k] for k in ('authorizationUrl', 'confirmation', 'expiresAt')} |
+                                         {'deviceHash': hashlib.sha256(self.device.encode()).hexdigest()})
+                self.auth_preparing = False
             elif action == 'disconnect':
                 self.pause()
                 if self.device:
@@ -292,6 +397,8 @@ class AnnouncementBot:
                         if exc.code != 'UNAUTHENTICATED':
                             raise
                 self.store.write('shared_device', None)
+                self._clear_pairing()
+                self.auth_expired = False
                 self.device = self.connection = self.authorization_url = self.confirmation = None
                 self.test_available = self.deletion_available = False
             elif action == 'erase':
@@ -306,6 +413,8 @@ class AnnouncementBot:
                     if data.get('status') != 'deleted' or data.get('securityRetentionHours') != 25:
                         raise BotError()
                     self.store.write('shared_device', None)
+                    self._clear_pairing()
+                    self.auth_expired = False
                     self.device = self.connection = self.authorization_url = self.confirmation = None
                     self.test_available = self.deletion_available = False
                     self.last_result = 'サーバーの接続情報・投稿台帳を削除しました。短期の制限用ハッシュは最長25時間で削除します。PC内の待機列・設定とYouTube投稿は変更していません。'
@@ -326,21 +435,11 @@ class AnnouncementBot:
                     if epoch != self.generation or self.stopped.is_set():
                         raise BotError()
                     if data.get('status') == 'pending':
+                        self._observe_pending(data)
+                        if action != 'status':
+                            raise BotError('CHANNEL_NOT_LINKED')
                         return self.status()
-                    if (data.get('status') != 'connected' or not re.fullmatch(r'UC[\w-]{22}', str(data.get('channelId', '')))
-                            or not re.fullmatch(r'[a-f0-9-]{36}', str(data.get('connectionId', '')))):
-                        raise BotError()
-                    self.connection = {k: data[k] for k in ('channelId', 'connectionId')}
-                    self.test_available = isinstance(data.get('features'), dict) and data['features'].get('connectionTest') is True
-                    self.deletion_available = isinstance(data.get('features'), dict) and data['features'].get('dataDeletion') is True
-                    profile = data.get('bot')
-                    if isinstance(profile, dict) and profile.get('id') == BOT_ID:
-                        from app.schemas.avatar import normalize_avatar_url
-                        name = profile.get('name')
-                        if isinstance(name, str) and 0 < len(name) <= 200:
-                            self.bot_profile = {'id':BOT_ID, 'name':name, 'handle':BOT_HANDLE,
-                                                'icon':normalize_avatar_url(profile.get('icon'))}
-                    self.authorization_url = self.confirmation = None
+                    self._accept_connection(data)
                     if action != 'status':
                         self.checked = (video, self.clock(), data)
                     if action == 'test':
@@ -383,12 +482,21 @@ class AnnouncementBot:
             self.error = ''
             return self.status()
         except ValueError as exc:
-            self.error = str(exc)
+            if isinstance(exc, BotError) and exc.code == 'UNAUTHENTICATED':
+                self.pause()
+                self.connection = None
+                self._clear_pairing()
+                self.auth_expired = True
+            self.error = ('認証サーバーに接続できません。接続キーは保持しています。通信復旧後に再試行してください。'
+                          if action in ('connect', 'status') and isinstance(exc, BotError) and exc.code == 'UNAVAILABLE' else str(exc))
+            if self.error != str(exc):
+                raise ValueError(self.error) from None
             raise
         except Exception:
             self.error = '接続設定を保存できません。保存先と接続状態を確認してください。'
             raise ValueError(self.error) from None
         finally:
+            self.auth_preparing = False
             self.command_lock.release()
 
     def disconnect(self):

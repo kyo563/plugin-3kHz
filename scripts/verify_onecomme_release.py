@@ -8,6 +8,8 @@ import sys
 import zipfile
 
 archive_path = Path(sys.argv[1])
+version = sys.argv[2] if len(sys.argv) > 2 else '0.1.5'
+assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Invalid version'
 with zipfile.ZipFile(archive_path) as archive:
     names = archive.namelist()
     assert archive.testzip() is None, 'Damaged archive'
@@ -16,7 +18,7 @@ with zipfile.ZipFile(archive_path) as archive:
     forbidden = r'(?i)(\.sqlite|access-keys|ownership\.json|\.env|\.dev\.vars|client_secret|credentials\.json|\.log$)'
     assert not any(re.search(forbidden, name) for name in names), 'Private runtime file in release'
     root = 'sankagata-seiretsu/'
-    assert b"version: '0.1.4'" in archive.read(root + 'plugin.js')
+    assert f"version: '{version}'".encode() in archive.read(root + 'plugin.js')
     static = root + 'runtime/_internal/static/'
     for asset in ('control-display.html', 'control-display.js', 'control-display.css'):
         assert static + asset in names

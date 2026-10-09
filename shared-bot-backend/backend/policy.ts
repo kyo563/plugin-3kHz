@@ -12,6 +12,7 @@ const messages: Record<BotErrorCode, string> = {
   DELIVERY_UNKNOWN: '投稿結果を確認できません。重複防止のため自動再送しません。',
   REQUEST_EXPIRED: '通知が古いため投稿しません。', SERVICE_DISABLED: 'Bot投稿は停止中です。',
   CHANNEL_AUTH_UNAVAILABLE: '配信者のGoogle権限を確認できません。時間をおいて接続を確認してください。',
+  AUTH_IN_PROGRESS: 'Google認証の結果を処理中です。少し待って認証結果を確認してください。',
 };
 export class BotFault extends Error {
   constructor(readonly code: BotErrorCode, readonly http = 400, readonly retryAfterSeconds?: number) {

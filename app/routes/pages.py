@@ -56,6 +56,10 @@ def settings_page(request: Request):
         html = html.replace('<!-- ONECOMME_TEXT_EFFECTS -->',
             '<p><label><input name="text_bold" type="checkbox" checked> 太字で強調する</label></p>'
             '<p><label><input name="text_shadow" type="checkbox" checked> 文字に影を付ける</label></p>')
+        html = html.replace('<!-- ONECOMME_PLACEHOLDER_LABELS -->',
+            '<label>空き枠の文言（受付中） <input name="placeholder_open_label" maxlength="40" value="参加者募集中"></label>'
+            '<label>空き枠の文言（受付停止中） <input name="placeholder_closed_label" maxlength="40" value="-">'
+            '<small>対戦中・次回グループの空き枠は、受付状態に合わせて自動で切り替わります。</small></label>')
         html = html.replace('<body>', '<body data-onecomme="true">')
         html = html.replace('<!-- ONECOMME_PARTICIPATION_NUMBER -->',
                             '<label><input type="checkbox" name="show_participation_number"> 名前の後ろに今回の配信での参加回数を表示する（例：プレイヤー名 *2回目）</label>')

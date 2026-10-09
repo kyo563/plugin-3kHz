@@ -7,6 +7,7 @@ async function main(){
     const dir=path.resolve(process.argv[2]);
     const local=fs.mkdtempSync(path.join(os.tmpdir(),'queue-receiving-smoke-'));
     const direct=process.argv.includes('--comments-only');
+    const checkEmptySlots=process.argv.includes('--empty-slot-labels');
     const source={id:'restricted-row',name:'Restricted smoke',enabled:true,
         ...(direct?{}:{url:'https://www.youtube.com/@smoke/live',meta:{}})};
     let child,key;
@@ -66,6 +67,18 @@ async function main(){
         let status=await api('/api/onecomme/status');
         assert.equal(status.selected,'opaque-restricted-room');assert.equal(status.services[0].id,'');
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name,'Smoke viewer');
+        if(checkEmptySlots){
+            const emptyNames=state=>[...state.now_view,...state.next_view].filter(u=>u.is_placeholder).map(u=>u.display_name);
+            assert.deepEqual(emptyNames(await api('/api/overlay-state')),Array(5).fill('参加者募集中'));
+            await api('/api/control/toggle-open',{});
+            assert.deepEqual(emptyNames(await api('/api/overlay-state')),Array(5).fill('-'));
+            assert.equal((await api('/api/state')).current.length,1);
+            await api('/api/settings/overlay',{...appearance,placeholder_open_label:'参加できます',placeholder_closed_label:'募集停止'});
+            assert.deepEqual(emptyNames(await api('/api/overlay-state')),Array(5).fill('募集停止'));
+            await api('/api/control/toggle-open',{});
+            assert.deepEqual(emptyNames(await api('/api/overlay-state')),Array(5).fill('参加できます'));
+            await api('/api/control/toggle-open',{});
+        }
         plugin.destroy();await until(()=>child.exitCode!==null);
         await start();
         assert.equal((await api('/api/setup')).completed,true);
@@ -75,8 +88,16 @@ async function main(){
         await until(async()=>(await api('/api/onecomme/status')).selected==='opaque-restricted-room');
         assert.equal((await api('/api/state')).current.length,1);
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name,'Smoke viewer');
+        if(checkEmptySlots){
+            const overlay=await api('/api/overlay-state');
+            assert.equal(overlay.is_open,false);
+            assert.equal(overlay.appearance.placeholder_open_label,'参加できます');
+            assert.equal(overlay.appearance.placeholder_closed_label,'募集停止');
+            assert.ok([...overlay.now_view,...overlay.next_view].filter(u=>u.is_placeholder).every(u=>u.display_name==='募集停止'));
+        }
     }finally{plugin.destroy();if(child)await until(()=>child.exitCode!==null);}
     console.log(JSON.stringify({ok:true,compiled_worker:true,receiving_without_video_metadata:true,
-        direct_comments:direct,manual_url:!direct,synthetic_membership_comment:true,overlay_data:true,setup_without_bot:true,restart_restore:true,isolated_data:true}));
+        direct_comments:direct,manual_url:!direct,synthetic_membership_comment:true,overlay_data:true,setup_without_bot:true,restart_restore:true,isolated_data:true,
+        ...(checkEmptySlots?{empty_slot_acceptance_sync:true,empty_slot_custom_labels_restore:true}:{})}));
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});

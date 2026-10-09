@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, AfterValidator
+from pydantic import BaseModel, ConfigDict, Field, AfterValidator, field_validator
 from typing import Annotated, Literal
 
 def validate_font_id(value: str) -> str:
@@ -37,6 +37,9 @@ class OverlaySettings(BaseModel):
     now_label: str = Field(default="NOW", max_length=40)
     next_label: str = Field(default="NEXT", max_length=40)
     queue_label: str = Field(default="QUEUE", max_length=40)
+    # Nullable in portable/standalone settings for backwards-compatible backups.
+    placeholder_open_label: str | None = Field(default=None, max_length=40)
+    placeholder_closed_label: str | None = Field(default=None, max_length=40)
     layout: Literal["vertical", "horizontal", "custom"] = "vertical"
     custom_text: str = Field(default="[受付]\n\n[NOW見出し]\n[NOW1]\n[NOW2]\n[NOW3]\n\n[NEXT見出し]\n[NEXT1]\n[NEXT2]\n[NEXT3]\n\n[QUEUE見出し]\n[待機人数]", max_length=4000)
     vertical_text: str = Field(default="[受付]\n\n[NOW見出し]\n[NOW1]\n[NOW2]\n[NOW3]\n\n[NEXT見出し]\n[NEXT1]\n[NEXT2]\n[NEXT3]\n\n[QUEUE見出し]\n[待機人数]", max_length=4000)
@@ -63,3 +66,13 @@ class OneCommeOverlaySettings(OverlaySettings):
     now_label: str = Field(default="現在の対戦", max_length=40)
     next_label: str = Field(default="次回", max_length=40)
     queue_label: str = Field(default="待機人数", max_length=40)
+    placeholder_open_label: str | None = Field(default="参加者募集中", max_length=40)
+    placeholder_closed_label: str | None = Field(default="-", max_length=40)
+
+    @field_validator('placeholder_open_label', 'placeholder_closed_label', mode='before')
+    @classmethod
+    def default_placeholder_label(cls, value, info):
+        # Old portable backups deserialize new nullable fields as None.
+        if value is None:
+            return '参加者募集中' if info.field_name == 'placeholder_open_label' else '-'
+        return value

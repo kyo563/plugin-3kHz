@@ -21,7 +21,8 @@ test('sample preview shows session ordinals for every name mode, never for place
 async function settingsHarness(onecomme = true) {
   const defaults = {width:480, height:600, font_size:28, layout:'vertical', name_mode:'youtube',
     show_participation_number:false, auto_fit_font:true, text_bold:true, text_shadow:true, background_color:'#000000', background_transparency:100,
-    open_label:'受付中',now_label:'NOW',next_label:'NEXT',queue_label:'QUEUE',fonts:{all:'default'}};
+    open_label:'受付中',now_label:'NOW',next_label:'NEXT',queue_label:'QUEUE',fonts:{all:'default'},
+    ...(onecomme ? {placeholder_open_label:'参加者募集中',placeholder_closed_label:'-'} : {})};
   let stored = {...defaults, show_participation_number:true};
   const elements = {}, fields = {}, calls = [], previews = [];
   const element = () => ({events:{}, style:{setProperty(k,v){this[k]=v;}}, disabled:false, value:'', checked:false,
@@ -84,6 +85,38 @@ test('ordinal checkbox restores, previews, saves booleans both ways and resets',
   await get('confirm-reset-settings').onclick();
   assert.equal(checkbox.checked, false);
   assert.equal(previews.at(-1).show_participation_number, false);
+});
+
+test('editable empty slot labels preview, save, reload and reset with the OBS form', async () => {
+  const {fields, get, form, calls, previews} = await settingsHarness();
+  assert.equal(fields.placeholder_open_label.value, '参加者募集中');
+  assert.equal(fields.placeholder_closed_label.value, '-');
+  fields.placeholder_open_label.value='どうぞ'; fields.placeholder_closed_label.value='受付停止';
+  form.events.input();
+  assert.equal(previews.at(-1).placeholder_open_label,'どうぞ');
+  await form.events.submit({preventDefault(){}});
+  assert.equal(calls.at(-1).placeholder_closed_label,'受付停止');
+  fields.placeholder_closed_label.value='未保存';
+  await get('reload-overlay-layout').onclick();
+  assert.equal(fields.placeholder_closed_label.value,'受付停止');
+  await get('confirm-reset-settings').onclick();
+  assert.equal(fields.placeholder_open_label.value,'参加者募集中');
+  assert.equal(fields.placeholder_closed_label.value,'-');
+});
+
+test('sample preview uses configured recruitment text only for empty slots', () => {
+  const context = {URLSearchParams, AbortSignal, location:{search:''}, window:{},
+    fetch:async()=>({status:304}), setTimeout(){}, console};
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync('static/overlay.js', 'utf8'), context);
+  const appearance={placeholder_open_label:'参加できます',placeholder_closed_label:'停止中',show_participation_number:true};
+  const open=context.sampleState(appearance,true), closed=context.sampleState(appearance,false);
+  assert.equal(open.now_view[2].display_name,'参加できます');
+  assert.equal(closed.now_view[2].display_name,'停止中');
+  assert.equal(closed.now_view[0].display_name,open.now_view[0].display_name);
+  assert.equal(closed.is_open,false);
+  assert.equal(context.sampleState({...appearance,placeholder_open_label:''}).now_view[2].display_name,'');
+  assert.equal(context.sampleState({},false).now_view[2].display_name,'参加者募集中');
 });
 
 test('OBS font picker searches without selection loss and clears only OBS overrides on change', async () => {

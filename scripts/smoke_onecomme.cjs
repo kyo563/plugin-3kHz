@@ -110,7 +110,10 @@ async function main() {
         assert.ok(settingsPage.includes('id="onecomme-stream"'));
         assert.ok(settingsPage.includes('id="setup-wizard"'));
         assert.ok(settingsPage.includes('<h1>設定画面</h1>'));
-        assert.ok(settingsPage.includes('<h2>4. 通知選択</h2>'));
+        assert.ok(settingsPage.includes('<h2>3. 通知を選んでBotを起動する</h2>'));
+        assert.ok(settingsPage.includes('<h3>通知選択</h3>'));
+        assert.ok(settingsPage.includes('id="bot-reauth-dialog"'));
+        assert.ok(settingsPage.includes('接続を解除して認証し直す'));
         assert.ok(settingsPage.includes('フォント一括設定'));
         assert.ok(settingsPage.includes('OBSに表示される文言は以下のとおりです。'));
         assert.ok(settingsPage.includes('id="bot-initial-delay"'));

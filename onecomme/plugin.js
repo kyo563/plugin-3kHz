@@ -129,7 +129,7 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
     }
     return {
         name: '待機列整理アプリ',
-        uid: 'jp.kyo563.sankagata-seiretsu', version: '0.1.4', author: 'kyo563',
+        uid: 'jp.kyo563.sankagata-seiretsu', version: '0.1.5', author: 'kyo563',
         url: 'http://localhost:11180/plugins/jp.kyo563.sankagata-seiretsu/index.html',
         permissions: ['filter.comment', 'services', 'meta', 'meta.clear'],
         init({dir}, initialData) {

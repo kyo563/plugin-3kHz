@@ -22,7 +22,7 @@ class ApplicationServices:
         self.comment_lock = RLock()
         self.add_counter = 0
         self.queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL)
-        self.overlay_service = OverlayStateService()
+        self.overlay_service = OverlayStateService(onecomme=onecomme)
         self.persistence_service = SQLitePersistenceService(initial_state(desktop=desktop), db_path,
             overlay_settings_model=OneCommeOverlaySettings if onecomme else OverlaySettings,
             description_default=ONECOMME_DEFAULT_DESCRIPTION if onecomme else DEFAULT_DESCRIPTION)

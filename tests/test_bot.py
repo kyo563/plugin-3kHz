@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import json
 import os
+import time
 from pathlib import Path
 import httpx
 import pytest
@@ -37,7 +38,7 @@ def setup_bot(tmp_path):
             sent.append(json.loads(request.content))
             return httpx.Response(200, json={'status': 'sent'})
         if request.url.path.endswith('/start'):
-            return httpx.Response(200, json={'authorizationUrl': BOT_ORIGIN + '/connect?session=test', 'confirmation': '1234abcd', 'expiresAt': 2000000000000})
+            return httpx.Response(200, json=pairing_response())
         return httpx.Response(200, json={'status': 'connected', 'channelId': 'UC' + '9'*22,
                             'connectionId': '11111111-1111-4111-8111-111111111111', 'serviceEnabled': True, 'features':{'connectionTest':True}})
     now = [100.0]
@@ -48,6 +49,220 @@ def setup_bot(tmp_path):
 
 def activate(bot):
     bot.command('connect'); bot.command('status'); bot.command('start')
+
+
+def pairing_response(now=None, identifier='1234abcd-1111-4111-8111-111111111111'):
+    return {'authorizationUrl': BOT_ORIGIN + '/connect?id=' + identifier + '&key=' + 'k'*43,
+            'confirmation': identifier[:8], 'expiresAt': int((time.time() if now is None else now)*1000) + 600000}
+
+
+def replace_transport(bot, handler):
+    bot.http.close()
+    bot.http = httpx.Client(transport=httpx.MockTransport(handler))
+
+
+@pytest.mark.parametrize('registered', [False, True])
+@pytest.mark.parametrize('failure', ['timeout', 'server', 'invalid_response'])
+def test_failed_pairing_start_can_retry_without_rotating_device(setup_bot, registered, failure):
+    bot, bridge, services, now, sent, calls = setup_bot
+    attempts = []
+    def fail(request):
+        attempts.append(request.url.path)
+        if failure == 'timeout':
+            raise httpx.ReadTimeout('PRIVATE_AUTH_URL')
+        return httpx.Response(503 if failure == 'server' else 200,
+                              json={'error': {'code': 'BOT_UNAVAILABLE', 'message': 'PRIVATE_AUTH_URL'}} if failure == 'server' else {})
+    replace_transport(bot, fail)
+    with pytest.raises(ValueError): bot.command('connect')
+    device = bot.device
+    assert device and bot.store.data['shared_device'] == device
+    assert not bot.status()['authenticated'] and bot.status()['auth_state'] == 'unverified'
+    assert 'PRIVATE_AUTH_URL' not in str(bot.status())
+    def recover(request):
+        attempts.append(request.url.path)
+        assert request.headers['Authorization'] == 'Bearer ' + device
+        if request.url.path.endswith('/status'):
+            return httpx.Response(200, json={'status': 'pending', 'stage': 'new'}) if registered else httpx.Response(403, json={'error': {'code': 'UNAUTHENTICATED'}})
+        return httpx.Response(200, json=pairing_response())
+    replace_transport(bot, recover)
+    result = bot.command('connect')
+    assert result['auth_state'] == 'pending' and result['login_pending'] and not result['error']
+    assert bot.device == device and bot.store.data['shared_pairing']['confirmation'] == result['confirmation']
+    assert attempts == ['/v1/connections/start', '/v1/connections/status', '/v1/connections/start']
+    assert not sent
+
+
+def test_pending_link_and_confirmation_survive_restart_and_resume_without_reissuing(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    first = bot.command('connect')
+    attempts = []
+    def pending(request):
+        attempts.append(request.url.path)
+        return httpx.Response(200, json={'status': 'pending', 'stage': 'new'})
+    restored = AnnouncementBot(services, bridge, bot.store, client=httpx.Client(transport=httpx.MockTransport(pending)))
+    try:
+        assert restored.status()['authorization_url'] == first['authorization_url']
+        assert restored.status()['confirmation'] == first['confirmation']
+        assert restored.command('connect')['auth_state'] == 'pending'
+        assert attempts == ['/v1/connections/status']
+        assert not restored.running and not sent
+    finally: restored.stop()
+
+
+@pytest.mark.parametrize('reason', ['expired', 'old_client', 'google_interrupted'])
+def test_pending_authentication_can_reissue_after_expiry_or_lost_link(setup_bot, reason):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.wall_clock = lambda: 1000
+    replace_transport(bot, lambda r: httpx.Response(200, json=pairing_response(1000)))
+    original = bot.command('connect')
+    if reason == 'old_client': bot.store.data.pop('shared_pairing')
+    attempts = []
+    def recover(request):
+        attempts.append(request.url.path)
+        if request.url.path.endswith('/status'):
+            if reason == 'expired': return httpx.Response(403, json={'error': {'code': 'UNAUTHENTICATED'}})
+            return httpx.Response(200, json={'status': 'pending', 'stage': 'pending' if reason == 'google_interrupted' else 'new'})
+        return httpx.Response(200, json=pairing_response(1700, '5678abcd-1111-4111-8111-111111111111'))
+    restored = AnnouncementBot(services, bridge, bot.store, wall_clock=lambda: 1700,
+                                client=httpx.Client(transport=httpx.MockTransport(recover)))
+    try:
+        assert restored.status()['authorization_url'] is None
+        result = restored.command('connect')
+        assert result['authorization_url'] != original['authorization_url']
+        assert result['auth_state'] == 'pending' and restored.device == bot.device
+        assert attempts == ['/v1/connections/status', '/v1/connections/start']
+        assert not sent
+    finally: restored.stop()
+
+
+def test_connected_restart_or_pairing_completion_race_preserves_authentication(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    device = bot.device
+    connected = {'status': 'connected', 'channelId': 'UC'+'9'*22,
+                 'connectionId': '11111111-1111-4111-8111-111111111111', 'serviceEnabled': True}
+    for race in (False, True):
+        attempts = []
+        def reply(request):
+            attempts.append(request.url.path)
+            if race and request.url.path.endswith('/status'): return httpx.Response(200, json={'status': 'pending', 'stage': 'pending'})
+            return httpx.Response(200, json=connected)
+        restored = AnnouncementBot(services, bridge, bot.store, client=httpx.Client(transport=httpx.MockTransport(reply)))
+        try:
+            result = restored.command('connect')
+            assert result['authenticated'] and result['auth_state'] == 'authenticated'
+            assert restored.device == device and not result['ready'] and not sent
+            assert attempts == ['/v1/connections/status'] + (['/v1/connections/start'] if race else [])
+            assert bot.store.data['shared_pairing'] is None
+        finally: restored.stop()
+
+
+def test_status_network_failure_keeps_device_valid_authentication_and_pending_links(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.command('connect')
+    for authenticated in (False, True):
+        if authenticated:
+            bot.connection = {'channelId': 'UC'+'9'*22, 'connectionId': '11111111-1111-4111-8111-111111111111'}
+        device, connection, pairing = bot.device, bot.connection, bot.store.data['shared_pairing'].copy()
+        replace_transport(bot, lambda r: (_ for _ in ()).throw(httpx.ConnectError('PRIVATE_DEVICE')))
+        with pytest.raises(ValueError, match='再試行'): bot.command('connect')
+        assert bot.device == device and bot.connection == connection and bot.store.data['shared_pairing'] == pairing
+        assert 'PRIVATE_DEVICE' not in str(bot.status()) and not sent
+
+
+def test_expired_link_hidden_and_pending_server_never_claims_bot_started(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.wall_clock = lambda: 1000
+    replace_transport(bot, lambda r: httpx.Response(200, json=pairing_response(1000)))
+    bot.command('connect')
+    bot.wall_clock = lambda: 1600
+    assert bot.status()['auth_state'] == 'expired'
+    assert bot.status()['authorization_url'] is None and bot.status()['confirmation'] is None
+    replace_transport(bot, lambda r: httpx.Response(200, json={'status': 'pending', 'stage': 'pending'}))
+    for action in ('check', 'start'):
+        with pytest.raises(BotError, match='配信チャンネル'): bot.command(action)
+        assert not bot.running and not bot.status()['authenticated'] and not sent
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows DPAPI')
+def test_pending_authorization_capability_is_dpapi_encrypted(tmp_path):
+    path = tmp_path/'bot.sqlite3'
+    store = BotStore(path)
+    pairing = pairing_response()
+    store.write('shared_pairing', pairing)
+    assert store.read('shared_pairing') == pairing
+    assert pairing['authorizationUrl'].encode() not in path.read_bytes()
+    assert ('k'*43).encode() not in path.read_bytes()
+
+
+def test_server_replaced_pairing_never_reuses_stale_locally_unexpired_url(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    previous = bot.command('connect')['authorization_url']
+    attempts = []
+    def recover(request):
+        attempts.append(request.url.path)
+        if request.url.path.endswith('/status'):
+            return httpx.Response(200, json={'status': 'pending', 'stage': 'new',
+                                          'pairingId': '5678abcd-1111-4111-8111-111111111111'})
+        return httpx.Response(200, json=pairing_response(identifier='9876abcd-1111-4111-8111-111111111111'))
+    replace_transport(bot, recover)
+    result = bot.command('connect')
+    assert result['authorization_url'] != previous and result['login_pending']
+    assert attempts == ['/v1/connections/status', '/v1/connections/start'] and not sent
+
+
+@pytest.mark.parametrize('damage', ['foreign_host', 'wrong_device', 'invalid_expiry'])
+def test_bad_pending_record_does_not_lock_out_existing_device(setup_bot, damage):
+    bot, bridge, services, now, sent, calls = setup_bot
+    bot.command('connect')
+    pairing = bot.store.data['shared_pairing'].copy()
+    if damage == 'foreign_host': pairing['authorizationUrl'] = 'https://evil.invalid/connect'
+    elif damage == 'wrong_device': pairing['deviceHash'] = 'different-device'
+    else: pairing['expiresAt'] = True
+    bot.store.data['shared_pairing'] = pairing
+    connected = {'status': 'connected', 'channelId': 'UC'+'9'*22,
+                 'connectionId': '11111111-1111-4111-8111-111111111111'}
+    restored = AnnouncementBot(services, bridge, bot.store, client=httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json=connected))))
+    try:
+        assert restored.device == bot.device and not restored.storage_error
+        assert restored.status()['authorization_url'] is None
+        assert restored.command('connect')['authenticated']
+        assert restored.device == bot.device and not restored.running and not sent
+    finally: restored.stop()
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows DPAPI')
+def test_local_api_retry_and_restart_use_real_encrypted_database(tmp_path):
+    database = str(tmp_path/'queue.db')
+    headers = lambda app: {'Authorization': 'Bearer ' + app.state.access_keys.admin}
+    def reply(request):
+        if request.url.path.endswith('/status'):
+            return httpx.Response(403, json={'error': {'code': 'UNAUTHENTICATED'}})
+        return httpx.Response(200, json=pairing_response())
+    with TestClient(create_app(db_path=database, desktop=True, onecomme=True), base_url='http://127.0.0.1') as client:
+        client.headers.update(headers(client.app))
+        bot = client.app.state.bot
+        replace_transport(bot, lambda r: (_ for _ in ()).throw(httpx.ReadTimeout('PRIVATE')))
+        failed = client.post('/api/bot/connection', json={'action': 'connect'})
+        assert failed.status_code == 422 and '再試行' in failed.json()['detail']
+        device = bot.device
+        assert client.get('/api/bot').json()['has_connection_key']
+        replace_transport(bot, reply)
+        repaired = client.post('/api/bot/connection', json={'action': 'connect'}).json()
+        assert repaired['auth_state'] == 'pending' and bot.device == device
+    with TestClient(create_app(db_path=database, desktop=True, onecomme=True), base_url='http://127.0.0.1') as client:
+        client.headers.update(headers(client.app))
+        restored = client.get('/api/bot').json()
+        assert restored['authorization_url'] == repaired['authorization_url']
+        assert restored['confirmation'] == repaired['confirmation'] and not restored['ready']
+        assert client.app.state.bot.device == device
+        replace_transport(client.app.state.bot, lambda r: httpx.Response(200, json={
+            'status': 'connected', 'channelId': 'UC'+'9'*22,
+            'connectionId': '11111111-1111-4111-8111-111111111111'}))
+        verified = client.post('/api/bot/connection', json={'action': 'status'}).json()
+        assert verified['authenticated'] and verified['authorization_url'] is None
+        assert not verified['ready'] and client.app.state.bot.store.read('shared_pairing') is None
 
 
 @pytest.mark.parametrize('code, expected', [
@@ -440,7 +655,7 @@ def test_api_local_auth_legacy_endpoint_removed_and_disconnect_confirmation(tmp_
         assert '<h1>設定画面</h1>' in html and 'id="bot-client"' not in html
         assert c.get('/bot', follow_redirects=False).headers['location'] == '/settings?tab=bot'
         assert 'role="tablist"' in html and 'aria-controls="settings-bot-panel"' in html
-        assert '<h2>4. 通知選択</h2>' in html and html.count('id="bot-form"') == 1
+        assert '<h3>通知選択</h3>' in html and html.count('id="bot-form"') == 1
         assert html.count('id="overlay-layout-form"') == 1
         for removed in ('通知を選ぶ', 'Botを使わなくても', 'チェックの変更は保存後', '利用者ごとのBotアカウント', '人数・待機順はNOWを除きます'):
             assert removed not in html

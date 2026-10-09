@@ -62,13 +62,15 @@ async function refresh() {
     if (state) renderOverlay(state);
     setTimeout(refresh, 2000);
 }
-function sampleState(appearance = {}) {
+function sampleState(appearance = {}, isOpen = true) {
     const mode = appearance.name_mode || 'youtube';
     const named = (account, declared, number = 1) => ({display_name:
         (mode === 'declared' ? declared : mode === 'youtube_declared' ? `${account}（${declared}）` : mode === 'declared_youtube' ? `${declared}（${account}）` : account)
         + (appearance.show_participation_number ? ` *${number}回目` : '')});
-    return {is_open:true, appearance,
-      now_view:[named('@sample_aoi','サンプル：あおい',2),named('@sample_long_name_for_preview','サンプル：長い名前の表示確認'),{display_name:'参加者募集中',is_placeholder:true}],
+    const placeholder = appearance.placeholder_open_label == null ? '参加者募集中'
+        : isOpen ? appearance.placeholder_open_label : (appearance.placeholder_closed_label ?? '-');
+    return {is_open:isOpen, appearance,
+      now_view:[named('@sample_aoi','サンプル：あおい',2),named('@sample_long_name_for_preview','サンプル：長い名前の表示確認'),{display_name:placeholder,is_placeholder:true}],
       next_view:[named('@sample_next_a','サンプル：次の方A'),named('@sample_next_b','サンプル：次の方B'),named('@sample_next_c','サンプル：次の方C')],
       total_waiting_count:5,total_waiting_group_count:2};
 }

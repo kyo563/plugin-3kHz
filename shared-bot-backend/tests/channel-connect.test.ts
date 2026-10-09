@@ -72,6 +72,101 @@ test('creator offline callback persists only encrypted readonly refresh grant an
     assert.equal((await f.api('disconnect')).status,200);assert.equal(f.db.prepare('SELECT count(*) AS n FROM creator_grants').get()!.n,0);
   }finally{f.db.close();}
 });
+
+test('lost start response can reissue for the same device; only the newest link works', async()=>{
+  const f=fixture(); try {
+    const first=await (await f.api('start')).json() as any;
+    const pending=await (await f.api('status')).json() as any;
+    assert.equal(pending.status,'pending'); assert.equal(pending.stage,'new');
+    assert.equal(pending.expiresAt,first.expiresAt);
+    const second=await (await f.api('start')).json() as any;
+    assert.notEqual(second.authorizationUrl,first.authorizationUrl);
+    assert.equal((await f.auth().handle(new Request(first.authorizationUrl))).status,403);
+    assert.equal((await f.auth().handle(new Request(second.authorizationUrl))).status,200);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM channel_pairings').get()!.n,1);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM devices').get()!.n,0);
+    assert.deepEqual(f.counts(),{lookups:0,checks:0,exchanges:0});
+  }finally{f.db.close();}
+});
+
+test('interrupted Google flow can restart; stale callback cannot authenticate',async()=>{
+  const f=fixture();try{
+    const old=await f.start();
+    assert.equal((await (await f.api('status')).json() as any).stage,'pending');
+    const fresh=await f.start();
+    assert.notEqual(fresh.link,old.link);
+    assert.equal((await f.callback(old.state,old.cookie)).status,403);
+    assert.equal(f.counts().exchanges,0);
+    assert.equal((await f.callback(fresh.state,fresh.cookie)).status,200);
+    assert.equal((await (await f.api('status')).json() as any).status,'connected');
+  }finally{f.db.close();}
+});
+
+test('expired pairing can restart using the same device without disconnecting a channel',async()=>{
+  const f=fixture();try{
+    const old=await f.start();f.advance(600001);
+    assert.equal((await f.api('status')).status,403);
+    const fresh=await f.start();
+    assert.equal((await f.callback(old.state,old.cookie)).status,403);
+    assert.equal((await f.callback(fresh.state,fresh.cookie)).status,200);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM devices').get()!.n,1);
+  }finally{f.db.close();}
+});
+
+test('recovery during an OAuth callback does not cancel the callback or issue another link',async()=>{
+  const f=fixture();try{
+    const b=await f.start();let release!:()=>void,reached!:()=>void;
+    const entered=new Promise<void>(r=>{reached=r;});
+    f.pause(()=>new Promise<void>(r=>{release=r;reached();}));
+    const inFlight=f.callback(b.state,b.cookie);await entered;
+    assert.equal((await (await f.api('status')).json() as any).stage,'consumed');
+    const result=await f.api('start');assert.equal(result.status,409);
+    assert.equal((await result.json() as any).error.code,'AUTH_IN_PROGRESS');
+    release();assert.equal((await inFlight).status,200);
+    assert.equal((await (await f.api('status')).json() as any).status,'connected');
+  }finally{f.db.close();}
+});
+
+test('recovery race preserves connected devices and encrypted creator grants',async()=>{
+  for(const offline of [false,true]){
+    const f=fixture(offline);try{
+      const b=await f.start();assert.equal((await f.callback(b.state,b.cookie)).status,200);
+      const pairing=JSON.stringify(f.db.prepare('SELECT * FROM channel_pairings').all());
+      const devices=JSON.stringify(f.db.prepare('SELECT * FROM devices').all());
+      const grants=offline?JSON.stringify(f.db.prepare('SELECT * FROM creator_grants').all()):'';
+      const result=await f.api('start');assert.equal(result.status,200);
+      const data=await result.json() as any;assert.equal(data.status,'connected');assert.equal(data.channelId,f.channelId);
+      assert.equal(data.authorizationUrl,undefined);
+      assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM channel_pairings').all()),pairing);
+      assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM devices').all()),devices);
+      if(offline)assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM creator_grants').all()),grants);
+      assert.equal(f.counts().checks,0);
+    }finally{f.db.close();}
+  }
+});
+
+test('pending restart uses the existing abuse budget and rollback keeps the previous link valid',async()=>{
+  const f=fixture();try{
+    let last='';for(let n=0;n<20;n++)last=(await (await f.api('start')).json() as any).authorizationUrl;
+    assert.equal((await f.api('start')).status,429);
+    assert.equal((await f.auth().handle(new Request(last))).status,200);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM channel_pairings').get()!.n,1);
+    assert.deepEqual(f.counts(),{lookups:0,checks:0,exchanges:0});
+  }finally{f.db.close();}
+});
+
+test('recovery never overwrites a formerly verified revoked device or its records',async()=>{
+  const f=fixture();try{
+    const b=await f.start();assert.equal((await f.callback(b.state,b.cookie)).status,200);
+    assert.equal((await f.api('disconnect')).status,200);
+    const pairing=JSON.stringify(f.db.prepare('SELECT * FROM channel_pairings').all());
+    const devices=JSON.stringify(f.db.prepare('SELECT * FROM devices').all());
+    const rejected=await f.api('start');assert.equal(rejected.status,403);
+    assert.equal((await rejected.json() as any).error.code,'UNAUTHENTICATED');
+    assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM channel_pairings').all()),pairing);
+    assert.equal(JSON.stringify(f.db.prepare('SELECT * FROM devices').all()),devices);
+  }finally{f.db.close();}
+});
 test('creator offline callback fails closed for missing refresh token or combined write scope',async()=>{
   for(const invalid of ['refresh','combined']){
     const f=fixture(true);try{
