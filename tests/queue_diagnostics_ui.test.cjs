@@ -36,13 +36,14 @@ test('confirmation sends exact revision and affects only this stream count API',
     await h.el('session-reset-confirm').listeners.click();
     assert.deepEqual(JSON.parse(JSON.stringify(h.requests)),[['/api/control/reset-session-counts',{confirmed:true,expected_revision:12}]]);
     assert.equal(h.el('session-reset-dialog').open,false);
-    assert.match(h.el('diagnostic-tools-status').textContent,/累計参加回数と待機列はそのまま/);
+    assert.match(h.el('session-reset-status').textContent,/累計参加回数と待機列はそのまま/);
+    assert.equal(h.el('diagnostic-tools-status').textContent,'');
 });
 test('state lookup failure and mutation guard never open confirmation or reset',async()=>{
     const h=harness({state:null});
     await h.el('session-count-reset').listeners.click();
     assert.equal(h.el('session-reset-dialog').open,false);
-    assert.match(h.el('diagnostic-tools-status').textContent,/接続/);
+    assert.match(h.el('session-reset-status').textContent,/接続/);
     h.scope.mutationPending=true;
     await h.el('session-count-reset').listeners.click();
     await h.el('session-reset-confirm').listeners.click();
@@ -52,7 +53,7 @@ test('failed reset is not reported as success and confirmation button recovers',
     const h=harness({result:false});
     await h.el('session-count-reset').listeners.click();
     await h.el('session-reset-confirm').listeners.click();
-    assert.match(h.el('diagnostic-tools-status').textContent,/確認できませんでした/);
+    assert.match(h.el('session-reset-status').textContent,/確認できませんでした/);
     assert.equal(h.el('session-reset-confirm').disabled,false);
 });
 test('each download click makes a new read-only request and a text download',async()=>{
@@ -63,6 +64,7 @@ test('each download click makes a new read-only request and a text download',asy
     assert.equal(h.requests.length,2);
     assert.ok(h.requests.every(r=>r[0]==='/api/control/diagnostic-log'));
     assert.equal(h.el('diagnostic-log-download').disabled,false);
+    assert.equal(h.el('session-reset-status').textContent,'');
 });
 test('failed download creates no file and can be retried',async()=>{
     const h=harness({download:false});

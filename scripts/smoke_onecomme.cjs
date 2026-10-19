@@ -242,6 +242,11 @@ async function main() {
         stage = 'diagnostic-log-and-session-reset';
         assert.ok(html.includes('id="session-count-reset"'));
         assert.ok(html.includes('id="diagnostic-log-download"'));
+        const otherTools = html.split('<summary>その他（設定・バックアップ）</summary>')[1].split('<details id="description-tools"')[0];
+        const operationLogs = html.split('<summary>操作ログ</summary>')[1].split('</details>')[0];
+        assert.ok(otherTools.includes('id="session-count-reset"'));
+        assert.ok(operationLogs.includes('id="diagnostic-log-download"'));
+        assert.ok(!html.includes('今回の参加回数・診断ログ'));
         const auditComment = event('audit-private-canary', '参加希望 『PRIVATE_AUDIT_DECLARED』');
         Object.assign(auditComment.data, {userId:'opaque-audit-user',name:'PRIVATE_AUDIT_NAME',screenName:'@public_audit_handle'});
         plugin.filterComment(auditComment, null, {id:'opaque-audit-user',memo:'PRIVATE_AUDIT_MEMO'});

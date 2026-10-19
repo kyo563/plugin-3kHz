@@ -1,6 +1,6 @@
 param(
-    [string]$ReleaseDirectory = 'dist\onecomme-release-0.1.7-audit-20261020',
-    [string]$ExpectedOldHash = '0c227c88ecce71691dce5cbb2ea26370d856d0394eee4f8b3f3883fe4b27d136'
+    [string]$ReleaseDirectory = 'dist\onecomme-release-0.1.7-controls-20261020',
+    [string]$ExpectedOldHash = 'da06ce6bb6054ea570d10e205a8c36d80a7f08ef5c1c2768a450b378c6747335'
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -40,13 +40,13 @@ $uploadBase = $release.upload_url -replace '\{.*$',''
 foreach ($name in $names) {
     $old = @($release.assets | Where-Object name -eq $name)
     if ($old.Count -ne 1) { throw 'Missing or ambiguous old asset' }
-    Download-Verified $old[0].browser_download_url (Join-Path $backup $name) ($old[0].digest -replace '^sha256:','')
+    Download-Verified $old[0].browser_download_url (Join-Path $backup $name) ($old[0].digest -replace '^sha256:','') $old[0].id
     $local = Join-Path $candidate $name
     $hash = (Get-FileHash -LiteralPath $local).Hash.ToLowerInvariant()
     $temporaryName = $name + '.audit-update-staged'
     $new = Invoke-RestMethod -Method Post -Headers $headers -Uri ($uploadBase + '?name=' + [Uri]::EscapeDataString($temporaryName)) -ContentType 'application/octet-stream' -InFile $local
     if ($new.digest -ne "sha256:$hash" -or $new.size -ne (Get-Item -LiteralPath $local).Length) { throw 'Staged digest mismatch' }
-    Download-Verified $new.browser_download_url (Join-Path $backup ($name + '.staged-verified')) $hash
+    Download-Verified $new.browser_download_url (Join-Path $backup ($name + '.staged-verified')) $hash $new.id
     $staged += [pscustomobject]@{name=$name;old=$old[0];new=$new;hash=$hash}
 }
 foreach ($item in $staged) {
@@ -60,7 +60,7 @@ foreach ($item in $staged) {
 $body = Get-Content -LiteralPath (Join-Path $repoRoot 'docs\RELEASE_ONECOMME_0.1.7.md') -Raw -Encoding utf8
 $body = $body.Replace('/tree/onecomme-v0.1.7)', "/tree/$commit)")
 $newZipId = ($staged | Where-Object name -eq $zipName).new.id
-$body = $body.Replace($zipName + ')', $zipName + '?asset=' + $newZipId + ')')
+$body = [regex]::Replace($body, [regex]::Escape($zipName) + '(?:\?asset=\d+)?\)', $zipName + '?asset=' + $newZipId + ')')
 $body += "`n`n配布ファイル更新（0.1.7のまま）：対応ソース $commit。タグは初回0.1.7の状態を保持しています。`n"
 $json = @{body=$body;draft=$false;prerelease=$false;make_latest='true'} | ConvertTo-Json
 $null = Invoke-RestMethod -Method Patch -Headers $headers -Uri "$api/releases/$($release.id)" -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($json))

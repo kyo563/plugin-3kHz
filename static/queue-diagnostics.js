@@ -1,6 +1,6 @@
 (() => {
     const get = id => document.getElementById(id);
-    const dialog = get('session-reset-dialog'), status = get('diagnostic-tools-status');
+    const dialog = get('session-reset-dialog'), resetStatus = get('session-reset-status'), downloadStatus = get('diagnostic-tools-status');
     let pending = false, revision = null;
     get('session-count-reset').addEventListener('click', async () => {
         if (pending || mutationPending) return;
@@ -10,7 +10,7 @@
             if (!state) throw new Error('状態を確認できません。接続を確認してください。');
             revision = state.revision;
             dialog.showModal();
-        } catch (error) { status.textContent = error.message; }
+        } catch (error) { resetStatus.textContent = error.message; }
         finally { pending = false; }
     });
     get('session-reset-cancel').addEventListener('click', () => dialog.close());
@@ -21,8 +21,8 @@
         try {
             if (await post('/api/control/reset-session-counts', {confirmed:true,expected_revision:revision})) {
                 dialog.close(); revision = null;
-                status.textContent = '今回の参加回数を0にしました。累計参加回数と待機列はそのままです。';
-            } else { dialog.close(); status.textContent = 'リセットを確認できませんでした。管理画面の操作結果を確認してください。'; }
+                resetStatus.textContent = '今回の参加回数を0にしました。累計参加回数と待機列はそのままです。';
+            } else { dialog.close(); resetStatus.textContent = 'リセットを確認できませんでした。管理画面の操作結果を確認してください。'; }
         } finally { pending = false; get('session-reset-confirm').disabled = false; }
     });
     get('diagnostic-log-download').addEventListener('click', async () => {
@@ -36,8 +36,8 @@
             link.download = 'JoinQueue-operation-log.txt';
             document.body.append(link); link.click(); link.remove();
             setTimeout(() => URL.revokeObjectURL(url), 10000);
-            status.textContent = 'ログの保存を開始しました。保存したテキストを確認してください。';
-        } catch (error) { status.textContent = error.message; }
+            downloadStatus.textContent = 'ログの保存を開始しました。保存したテキストを確認してください。';
+        } catch (error) { downloadStatus.textContent = error.message; }
         finally { pending = false; get('diagnostic-log-download').disabled = false; }
     });
 })();

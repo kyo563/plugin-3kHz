@@ -215,7 +215,17 @@ def test_logs_and_reset_require_admin_and_are_onecomme_only(client, tmp_path):
         assert 'id="session-count-reset"' not in c.get('/').text
     html = client.get('/').text
     assert html.count('id="session-count-reset"') == 1
-    assert html.index('id="session-count-reset"') < html.index('id="now"')
+    assert html.count('id="diagnostic-log-download"') == 1
+    other = html.split('<summary>その他（設定・バックアップ）</summary>', 1)[1].split('<details id="description-tools"', 1)[0]
+    logs = html.split('<summary>操作ログ</summary>', 1)[1].split('</details>', 1)[0]
+    assert 'id="session-count-reset"' in other and 'id="diagnostic-log-download"' not in other
+    assert 'id="diagnostic-log-download"' in logs and 'id="session-count-reset"' not in logs
+    assert 'id="session-reset-status"' in other and 'id="diagnostic-tools-status"' in logs
+    assert 'id="session-count-reset"' not in html[:html.index('id="now"')]
+    for removed in ('今回の参加回数・診断ログ', '新しい配信として識別できた場合、',
+                    '配信を区別できない場合や、テスト後に', 'ログはこの更新以降を記録します。'):
+        assert removed not in html
+    assert html.count('id="session-reset-dialog"') == 1
 
 
 def test_random_lifetime_counts_never_change_priority_and_equal_zero_is_fifo():

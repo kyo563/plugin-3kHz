@@ -32,8 +32,14 @@ def control_page(request: Request):
         html = html.replace('<h1>待機列管理</h1>', '<p><a href="/settings?tab=bot">Bot設定</a></p><h1>待機列管理</h1>')
         html = html.replace('<h1>待機列管理</h1>', '<h1>待機列整理アプリ</h1>')
         html = html.replace('<body>', '<body data-onecomme="true">')
-        html = html.replace('<div class="grid">', (STATIC_DIR / 'queue-diagnostics.html').read_text(encoding='utf-8') + '<div class="grid">', 1)
-        html = html.replace('</body>', '<script src="/static/queue-diagnostics.js"></script></body>')
+        html = html.replace('<!-- ONECOMME_SESSION_TOOLS -->',
+            '<button id="session-count-reset" type="button">今回の参加回数をリセット</button>'
+            '<p id="session-reset-status" role="status"></p>')
+        html = html.replace('<!-- ONECOMME_DIAGNOSTIC_DOWNLOAD -->',
+            '<button id="diagnostic-log-download" type="button">操作ログを保存（現在・前回の配信）</button>'
+            '<p id="diagnostic-tools-status" role="status"></p>')
+        dialog = (STATIC_DIR / 'queue-diagnostics.html').read_text(encoding='utf-8')
+        html = html.replace('</body>', dialog + '<script src="/static/queue-diagnostics.js"></script></body>')
         html = html.replace('<p>このスロットの参加者はコメントで辞退ができません</p>',
             '<p>NOWの参加者も待機列へドラッグして移動できます。右クリックで最後尾へ移動・削除もできます。空いた枠は待機先頭から自動補充します。</p>')
         html = html.replace('</head>', '<link rel="stylesheet" href="/static/control-display.css"></head>')
