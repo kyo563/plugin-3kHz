@@ -29,7 +29,12 @@ $release | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $backu
 function Download-Verified($url, $destination, $expected, $cacheKey = $null) {
     if ($cacheKey) { $url += '?asset=' + $cacheKey }
     for ($attempt = 0; $attempt -lt 5; $attempt++) {
-        & curl.exe --fail --location --silent --show-error --output $destination $url
+        $downloadUrl = $url
+        if ($attempt -gt 0) {
+            $separator = if ($url.Contains('?')) { '&' } else { '?' }
+            $downloadUrl += $separator + 'verify=' + $expected + '&attempt=' + $attempt
+        }
+        & curl.exe --fail --location --silent --show-error --output $destination $downloadUrl
         if ($LASTEXITCODE -eq 0 -and (Get-FileHash -LiteralPath $destination).Hash.ToLowerInvariant() -eq $expected) { return }
         if ($attempt -lt 4) { Start-Sleep -Seconds 3 }
     }
