@@ -2,7 +2,7 @@
 
 ## ダウンロード
 
-**[プラグイン本体をダウンロード](https://github.com/kyo563/plugin-3kHz/releases/download/onecomme-v0.1.7/Taikiretsu-Seiri-App-OneComme-0.1.7-windows-x64.zip)**
+**[プラグイン本体をダウンロード](https://github.com/kyo563/plugin-3kHz/releases/download/onecomme-v0.1.7/Taikiretsu-Seiri-App-OneComme-0.1.7-windows-x64.zip?asset=656821462)**
 
 ZIPを展開し、中の `sankagata-seiretsu` フォルダをわんコメのプラグインフォルダへ配置してください。配置先は「…」→「プラグイン」→「プラグインフォルダを開く」で確認できます。「Source code」は実行用ではありません。
 

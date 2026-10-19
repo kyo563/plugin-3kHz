@@ -26,7 +26,8 @@ if ($release.id -ne 417430017 -or $release.draft -or $release.prerelease) { thro
 $oldZip = @($release.assets | Where-Object name -eq $zipName)
 if ($oldZip.Count -ne 1 -or $oldZip[0].digest -ne "sha256:$ExpectedOldHash") { throw 'Unexpected existing archive; do not replace it' }
 $release | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $backup 'release.json') -Encoding utf8
-function Download-Verified($url, $destination, $expected) {
+function Download-Verified($url, $destination, $expected, $cacheKey = $null) {
+    if ($cacheKey) { $url += '?asset=' + $cacheKey }
     for ($attempt = 0; $attempt -lt 5; $attempt++) {
         & curl.exe --fail --location --silent --show-error --output $destination $url
         if ($LASTEXITCODE -eq 0 -and (Get-FileHash -LiteralPath $destination).Hash.ToLowerInvariant() -eq $expected) { return }
@@ -54,10 +55,12 @@ foreach ($item in $staged) {
 }
 foreach ($item in $staged) {
     $new = Invoke-RestMethod -Headers $headers -Uri "$api/releases/assets/$($item.new.id)"
-    Download-Verified $new.browser_download_url (Join-Path $backup ($item.name + '.final-verified')) $item.hash
+    Download-Verified $new.browser_download_url (Join-Path $backup ($item.name + '.final-verified')) $item.hash $new.id
 }
 $body = Get-Content -LiteralPath (Join-Path $repoRoot 'docs\RELEASE_ONECOMME_0.1.7.md') -Raw -Encoding utf8
 $body = $body.Replace('/tree/onecomme-v0.1.7)', "/tree/$commit)")
+$newZipId = ($staged | Where-Object name -eq $zipName).new.id
+$body = $body.Replace($zipName + ')', $zipName + '?asset=' + $newZipId + ')')
 $body += "`n`n配布ファイル更新（0.1.7のまま）：対応ソース $commit。タグは初回0.1.7の状態を保持しています。`n"
 $json = @{body=$body;draft=$false;prerelease=$false;make_latest='true'} | ConvertTo-Json
 $null = Invoke-RestMethod -Method Patch -Headers $headers -Uri "$api/releases/$($release.id)" -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($json))
