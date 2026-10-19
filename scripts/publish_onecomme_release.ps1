@@ -58,7 +58,7 @@ foreach ($asset in $assets) {
     $download = Join-Path $verified $asset.name
     for ($downloadAttempt = 0; $downloadAttempt -lt 5; $downloadAttempt++) {
         try {
-            Invoke-WebRequest -Uri ($asset.url + '?verify=' + $asset.id + '-' + $downloadAttempt) -OutFile $download -ErrorAction Stop
+            Invoke-WebRequest -Uri $asset.url -OutFile $download -ErrorAction Stop
             break
         } catch {
             if ($downloadAttempt -eq 4 -or -not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 404) { throw }
