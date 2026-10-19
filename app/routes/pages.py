@@ -32,6 +32,8 @@ def control_page(request: Request):
         html = html.replace('<h1>待機列管理</h1>', '<p><a href="/settings?tab=bot">Bot設定</a></p><h1>待機列管理</h1>')
         html = html.replace('<h1>待機列管理</h1>', '<h1>待機列整理アプリ</h1>')
         html = html.replace('<body>', '<body data-onecomme="true">')
+        html = html.replace('<p>このスロットの参加者はコメントで辞退ができません</p>',
+            '<p>NOWの参加者も待機列へドラッグして移動できます。右クリックで最後尾へ移動・削除もできます。空いた枠は待機先頭から自動補充します。</p>')
         html = html.replace('</head>', '<link rel="stylesheet" href="/static/control-display.css"></head>')
         controls = (STATIC_DIR / 'control-display.html').read_text(encoding='utf-8')
         html = html.replace('<div class="grid">', controls + '<div class="grid">', 1)

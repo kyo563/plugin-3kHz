@@ -1,6 +1,6 @@
 param(
-    [string]$Version = '0.1.6',
-    [string]$ReleaseDirectory = 'dist\onecomme-release-0.1.6'
+    [string]$Version = '0.1.7',
+    [string]$ReleaseDirectory = 'dist\onecomme-release-0.1.7'
 )
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }

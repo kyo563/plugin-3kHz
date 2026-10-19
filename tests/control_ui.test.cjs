@@ -4,17 +4,18 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const state = revision => ({revision, undo_available:true, is_open:true, priority_mode:true,
     current:[], waiting:[], now_view:[], next_view:[], queue_view:[], logs:[]});
-function harness(fetcher) {
+function harness(fetcher, {onecomme=false} = {}) {
     const elements = new Map(), handlers = {};
     let modal = false, created = 0;
     const element = key => {
         if (!elements.has(key)) elements.set(key, {textContent:'', value:'', dataset:{}, style:{},
-            children:[],set innerHTML(value){this.children=[];},appendChild(child){this.children.push(child);},attributes:{},setAttribute(name,value){this.attributes[name]=value;},disabled:false, checked:false, hidden:false, addEventListener(){}, append(){},
+            children:[],set innerHTML(value){this.children=[];},appendChild(child){this.children.push(child);},attributes:{},setAttribute(name,value){this.attributes[name]=value;},disabled:false, checked:false, hidden:false, listeners:{}, addEventListener(name,fn){this.listeners[name]=fn;}, append(){},
+            getBoundingClientRect:()=>({top:0,height:40}),
             replaceChildren(){}, closest(){return {open:false};}, focus(){}, files:[]});
         return elements.get(key);
     };
     const sandbox = {console:{error(){}}, AbortSignal, setTimeout(){}, URL,
-        document:{hidden:false, hasFocus:()=>true,
+        document:{hidden:false, body:{dataset:{onecomme:String(onecomme)}}, hasFocus:()=>true,
             querySelector:s => s === 'dialog[open]' ? (modal ? {} : null) : element(s),
             querySelectorAll:()=>[], createElement:()=>element('created-'+(++created)),
             addEventListener:(name, fn)=>handlers[name]=fn},
@@ -25,6 +26,96 @@ function harness(fetcher) {
     return {sandbox,element,handlers,modal:()=>{modal=true;}};
 }
 const reply = data => ({ok:true,json:async()=>data});
+
+const dragState = () => ({...state(42),
+    current:[{user_id:'now1',display_name:'NOW1'}, {user_id:'now2',display_name:'NOW2'}],
+    now_view:[{user_id:'now1',display_name:'NOW1'}, {user_id:'now2',display_name:'NOW2'}, {is_placeholder:true,display_name:'空き'}],
+    waiting:[{user_id:'wait1',display_name:'WAIT1'}, {user_id:'wait2',display_name:'WAIT2'}]});
+function dragEvent(id, clientY=0) {
+    return {dataTransfer:{setData(){},getData:()=>id},clientY,
+        preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;}};
+}
+
+test('NOW is draggable only in OneComme and placeholders are never draggable',()=>{
+    for (const onecomme of [false,true]) {
+        const h=harness(()=>Promise.resolve(reply(dragState())),{onecomme});
+        h.sandbox.renderState(dragState());
+        const rows=h.element('#now').children;
+        assert.equal(Boolean(rows[0].draggable),onecomme);
+        assert.equal(Boolean(rows[2].draggable),false);
+        // NOW is a drag source, not a drop destination that could exchange people.
+        assert.equal(rows[0].listeners.drop,undefined);
+    }
+});
+
+test('NOW row drops send one atomic move with original revision and drop boundary',async()=>{
+    const requests=[];
+    const h=harness((url,options)=>{
+        if(options?.method==='POST') requests.push([url,JSON.parse(options.body)]);
+        return Promise.resolve(reply(dragState()));
+    },{onecomme:true});
+    h.sandbox.renderState(dragState());
+    const source=h.element('#now').children[0], target=h.element('#waiting').children[1];
+    source.listeners.dragstart(dragEvent('now1'));
+    const event=dragEvent('now1',35);
+    await target.listeners.drop(event);
+    assert.equal(event.stopped,true);
+    assert.deepEqual(requests,[['/api/control/move-current-to-waiting',{
+        user_id:'now1',target_user_id:'wait2',after:true,expected_revision:42}]]);
+    // A bubbled or repeated drop cannot send a second mutation.
+    await h.element('#waiting').listeners.drop(event);
+    assert.equal(requests.length,1);
+});
+
+test('NOW can be dropped into an empty waiting list or its bottom whitespace',async()=>{
+    const requests=[];
+    const value={...dragState(),waiting:[]};
+    const h=harness((url,options)=>{
+        if(options?.method==='POST') requests.push([url,JSON.parse(options.body)]);
+        return Promise.resolve(reply(value));
+    },{onecomme:true});
+    h.sandbox.renderState(value);
+    h.element('#now').children[0].listeners.dragstart(dragEvent('now1'));
+    await h.element('#waiting').listeners.drop(dragEvent('now1'));
+    assert.deepEqual(requests,[['/api/control/move-current-to-waiting',{
+        user_id:'now1',target_user_id:null,after:false,expected_revision:42}]]);
+});
+
+test('waiting drag still reorders without moving NOW; foreign drops are ignored',async()=>{
+    const requests=[];
+    const h=harness((url,options)=>{
+        if(options?.method==='POST') requests.push([url,JSON.parse(options.body)]);
+        return Promise.resolve(reply(dragState()));
+    },{onecomme:true});
+    h.sandbox.renderState(dragState());
+    const target=h.element('#waiting').children[0];
+    await target.listeners.drop(dragEvent('now1'));
+    assert.equal(requests.length,0);
+    h.element('#waiting').children[1].listeners.dragstart(dragEvent('wait2'));
+    await target.listeners.drop(dragEvent('wait2'));
+    assert.deepEqual(requests,[['/api/control/reorder-waiting',{ordered_user_ids:['wait2','wait1']}]]);
+    await h.sandbox.reorderWaitingWithDrag('foreign','wait1');
+    assert.equal(requests.length,1);
+});
+
+test('dragging is blocked during a mutation and cancelled drags cannot later drop',async()=>{
+    let finish;
+    const h=harness((url,options)=>options?.method==='POST'
+        ? new Promise(resolve=>finish=resolve) : Promise.resolve(reply(dragState())),{onecomme:true});
+    h.sandbox.renderState(dragState());
+    const source=h.element('#now').children[0];
+    const pending=h.sandbox.post('/api/control/toggle-open');
+    const event=dragEvent('now1');
+    source.listeners.dragstart(event);
+    assert.equal(event.prevented,true);
+    finish(reply(dragState())); await pending;
+    source.listeners.dragstart(dragEvent('now1'));
+    source.listeners.dragend();
+    const drop=dragEvent('now1');
+    await h.element('#waiting').listeners.drop(drop);
+    // No second POST was started (which would remain unresolved in this harness).
+    assert.equal(h.element('#operation-message').textContent,'操作を完了しました');
+});
 
 test('OneComme memo is rendered as text, never HTML', () => {
     const h = harness(()=>Promise.resolve(reply(state(1))));

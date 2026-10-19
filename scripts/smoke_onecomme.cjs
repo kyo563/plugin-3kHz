@@ -215,6 +215,30 @@ async function main() {
         assert.deepEqual(afterFresh.waiting.slice(0,3).map(u=>u.user_id), beforeFresh.waiting.slice(0,3).map(u=>u.user_id));
         stage = 'session-priority-order';
         assert.deepEqual(afterFresh.waiting.slice(-2).map(u=>u.user_id), ['session-first',played.user_id]);
+        stage = 'now-movement-compaction';
+        for (const action of ['move-current-to-waiting', 'move-to-waiting-tail', 'remove-user']) {
+            const before = await api('/api/state');
+            const moved = before.current[1].user_id;
+            const head = before.waiting[0].user_id;
+            const payload = {user_id:moved};
+            if (action === 'move-current-to-waiting') Object.assign(payload, {
+                target_user_id:head,after:false,expected_revision:before.revision});
+            const after = await api('/api/control/' + action, payload);
+            assert.deepEqual(after.current.map(u=>u.user_id), [...before.current.filter(u=>u.user_id!==moved).map(u=>u.user_id),head]);
+            const remaining = before.waiting.slice(1).map(u=>u.user_id);
+            const expected = action === 'move-current-to-waiting' ? [moved,...remaining]
+                : action === 'move-to-waiting-tail' ? [...remaining,moved] : remaining;
+            assert.deepEqual(after.waiting.map(u=>u.user_id), expected);
+            assert.deepEqual(after.participation_counts,before.participation_counts);
+            assert.deepEqual(after.session_participation_counts,before.session_participation_counts);
+            assert.equal(after.total_match_count,before.total_match_count);
+            const overlay = await api('/api/overlay-state');
+            assert.ok(overlay.now_view.every(u=>!u.is_placeholder));
+            assert.equal(overlay.total_waiting_count,expected.length);
+            const restored = await api('/api/control/undo', {});
+            assert.deepEqual(restored.current.map(u=>u.user_id),before.current.map(u=>u.user_id));
+            assert.deepEqual(restored.waiting.map(u=>u.user_id),before.waiting.map(u=>u.user_id));
+        }
     } finally {
         plugin.destroy();
         if (child) await until(() => child.exitCode !== null, 15000);
@@ -222,6 +246,6 @@ async function main() {
     let listening = false;
     try { await fetch('http://127.0.0.1:18765/control', {signal: AbortSignal.timeout(1000)}); listening = true; } catch (_) {}
     assert.equal(listening, false);
-    console.log(JSON.stringify({ok: true, packaged_worker: true, plugin_lifecycle: true, management_page: true, control_display_restart: true, protected_next: true, overlay_number: true, obs_named_drag: true, template_download: true, thumbnail: true, join: true, isolated_data: true, stopped: true}));
+    console.log(JSON.stringify({ok: true, packaged_worker: true, plugin_lifecycle: true, management_page: true, control_display_restart: true, protected_next: true, overlay_number: true, obs_named_drag: true, template_download: true, thumbnail: true, join: true, isolated_data: true, now_move_remove_tail_compaction: true, single_undo: true, stopped: true}));
 }
 main().catch(() => { console.error('OneComme prototype smoke failed at ' + stage); process.exitCode = 1; });

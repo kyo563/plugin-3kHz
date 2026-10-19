@@ -14,10 +14,11 @@ class ParticipationCountLimitError(ValueError):
 
 class QueueService:
     def __init__(self, group_size: int = GROUP_SIZE, open_slot_label: str = OPEN_SLOT_LABEL,
-                 *, protect_next: bool = False):
+                 *, protect_next: bool = False, compact_queue: bool = False):
         self.group_size = group_size
         self.open_slot_label = open_slot_label
         self.protect_next = protect_next
+        self.compact_queue = compact_queue
 
     def _log(self, state: dict, message: str) -> None:
         state["logs"].append(message)
@@ -135,6 +136,7 @@ class QueueService:
             self._log(state, f"{merged_user['display_name']} が再参加希望したため最後尾へ移動しました")
 
         state["waiting"].append(merged_user)
+        self.compact(state)
         return True
 
     def reorder_waiting(self, state: dict, ordered_user_ids: list[str]) -> None:
@@ -167,6 +169,32 @@ class QueueService:
             state["current"].append(user)
             self._log(state, f"{user['display_name']} を待機先頭からNOWへ補充しました")
 
+    def compact(self, state: dict) -> None:
+        """OneComme queues never leave a NOW vacancy while anyone is waiting."""
+        if self.compact_queue:
+            self._refill_current(state)
+
+    def move_current_to_waiting(self, state: dict, user_id: str,
+                                target_user_id: str | None, after: bool = False) -> None:
+        if not self.compact_queue:
+            raise ValueError("この移動はわんコメ版で利用できます")
+        user = next((u for u in state["current"] if u.get("user_id") == user_id), None)
+        target = (len(state["waiting"]) if target_user_id is None else
+                  next((i for i, u in enumerate(state["waiting"])
+                        if u.get("user_id") == target_user_id), None))
+        if user is None or target is None:
+            raise ValueError("参加者の位置が変わりました。待機列を確認してもう一度移動してください。")
+        boundary = target + int(after)
+        waiting_count = len(state["waiting"])
+        state["current"].remove(user)
+        # Promote the ORIGINAL waiting head, even when dropping before that person.
+        # Inserting the moved user first would otherwise immediately return them to NOW.
+        self._refill_current(state)
+        promoted = waiting_count - len(state["waiting"])
+        state["waiting"].insert(max(0, boundary - promoted), user)
+        self.compact(state)
+        self._log(state, f"{user.get('display_name', '')} を指定した待機位置へ移動しました")
+
     def remove_user_by_id(self, state: dict, user_id: str) -> None:
         removed = self._find_and_remove_user(state, user_id)
         if removed is None:
@@ -181,6 +209,7 @@ class QueueService:
             self._log(state, "手動移動: 対象が見つかりません")
             return
         state["waiting"].append(user)
+        self.compact(state)
         self._log(state, f"{user.get('display_name', '')} を待機列最後尾へ移動しました")
 
     def update_declared_player_name(self, state: dict, user_id: str, declared_player_name: str | None) -> None:

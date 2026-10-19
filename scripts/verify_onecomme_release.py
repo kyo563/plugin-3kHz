@@ -8,7 +8,7 @@ import sys
 import zipfile
 
 archive_path = Path(sys.argv[1])
-version = sys.argv[2] if len(sys.argv) > 2 else '0.1.6'
+version = sys.argv[2] if len(sys.argv) > 2 else '0.1.7'
 assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Invalid version'
 with zipfile.ZipFile(archive_path) as archive:
     names = archive.namelist()
@@ -34,6 +34,11 @@ with zipfile.ZipFile(archive_path) as archive:
         assert '@参加列整理bot または @bot を含むコメント' in bot_html
         assert 'https://www.youtube.com/channel/UCV3VeoFI04L79MqwuApT-Hg' in bot_html
         assert 'この配信での参加回数が少ないユーザー' in archive.read(static + 'control.html').decode('utf-8')
+    if tuple(map(int, version.split('.'))) >= (0, 1, 7):
+        control_js = archive.read(static + 'control.js').decode('utf-8')
+        assert '/api/control/move-current-to-waiting' in control_js
+        assert 'expected_revision: latestState.revision' in control_js
+        assert "draggable: document.body?.dataset.onecomme === 'true'" in control_js
     with zipfile.ZipFile(io.BytesIO(archive.read(root + 'Taikiretsu-Template.zip'))) as template:
         assert len(template.namelist()) == 5
         for name in template.namelist():

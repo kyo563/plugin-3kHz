@@ -90,9 +90,13 @@ function participantItem(user, { draggable = false, listType = "", position = nu
             e.dataTransfer.setData("text/plain", user.user_id);
         });
         li.addEventListener("dragend", () => { draggingParticipant = false; });
-        li.addEventListener("dragover", (e) => e.preventDefault());
-        li.addEventListener("drop", async (e) => {
+        if (listType === 'waiting') li.addEventListener("dragover", (e) => {
+            if (draggingParticipant && !mutationPending) e.preventDefault();
+        });
+        if (listType === 'waiting') li.addEventListener("drop", async (e) => {
             e.preventDefault();
+            e.stopPropagation();
+            if (!draggingParticipant || mutationPending) return;
             draggingParticipant = false;
             const dragId = e.dataTransfer.getData("text/plain");
             const dropId = user.user_id;
@@ -164,7 +168,7 @@ function renderState(state){
     q('#toggle-priority').setAttribute('aria-pressed', String(state.priority_mode));
     q('#toggle-priority').textContent = state.priority_mode ? '✓ 初回参加優先モード：ON（クリックでOFF）' : '初回参加優先モード：OFF（クリックでON）';
     q('#toggle-priority').disabled = mutationPending;
-    renderList('#now',state.now_view,{ draggable: false, listType: 'now' });
+    renderList('#now',state.now_view,{ draggable: document.body?.dataset.onecomme === 'true', listType: 'now' });
     q("#waiting-count").textContent = `${state.waiting.length}人`;
     renderWaiting(state);
     renderLogs(state.logs);
@@ -205,7 +209,20 @@ async function post(api, payload){
 async function reorderWaitingWithDrag(dragId, dropId, after = false) {
     if (!latestState) return;
     const waiting = [...latestState.waiting];
+    if (document.body?.dataset.onecomme === 'true' && latestState.current.some(u => u.user_id === dragId)) {
+        if (dropId !== null && !waiting.some(u => u.user_id === dropId)) return;
+        await post('/api/control/move-current-to-waiting', {
+            user_id: dragId, target_user_id: dropId, after, expected_revision: latestState.revision,
+        });
+        return;
+    }
     const from = waiting.findIndex((u) => u.user_id === dragId);
+    if (from >= 0 && dropId === null) {
+        const [moved] = waiting.splice(from, 1);
+        waiting.push(moved);
+        await post('/api/control/reorder-waiting', { ordered_user_ids: waiting.map(u => u.user_id) });
+        return;
+    }
     const to = waiting.findIndex((u) => u.user_id === dropId);
     if (from < 0 || to < 0) return;
     const [moved] = waiting.splice(from, 1);
@@ -259,6 +276,16 @@ q("#context-menu").addEventListener("click", (e) => {
 });
 
 document.addEventListener("click", () => hideContextMenu());
+q('#waiting').addEventListener('dragover', e => {
+    if (draggingParticipant && !mutationPending) e.preventDefault();
+});
+q('#waiting').addEventListener('drop', async e => {
+    e.preventDefault();
+    if (!draggingParticipant || mutationPending) return;
+    draggingParticipant = false;
+    const dragId = e.dataTransfer.getData('text/plain');
+    if (dragId) await reorderWaitingWithDrag(dragId, null);
+});
 q('#reconnect').addEventListener('click', refresh);
 window.controlFormatDisplayName = formatDisplayName;
 window.refreshControlDisplay = () => { if (latestState && !draggingParticipant) renderState(latestState); };

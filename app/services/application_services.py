@@ -21,11 +21,13 @@ class ApplicationServices:
     def __init__(self, *, db_path: str | None = None, desktop: bool = False, onecomme: bool = False):
         self.comment_lock = RLock()
         self.add_counter = 0
-        self.queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL)
+        self.queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL,
+                                          compact_queue=onecomme)
         self.overlay_service = OverlayStateService(onecomme=onecomme)
         self.persistence_service = SQLitePersistenceService(initial_state(desktop=desktop), db_path,
             overlay_settings_model=OneCommeOverlaySettings if onecomme else OverlaySettings,
-            description_default=ONECOMME_DEFAULT_DESCRIPTION if onecomme else DEFAULT_DESCRIPTION)
+            description_default=ONECOMME_DEFAULT_DESCRIPTION if onecomme else DEFAULT_DESCRIPTION,
+            normalize_state=self.queue_service.compact if onecomme else None)
         self.external_provider = ExternalChatProvider()
         self.manual_provider = ManualTestProvider()
         self.receive_service = CommentReceiveService(log_writer=self.add_log)

@@ -22,6 +22,9 @@ body[data-onecomme] .participant-count { flex:0.9 1 0; max-width:12em; }
 body[data-onecomme] .participant-order { min-width:28px; white-space:nowrap; }
 body[data-onecomme] .participant-spacer { flex:1; }
 body[data-onecomme] #waiting { max-height:60vh; max-height:60dvh; overflow-y:auto; scrollbar-gutter:stable; }
+body[data-onecomme] #waiting { min-height:48px; padding-bottom:16px; }
+body[data-onecomme] #now li[draggable="true"], body[data-onecomme] #waiting li[draggable="true"] { cursor:grab; }
+body[data-onecomme] #now li[draggable="true"]:active, body[data-onecomme] #waiting li[draggable="true"]:active { cursor:grabbing; }
 body[data-onecomme] #now li button, body[data-onecomme] #waiting li button { white-space:nowrap; }
 body[data-onecomme] .match-progress { margin-top:8px; padding-top:8px; }
 @media (max-width:480px) {

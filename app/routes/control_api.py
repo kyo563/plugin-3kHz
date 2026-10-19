@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field, StrictBool
 
 from app.dependencies import get_services
 
@@ -13,6 +13,12 @@ class ReorderWaitingPayload(BaseModel):
 
 class UserIdPayload(BaseModel):
     user_id: str = Field(min_length=1, max_length=256)
+
+
+class MoveCurrentPayload(UserIdPayload):
+    target_user_id: str | None = Field(default=None, min_length=1, max_length=256)
+    after: StrictBool = False
+    expected_revision: int = Field(strict=True, ge=0)
 
 
 class UpdateDeclaredPlayerNamePayload(BaseModel):
@@ -37,6 +43,23 @@ def api_reorder_waiting(payload: ReorderWaitingPayload, request: Request = None)
 def api_remove_user(payload: UserIdPayload, request: Request = None):
     services = get_services(request)
     services.persistence_service.manual_mutate(lambda s: services.queue_service.remove_user_by_id(s, payload.user_id))
+    return services.build_view_state()
+
+
+@router.post("/api/control/move-current-to-waiting")
+def api_move_current_to_waiting(payload: MoveCurrentPayload, request: Request):
+    if not request.app.state.onecomme_mode:
+        raise HTTPException(404, "わんコメ版専用の操作です")
+    services = get_services(request)
+    store = services.persistence_service
+    with store.serialized():
+        if store.revision != payload.expected_revision:
+            raise HTTPException(409, "待機列が更新されました。最新の状態を確認してもう一度移動してください。")
+        try:
+            store.manual_mutate(lambda s: services.queue_service.move_current_to_waiting(
+                s, payload.user_id, payload.target_user_id, payload.after))
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
     return services.build_view_state()
 
 
@@ -134,7 +157,7 @@ def api_toggle_overlay_player_name(request: Request = None):
 
 
 # Operator tools use the same authenticated boundary as other control operations.
-from fastapi import HTTPException, Response
+from fastapi import Response
 from pydantic import ValidationError
 from app.schemas.backup import RestorePayload, Name, Count
 from app.services.operator_service import add_participant, correct_count, export_backup

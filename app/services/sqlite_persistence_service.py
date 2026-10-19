@@ -24,7 +24,9 @@ DEFAULT_DB_PATH = "data/waiting_list.sqlite3"
 
 class SQLitePersistenceService:
     def __init__(self, initial_state: dict, db_path: str | None = None, *, overlay_settings_model: type[OverlaySettings] = OverlaySettings,
-                 description_default: str = DEFAULT_DESCRIPTION):
+                 description_default: str = DEFAULT_DESCRIPTION,
+                 normalize_state: Callable[[dict], None] | None = None):
+        self._normalize_state = normalize_state
         self._overlay_settings_model = overlay_settings_model
         self._description_default = description_default
         self._legacy_descriptions = (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION)
@@ -41,6 +43,12 @@ class SQLitePersistenceService:
         with self._connect() as conn:
             row = conn.execute("SELECT value FROM app_state WHERE key='revision'").fetchone()
             self.revision = int(row["value"]) if row else 0
+        if self._normalize_state:
+            state = self.get_state()
+            before = deepcopy(state)
+            self._normalize_state(state)
+            if state != before:
+                self.set_state(state)
 
     def _ensure_parent_dir(self) -> None:
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -199,6 +207,8 @@ class SQLitePersistenceService:
 
     def set_state(self, state: dict, *, transaction=None) -> None:
         with self._lock:
+            if self._normalize_state:
+                self._normalize_state(state)
             timestamp = self._now()
             with self._connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
