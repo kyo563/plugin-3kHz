@@ -1,12 +1,12 @@
 <section class="panel" id="bot-moderator-step"><h2>1. 標準モデレーターに登録する</h2>
-<div id="bot-account"><img id="bot-icon" hidden alt="Botチャンネルのアイコン" referrerpolicy="no-referrer"><strong id="bot-name">共通Bot：JoinQueueBot</strong><a href="https://www.youtube.com/@JoinQueueBot" target="_blank" rel="noopener noreferrer">チャンネルを見る</a></div>
+<div id="bot-account"><img id="bot-icon" hidden alt="Botチャンネルのアイコン" referrerpolicy="no-referrer"><strong id="bot-name">共通Bot：参加列整理bot</strong><a href="https://www.youtube.com/channel/UCV3VeoFI04L79MqwuApT-Hg" target="_blank" rel="noopener noreferrer">チャンネルを見る</a></div>
 <ol class="bot-steps">
 <li><strong>配信するチャンネルのYouTube Studioを開く</strong><br><a href="https://studio.youtube.com/" target="_blank" rel="noopener noreferrer">YouTube Studioを開く（別タブ）</a>。普段配信しているGoogleアカウントでログインし、設定対象が自分の配信チャンネルであることを確認します。</li>
 <li><strong>左側メニューの「設定」をクリック</strong><br>YouTube Studioの左下にある歯車マークの「設定」を開きます。</li>
 <li><strong>「コミュニティの管理」→「ユーザー管理」を開く</strong><br>設定画面内の「コミュニティの管理」を選び、「ユーザー管理」タブを開きます。</li>
-<li><strong>「標準モデレーター」欄にBotのURLを貼り付ける</strong><br>「管理モデレーター」ではなく「標準モデレーター」の入力欄を使います。下のURLをコピーして貼り付け、候補に表示されたJoinQueueBot（@JoinQueueBot）を選択します。
-<label>コピーするBotのチャンネルURL<input class="bot-channel-url" value="https://www.youtube.com/@JoinQueueBot" readonly></label></li>
-<li><strong>「保存」をクリック</strong><br>JoinQueueBotが標準モデレーター欄に追加されていることを確認し、設定画面の「保存」を押します。URLを入力しただけでは完了しません。</li>
+<li><strong>「標準モデレーター」欄にBotのURLを貼り付ける</strong><br>「管理モデレーター」ではなく「標準モデレーター」の入力欄を使います。下のURLをコピーして貼り付け、候補に表示された参加列整理bot（@参加列整理bot）を選択します。
+<label>コピーするBotのチャンネルURL<input class="bot-channel-url" value="https://www.youtube.com/channel/UCV3VeoFI04L79MqwuApT-Hg" readonly></label></li>
+<li><strong>「保存」をクリック</strong><br>参加列整理botが標準モデレーター欄に追加されていることを確認し、設定画面の「保存」を押します。URLを入力しただけでは完了しません。</li>
 <li><strong>このプラグインの画面に戻る</strong><br>下の「2. 配信チャンネルを認証する」へ進みます。モデレーター登録だけではBotは起動しません。</li>
 </ol>
 <p>登録済みの場合は、そのまま次の項目へ進んでください。</p>
@@ -44,7 +44,7 @@
 <p id="bot-notifications-hint">チャンネル認証が完了すると通知を選択できます。</p>
 <form id="bot-form"><fieldset id="bot-notification-fields" disabled><legend>使用する通知</legend>
 <label><input id="bot-now" type="checkbox"> 次の対戦へ進んだとき、NOWの3名をまとめて呼び出す</label>
-<label><input id="bot-reply" type="checkbox"> @JoinQueueBotへのリプライに、本人の待機順・グループを返信する（同じユーザーは3分に1回）</label>
+<label><input id="bot-reply" type="checkbox"> @参加列整理bot または @bot を含むコメントに、本人の参加順・グループを返信する（同じユーザーは3分に1回）</label>
 <label><input id="bot-periodic" type="checkbox"> 待機人数・待機グループ数を定期案内する</label>
 <label>案内間隔<select id="bot-interval"><option value="15">15分</option><option value="30">30分</option></select></label>
 <label>初回の定期案内は今から<select id="bot-initial-delay" aria-label="初回の定期案内までの時間" style="display:inline-block;width:auto"><option value="15">15分後</option><option value="30" selected>30分後</option><option value="45">45分後</option><option value="60">60分後</option></select>から通知開始とします。</label>
@@ -71,5 +71,5 @@
 <button id="bot-reauth-cancel" type="button" autofocus>キャンセル</button><button id="bot-reauth-confirm" type="button">接続を解除して認証し直す</button></dialog>
 <dialog id="bot-erase-dialog" aria-labelledby="bot-erase-title"><h2 id="bot-erase-title">サーバー記録を削除しますか？</h2><p>このチャンネルの全端末でBot接続が解除されます。PC内の待機列・表示設定は保持します。この操作は取り消せません。</p><label>確認のため「サーバー記録を削除」と入力してください<input id="bot-erase-text" autocomplete="off"></label><button id="bot-erase-cancel" type="button" autofocus>キャンセル</button><button id="bot-erase-confirm" type="button" disabled>削除する</button></dialog>
 <dialog id="bot-test-dialog" aria-labelledby="bot-test-title"><h2 id="bot-test-title">配信チャットに投稿しますか？</h2>
-<p>選択中の配信に「JoinQueueBot 接続テスト」を1件投稿します。登録の必須手順ではありません。投稿は取り消せません。</p>
+<p>選択中の配信に「参加列整理bot 接続テスト」を1件投稿します。登録の必須手順ではありません。投稿は取り消せません。</p>
 <button id="bot-test-cancel" type="button" autofocus>キャンセル</button><button id="bot-test-confirm" type="button">テストコメントを投稿する</button></dialog>

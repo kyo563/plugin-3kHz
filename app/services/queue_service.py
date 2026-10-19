@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from app.services.participation_history import current_session_counts
+
 GROUP_SIZE = 3
 OPEN_SLOT_LABEL = "参加者募集中"
 
@@ -49,9 +51,11 @@ class QueueService:
 
         if state["priority_mode"] and self.protect_next:
             # NOW is handled above. Never displace the three announced NEXT users;
-            # stable priority insertion is allowed only in the unannounced tail.
+            # compare active-stream matches only, leaving lifetime totals untouched.
+            counts = current_session_counts(state)
+            incoming_count = counts.get(user.get("user_id"), 0)
             for index in range(self.group_size, len(state["waiting"])):
-                if state["waiting"][index]["participation_count"] > user["participation_count"]:
+                if counts.get(state["waiting"][index].get("user_id"), 0) > incoming_count:
                     state["waiting"].insert(index, user)
                     self._log(state, f"初回参加優先: {user['display_name']} をNEXTより後ろへ追加しました")
                     return True
@@ -275,7 +279,7 @@ class QueueService:
         snapshot = deepcopy({k: v for k, v in state.items() if k not in {"participation_history", "comment_names"}})
         sessions = state.get("participation_history", [])
         session = sessions[-1] if sessions else {"matches": 0, "users": []}
-        snapshot["session_participation_counts"] = {u["user_id"]: u["count"] for u in session["users"]}
+        snapshot["session_participation_counts"] = current_session_counts(state)
         snapshot["session_match_count"] = session["matches"]
         current = list(snapshot["current"])
         waiting = snapshot["waiting"]

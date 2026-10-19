@@ -420,6 +420,23 @@ def test_disabled_defaults_self_exclusion_persistence_and_no_google_secrets(setu
     assert bot.is_self(own) and not bot.status()['authenticated']
     assert not sent
 
+def test_bot_rename_keeps_channel_identity_authentication_and_self_exclusion(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    assert bot.status()['account']['id'] == BOT_ID
+    assert bot.status()['account']['handle'] == '@参加列整理bot'
+    assert bot.status()['authenticated'] is True
+    own = comment(999, '@参加列整理bot')
+    own.user_key = BOT_ID
+    assert bot.is_self(own)
+    opaque = comment(999, '@bot')
+    opaque.youtube_handle = '@参加列整理bot'
+    assert bot.is_self(opaque)
+    assert bot.receive(own) is True
+    bot.tick()
+    assert not sent
+
+
 def test_only_next_group_notifies_once_and_never_join_leave(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     activate(bot)
@@ -438,7 +455,7 @@ def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     activate(bot)
     for i in range(8): services.receive_comment(comment(i))
-    bridge.receive('abcdefghijk', 'Test', comment(6, '@JoinQueueBot @user7 順番？'))
+    bridge.receive('abcdefghijk', 'Test', comment(6, '@bot @user7 順番？'))
     bot.tick()
     assert sent[-1]['variables'] == {'name':'@user6','handle':'@user6','state':'waiting','position':4,'group':2}
     assert sent[-1]['recipient']['userId'] == comment(6).user_key
@@ -459,11 +476,31 @@ def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
     ('順番は？', False),
     ('@JoinQueueBot', True),
     ('@JoinQueueBot こんにちは', True),
+    ('@bot', True),
+    ('@bot 順番は？', True),
+    ('こんにちは @BOT！', True),
+    ('@bot、教えてください', True),
+    ('@JoinQueueBot @bot', True),
+    ('@参加列整理bot', True),
+    ('@参加列整理BOT 順番は？', True),
+    ('こんにちは @参加列整理bot！', True),
+    ('@参加列整理bot @bot @JoinQueueBot', True),
+    ('@参加列整理bot-other', False),
+    ('@参加列整理bot123', False),
+    ('@@参加列整理bot', False),
+    ('viewer@参加列整理bot', False),
+    ('@bot123', False),
+    ('@bot_other', False),
+    ('@bot-other', False),
+    ('@bot.name', False),
+    ('@@bot', False),
+    ('viewer@bot', False),
+    ('bot', False),
     ('@otherbot 順番', False),
     ('@JoinQueueBot-other 順番', False),
     ('@@JoinQueueBot 順番', False),
 ])
-def test_position_requires_bot_reply_but_no_question_keyword(setup_bot, text, expected):
+def test_position_accepts_plain_comment_with_either_bot_alias_but_no_question_keyword(setup_bot, text, expected):
     bot, bridge, services, now, sent, calls = setup_bot
     activate(bot)
     assert bot.receive(comment(6, text)) is expected
@@ -472,29 +509,43 @@ def test_position_requires_bot_reply_but_no_question_keyword(setup_bot, text, ex
     assert len(bot.reply_times) == int(expected)
 
 
-def test_position_cooldown_is_180_seconds_per_user_and_allows_first_at_zero(setup_bot):
+@pytest.mark.parametrize('text', ['@bot', '@JoinQueueBot', '@参加列整理bot'])
+def test_plain_comment_aliases_keep_self_source_and_enabled_guards(setup_bot, text):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    assert bot.receive(comment(6, text).model_copy(update={'source': 'external'})) is False
+    assert bot.receive(comment(6, text).model_copy(update={'user_key': BOT_ID})) is True
+    bot.tick()
+    assert not sent and not bot.reply_times
+    bot.configure(BotSettings(enabled=True, reply_position=False))
+    assert bot.receive(comment(6, text, 'disabled')) is True
+    bot.tick()
+    assert not sent and not bot.reply_times
+
+
+def test_position_cooldown_is_180_seconds_per_user_shared_by_both_aliases(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     now[0] = 0
     activate(bot)
-    bot.receive(comment(6, '@JoinQueueBot', 'first'))
+    bot.receive(comment(6, '@bot', 'first'))
     bot.tick()
     assert len(sent) == 1
     # Another user is accepted immediately; only the existing transport gap delays posting.
-    bot.receive(comment(7, '@JoinQueueBot', 'other-user'))
+    bot.receive(comment(7, '@参加列整理bot', 'other-user'))
     assert len(bot.queue) == 1 and comment(7).user_key in bot.reply_times
     now[0] = 10
     bot.tick()
     assert len(sent) == 2 and sent[-1]['recipient']['userId'] == comment(7).user_key
     now[0] = 179.999
-    bot.receive(comment(6, '@JoinQueueBot', 'too-soon'))
+    bot.receive(comment(6, '@参加列整理bot', 'too-soon'))
     bot.tick()
     assert len(sent) == 2
     now[0] = 180
-    bot.receive(comment(6, '@JoinQueueBot', 'after-cooldown'))
+    bot.receive(comment(6, '@BOT', 'after-cooldown'))
     bot.tick()
     assert len(sent) == 3 and sent[-1]['recipient']['userId'] == comment(6).user_key
     now[0] = 400
-    bot.receive(comment(6, '@JoinQueueBot', 'after-cooldown'))
+    bot.receive(comment(6, '@BOT', 'after-cooldown'))
     bot.tick()
     assert len(sent) == 3  # A duplicate message is never answered twice.
 

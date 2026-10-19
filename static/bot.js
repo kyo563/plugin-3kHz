@@ -26,7 +26,7 @@
     el('bot-stop').disabled = !s.ready;
     el('bot-test').disabled = !s.test_available;
     el('bot-erase-open').disabled = !s.authenticated || !s.deletion_available;
-    el('bot-name').textContent = '共通Bot：' + (s.account?.name || 'JoinQueueBot');
+    el('bot-name').textContent = '共通Bot：' + (s.account?.name || '参加列整理bot');
     const icon = el('bot-icon'), url = s.account?.icon;
     icon.hidden = true;
     if (typeof url === 'string' && /^https:\/\/([\w-]+\.)?(ggpht\.com|googleusercontent\.com)\//.test(url)) {

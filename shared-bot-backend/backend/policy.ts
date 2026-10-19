@@ -103,12 +103,12 @@ export function assertFresh(post: BotPostRequest, now: number): void {
 export function renderPost(post: BotPostRequest): string {
   const name = post.variables.handle ?? post.variables.name;
   switch (post.templateId) {
-    case 'connection-test': return 'JoinQueueBot 接続テスト';
-    case 'called': return `NOW（第${post.variables.group}グループ）：${post.variables.members!.map(m => `${m.handle ?? m.name} さん`).join('、')}。参加の準備をお願いします。`;
+    case 'connection-test': return '参加列整理bot 接続テスト';
+    case 'called': return `次回の対局：${post.variables.members!.map(m => `${m.handle ?? m.name} さん`).join('、')}。参加の準備をお願いします。`;
     case 'position': return post.variables.state === 'waiting'
-      ? `${name} さん、現在の待機順は${post.variables.position}番目、第${post.variables.group}グループです（NOWを除く）。`
+      ? `${name} さんの現在の参加順は${post.variables.position}番目、第${post.variables.group}グループです。`
       : post.variables.state === 'now' ? `${name} さんは現在参加中です。`
-        : `${name} さんは現在、待機列に登録されていません。`;
-    case 'announcement': return `現在の待機人数は${post.variables.waitingCount}名、待機グループ数は${post.variables.groupCount}組です（NOWを除く・1組${post.variables.groupSize}名）。`;
+        : `${name} さんは現在、参加列に登録されていません。`;
+    case 'announcement': return `現在の参加人数は${post.variables.waitingCount}名、待機グループ数は${post.variables.groupCount}組です。`;
   }
 }

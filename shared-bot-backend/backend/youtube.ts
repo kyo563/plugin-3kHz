@@ -46,7 +46,7 @@ export class YouTubeApi implements YouTubeGateway {
     if (!Array.isArray(mine.items) || mine.items.length !== 1 || obj(mine.items[0]).id !== this.botChannelId) throw new BotFault('BOT_UNAVAILABLE', 503);
     const snippet = obj(obj(mine.items[0]).snippet);
     const icon = obj(obj(snippet.thumbnails).default).url;
-    this.botProfile = {id:this.botChannelId, name:typeof snippet.title === 'string' ? snippet.title.slice(0,200) : 'JoinQueueBot',
+    this.botProfile = {id:this.botChannelId, name:typeof snippet.title === 'string' ? snippet.title.slice(0,200) : '参加列整理bot',
       icon:typeof icon === 'string' && /^https:\/\/([\w-]+\.)?(ggpht\.com|googleusercontent\.com)\//.test(icon) ? icon : ''};
     const data = await this.call(`videos?part=snippet,liveStreamingDetails&id=${encodeURIComponent(videoId)}`);
     if (!Array.isArray(data.items) || data.items.length !== 1 || obj(data.items[0]).id !== videoId) throw new BotFault('LIVE_NOT_ACTIVE');

@@ -13,6 +13,28 @@ import type { BotPostRequest } from '../src/contracts/bot-api';
 
 const channel = `UC${'a'.repeat(22)}`;
 const anotherChannel = `UC${'b'.repeat(22)}`;
+test('Bot notification wording matches the requested templates without changing counts', () => {
+  const base = {channelConnectionId:'connection',videoId:'abcdefghijk',eventId:'wording',createdAt:1000000};
+  const render = (extra: Partial<BotPostRequest>) => renderPost(parsePost({...base, ...extra}));
+  assert.equal(render({templateId:'called',variables:{group:42,members:[
+    {name:'名前A',handle:'@名前A'},{name:'名前B',handle:'@名前B'},{name:'名前C',handle:'@名前C'},
+  ]}}), '次回の対局：@名前A さん、@名前B さん、@名前C さん。参加の準備をお願いします。');
+  const recipient = {service:'youtube' as const,userId:'viewer'};
+  const person = {name:'名前',handle:'@名前'};
+  assert.equal(render({templateId:'position',recipient,variables:{...person,state:'waiting',position:4,group:42}}),
+    '@名前 さんの現在の参加順は4番目、第2グループです。');
+  assert.equal(render({templateId:'position',recipient,variables:{...person,state:'now'}}),
+    '@名前 さんは現在参加中です。');
+  assert.equal(render({templateId:'position',recipient,variables:{...person,state:'not-queued'}}),
+    '@名前 さんは現在、参加列に登録されていません。');
+  for (const [waitingCount,groupCount] of [[0,0],[1,1],[9,3],[10,4]]) {
+    assert.equal(render({templateId:'announcement',variables:{waitingCount,groupCount,groupSize:3}}),
+      `現在の参加人数は${waitingCount}名、待機グループ数は${groupCount}組です。`);
+  }
+  assert.equal(render({templateId:'called',variables:{group:1,members:[{name:'申告名'}]}}),
+    '次回の対局：申告名 さん。参加の準備をお願いします。');
+});
+
 test('position replies count NEXT as group one, accept legacy clients, and distinguish currently playing', async () => {
   const f = fixture();
   try {
@@ -25,7 +47,7 @@ test('position replies count NEXT as group one, accept legacy clients, and disti
     for (const [position, group] of [[1,1],[3,1],[4,2],[6,2],[7,3]] as const) {
       const post = parsePost({...body,variables:{...body.variables,state:'waiting',position,group:1000000}});
       assert.equal(post.variables.group,group);
-      assert.equal(renderPost(post),`@viewer さん、現在の待機順は${position}番目、第${group}グループです（NOWを除く）。`);
+      assert.equal(renderPost(post),`@viewer さんの現在の参加順は${position}番目、第${group}グループです。`);
     }
     assert.throws(()=>parsePost({...body,variables:{...body.variables,group:'2'}}));
     assert.equal((await f.submit(body)).body.status,'sent');
@@ -36,12 +58,12 @@ test('connection test only accepts a fixed message and uses existing authorizati
   const f = fixture();
   try {
     const post = f.body({templateId:'connection-test',variables:{}});
-    assert.equal(renderPost(parsePost(post)), 'JoinQueueBot 接続テスト');
+    assert.equal(renderPost(parsePost(post)), '参加列整理bot 接続テスト');
     assert.throws(()=>parsePost({...post,variables:{text:'arbitrary'}}));
     assert.throws(()=>parsePost({...post,recipient:{service:'youtube',userId:'a'}}));
     assert.equal((await f.submit(post, '')).body.error?.code,'UNAUTHENTICATED');
     assert.equal((await f.submit(post)).body.status,'sent');
-    assert.deepEqual(f.sent,['JoinQueueBot 接続テスト']);
+    assert.deepEqual(f.sent,['参加列整理bot 接続テスト']);
     assert.equal((await f.submit({...post,eventId:'different'})).body.error?.code,'RATE_LIMITED');
   } finally { f.store.close(); }
 });
@@ -93,7 +115,7 @@ test('backend: サーバーテンプレートのみ投稿し機密・メモ・�
       assert.equal((await f.submit(input)).body.error?.code, 'INVALID_MESSAGE');
     }
     const result = await f.submit();
-    assert.equal(result.body.status, 'sent'); assert.equal(f.sent[0], 'NOW（第1グループ）：@taro さん。参加の準備をお願いします。');
+    assert.equal(result.body.status, 'sent'); assert.equal(f.sent[0], '次回の対局：@taro さん。参加の準備をお願いします。');
     assert.equal(f.verified.length, 1);
     assert.ok(!JSON.stringify(f.logs).includes('@taro')); assert.ok(!JSON.stringify(f.logs).includes(f.token));
   } finally { f.store.close(); }

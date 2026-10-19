@@ -284,7 +284,7 @@ test('priority help is separate from the toggle and shows the requested explanat
     const html=fs.readFileSync('static/control.html','utf8');
     const css=fs.readFileSync('static/control-display.css','utf8');
     assert.match(html, /<span id="priority-help"[^>]+tabindex="0"[^>]+aria-describedby="priority-help-tooltip"/);
-    assert.match(html, /<span id="priority-help-tooltip" role="tooltip">参加回数が少ないユーザーを優先的に待機列に割り込ませるモード<\/span>/);
+    assert.match(html, /<span id="priority-help-tooltip" role="tooltip">この配信での参加回数が少ないユーザーを優先的に待機列に割り込ませるモード（NOW・NEXTは変更しません）<\/span>/);
     assert.ok(html.indexOf('id="priority-help"') > html.indexOf('初回参加優先モード：確認中</button>'));
     assert.doesNotMatch(html.match(/<span id="priority-help"[^>]*>/)[0], /data-api=/);
     assert.match(css, /\.priority-help:hover #priority-help-tooltip/);

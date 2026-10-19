@@ -17,7 +17,12 @@ def queue(tail_counts=()):
     return {'is_open': True, 'priority_mode': True, 'logs': [],
             'current': [user(f'now{i}', 9) for i in range(3)],
             'waiting': [user(f'next{i}', 9) for i in range(3)]
-                       + [user(f'tail{i}', count) for i, count in enumerate(tail_counts)]}
+                       + [user(f'tail{i}', count) for i, count in enumerate(tail_counts)],
+            'participation_history': [{'id': 'stream', 'label': 'stream',
+                'started_at': '2026-10-19T00:00:00Z', 'matches': max(tail_counts, default=0),
+                'users': [{'user_id': f'tail{i}', 'display_name': f'tail{i}',
+                           'first_match': 1, 'count': count}
+                          for i, count in enumerate(tail_counts) if count]}]}
 
 
 @pytest.mark.parametrize('counts,expected', [

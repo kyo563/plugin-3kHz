@@ -2,6 +2,12 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 
+def current_session_counts(state):
+    """Completed matches in the active stream, never lifetime totals."""
+    sessions = state.get("participation_history", [])
+    return {user["user_id"]: user["count"] for user in sessions[-1]["users"]} if sessions else {}
+
+
 def new_session(state, label=""):
     sessions = state.setdefault("participation_history", [])
     if len(sessions) >= 100:

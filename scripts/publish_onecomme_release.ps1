@@ -1,6 +1,6 @@
 param(
-    [string]$Version = '0.1.5',
-    [string]$ReleaseDirectory = 'dist\onecomme-release-0.1.5'
+    [string]$Version = '0.1.6',
+    [string]$ReleaseDirectory = 'dist\onecomme-release-0.1.6'
 )
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }
@@ -56,7 +56,15 @@ $verified = Join-Path $candidate 'public-download-verification'
 New-Item -ItemType Directory -Path $verified -Force | Out-Null
 foreach ($asset in $assets) {
     $download = Join-Path $verified $asset.name
-    Invoke-WebRequest -Uri ($asset.url + '?verify=' + $asset.id) -OutFile $download
+    for ($downloadAttempt = 0; $downloadAttempt -lt 5; $downloadAttempt++) {
+        try {
+            Invoke-WebRequest -Uri ($asset.url + '?verify=' + $asset.id + '-' + $downloadAttempt) -OutFile $download -ErrorAction Stop
+            break
+        } catch {
+            if ($downloadAttempt -eq 4 -or -not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 404) { throw }
+            Start-Sleep -Seconds 3
+        }
+    }
     if ((Get-FileHash -LiteralPath $download).Hash.ToLowerInvariant() -ne $asset.hash) { throw 'Anonymous download checksum mismatch' }
 }
 [pscustomobject]@{published=$true;releaseId=$release.id;url=$release.html_url;tag=$tag;source=$commit;assets=$assets} | ConvertTo-Json -Depth 5

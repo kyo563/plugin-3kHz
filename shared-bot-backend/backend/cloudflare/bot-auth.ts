@@ -136,7 +136,7 @@ export class BotAuthorization {
       if (!this.#vault.canAuthorize(this.#clock())) return response('有効なBot認証、または設定の異なる認証が保存されています。上書き認証はできません。', 409);
       if (request.method === 'GET') {
         const nonce = random();
-        return response(`<meta charset="utf-8"><title>JoinQueue Bot 運営者認証</title><h1>共通Botの認証（運営者専用）</h1><p>配信者向けの接続画面ではありません。@JoinQueueBotだけを認証します。</p><form method="post" autocomplete="off"><input type="hidden" name="csrf" value="${nonce}"><label>一回用の設定キー<input type="password" name="setup" required autocomplete="off" maxlength="43"></label><button>Googleの認証へ進む</button></form>`, 200,
+        return response(`<meta charset="utf-8"><title>JoinQueue Bot 運営者認証</title><h1>共通Botの認証（運営者専用）</h1><p>配信者向けの接続画面ではありません。@参加列整理botだけを認証します。</p><form method="post" autocomplete="off"><input type="hidden" name="csrf" value="${nonce}"><label>一回用の設定キー<input type="password" name="setup" required autocomplete="off" maxlength="43"></label><button>Googleの認証へ進む</button></form>`, 200,
           { 'Set-Cookie': cookieHeader(nonce), 'Referrer-Policy': 'same-origin',
             'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://accounts.google.com" });
       }

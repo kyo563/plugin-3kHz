@@ -4,10 +4,15 @@ LEGACY_DEFAULT_DESCRIPTION = '【参加方法】\nコメントで「参加希望
 
 DEFAULT_DESCRIPTION = '【参加方法】\nコメントで「参加希望」と送ってください。\nゲーム内プレイヤー名が異なる場合は「参加希望 『◯◯』」のように、プレイヤー名を『』で囲んで教えてください。\n\n【参加を辞退する場合】\nコメントで「参加辞退」または「参加を辞退」と送ってください。\n※配信者都合で名称を変更させて頂く場合があります。'
 
-ONECOMME_DEFAULT_DESCRIPTION = DEFAULT_DESCRIPTION + '\n\n参加回数が少ない方を優先させる場合があります。\n\n【Botの使い方】\n待機順を確認する場合は、@JoinQueueBotへリプライしてください。\n※Botが稼働している場合に利用できます。'
+PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION = DEFAULT_DESCRIPTION + '\n\n参加回数が少ない方を優先させる場合があります。\n\n【Botの使い方】\n待機順を確認する場合は、@JoinQueueBotへリプライしてください。\n※Botが稼働している場合に利用できます。'
+
+ONECOMME_DEFAULT_DESCRIPTION = PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION.replace(
+    '待機順を確認する場合は、@JoinQueueBotへリプライしてください。',
+    '参加順を確認する場合は、コメントに「@参加列整理bot」または「@bot」を入れて送ってください。',
+)
 
 # Match only the previously shipped default, never an edited description.
-LEGACY_ONECOMME_DEFAULT_DESCRIPTION = ONECOMME_DEFAULT_DESCRIPTION.replace(
+LEGACY_ONECOMME_DEFAULT_DESCRIPTION = PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION.replace(
     '\n※Botが稼働している場合に利用できます。',
     '\n特定の質問文言は不要です。自分の待機順と所属グループをお知らせします。'
     '\n対戦中の場合は「現在参加中です」とお知らせします。'

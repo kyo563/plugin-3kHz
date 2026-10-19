@@ -20,7 +20,7 @@ from app.services.user_identity_service import UserIdentityService
 
 BOT_ORIGIN = 'https://joinqueue-bot-backend.joinqueue.workers.dev'
 BOT_ID = 'UCV3VeoFI04L79MqwuApT-Hg'
-BOT_HANDLE = '@JoinQueueBot'
+BOT_HANDLE = '@参加列整理bot'
 POSITION_REPLY_COOLDOWN_SECONDS = 180
 ERRORS = {
     'SERVICE_DISABLED': '共通Botは運営側で停止中です。',
@@ -34,7 +34,7 @@ ERRORS = {
     'LIVE_NOT_ACTIVE': '対象がライブ配信の枠ではないか、終了済み・利用不可です。わんコメの接続先を確認してください。',
     'STREAM_NOT_SELECTED': 'わんコメで対象のYouTube枠に接続してください。開始前の枠も選択できます。',
     'CHAT_UNAVAILABLE': '対象配信のチャット接続先をYouTube公式APIで確認できません。チャットの有効設定・公開範囲を確認してください。',
-    'BOT_PERMISSION_REQUIRED': '@JoinQueueBotのモデレーター登録を確認してください。',
+    'BOT_PERMISSION_REQUIRED': '@参加列整理botのモデレーター登録を確認してください。',
     'RATE_LIMITED': '間隔が短すぎます。時間を空けてください。この通知は再送しません。',
     'QUOTA_EXHAUSTED': '共通Botの利用上限に達しました。',
     'INVALID_MESSAGE': '通知の名前の長さ・人数・形式を確認してください。',
@@ -184,7 +184,7 @@ class AnnouncementBot:
             except Exception:
                 # A damaged/old pending link must not strand an otherwise valid device.
                 self.error = '認証リンクを復元できません。「認証を再開・やり直す」で接続状態を確認してください。接続キーは保持しています。'
-        self.bot_profile = {'id': BOT_ID, 'name': 'JoinQueueBot', 'handle': BOT_HANDLE}
+        self.bot_profile = {'id': BOT_ID, 'name': '参加列整理bot', 'handle': BOT_HANDLE}
         self.test_available = False
         self.deletion_available = False
         self.running, self.active_video = False, ''
@@ -530,7 +530,8 @@ class AnnouncementBot:
     def receive(self, comment):
         if self.is_self(comment):
             return True
-        if comment.source != 'youtube' or not re.search(r'(?<![\w@.·-])@JoinQueueBot(?![\w.·-])', comment.message, re.I):
+        # Match ordinary comment text; YouTube's reply/mention UI is not required.
+        if comment.source != 'youtube' or not re.search(r'(?<![\w@.·-])@(?:参加列整理bot|JoinQueueBot|bot)(?![\w.·-])', comment.message, re.I):
             return False
         with self.lock:
             key = comment.external_message_id

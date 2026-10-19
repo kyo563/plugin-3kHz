@@ -197,7 +197,24 @@ async function main() {
         const afterPriority = await api('/api/state');
         assert.deepEqual(afterPriority.current.map(u=>u.user_id), beforePriority.current.map(u=>u.user_id));
         assert.deepEqual(afterPriority.waiting.slice(0,3).map(u=>u.user_id), beforePriority.waiting.slice(0,3).map(u=>u.user_id));
-        assert.equal(afterPriority.waiting[3].user_id, 'priority-new');
+        // Lifetime corrections must not prioritize a newcomer over other people
+        // who have also completed zero matches in this stream.
+        assert.deepEqual(afterPriority.waiting.map(u=>u.user_id), [...beforePriority.waiting.map(u=>u.user_id), 'priority-new']);
+        const played = afterPriority.current[0];
+        stage = 'session-priority-complete';
+        await api('/api/control/move-next', {});
+        stage = 'session-priority-rejoin';
+        await api('/api/control/add-user', {user_id:played.user_id, display_name:played.display_name});
+        const beforeFresh = await api('/api/state');
+        stage = 'session-priority-count';
+        assert.equal(beforeFresh.session_participation_counts[played.user_id], 1);
+        stage = 'session-priority-newcomer';
+        await api('/api/control/add-user', {user_id:'session-first', display_name:'First this stream'});
+        const afterFresh = await api('/api/state');
+        stage = 'session-priority-protection';
+        assert.deepEqual(afterFresh.waiting.slice(0,3).map(u=>u.user_id), beforeFresh.waiting.slice(0,3).map(u=>u.user_id));
+        stage = 'session-priority-order';
+        assert.deepEqual(afterFresh.waiting.slice(-2).map(u=>u.user_id), ['session-first',played.user_id]);
     } finally {
         plugin.destroy();
         if (child) await until(() => child.exitCode !== null, 15000);

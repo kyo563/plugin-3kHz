@@ -26,7 +26,8 @@ async function fixture(authenticated=false, deletionAvailable=false, overrides={
 }
 test('position reply guidance has no question keyword requirement and explains per-user cooldown',()=>{
   const html=fs.readFileSync('static/bot.html','utf8');
-  assert.match(html, /@JoinQueueBotへのリプライに、本人の待機順・グループを返信する（同じユーザーは3分に1回）/);
+  assert.match(html, /@参加列整理bot または @bot を含むコメントに、本人の参加順・グループを返信する（同じユーザーは3分に1回）/);
+  assert.ok(html.includes('https://www.youtube.com/channel/UCV3VeoFI04L79MqwuApT-Hg'));
   assert.doesNotMatch(html, /「順番」が含まれる場合/);
 });
 

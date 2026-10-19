@@ -57,7 +57,7 @@ async function main(){
         assert.equal((await api('/api/bot')).authenticated,false);
         const description=(await api('/api/settings/description')).text;
         assert.ok(description.includes('参加回数が少ない方を優先させる場合があります。'));
-        assert.ok(description.includes('待機順を確認する場合は、@JoinQueueBotへリプライしてください。'));
+        assert.ok(description.includes('参加順を確認する場合は、コメントに「@参加列整理bot」または「@bot」を入れて送ってください。'));
         for(const removed of ['特定の質問文言は不要です。','対戦中の場合は「現在参加中です」とお知らせします。','同じ方への回答は3分に1回です。']) {
             assert.ok(!description.includes(removed));
         }

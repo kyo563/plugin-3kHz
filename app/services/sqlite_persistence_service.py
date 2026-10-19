@@ -1,6 +1,7 @@
 from __future__ import annotations
 from app.schemas.description import (DEFAULT_DESCRIPTION, LEGACY_DEFAULT_DESCRIPTION,
-                                    ONECOMME_DEFAULT_DESCRIPTION, LEGACY_ONECOMME_DEFAULT_DESCRIPTION)
+                                    ONECOMME_DEFAULT_DESCRIPTION, LEGACY_ONECOMME_DEFAULT_DESCRIPTION,
+                                    PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION)
 
 from app.schemas.avatar import normalize_avatar_url
 
@@ -28,7 +29,7 @@ class SQLitePersistenceService:
         self._description_default = description_default
         self._legacy_descriptions = (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION)
         if description_default == ONECOMME_DEFAULT_DESCRIPTION:
-            self._legacy_descriptions += (LEGACY_ONECOMME_DEFAULT_DESCRIPTION,)
+            self._legacy_descriptions += (LEGACY_ONECOMME_DEFAULT_DESCRIPTION, PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION)
         self._initial_state = deepcopy(initial_state)
         self._db_path = db_path or os.getenv("WAITING_LIST_DB_PATH") or DEFAULT_DB_PATH
         self._lock = threading.RLock()
