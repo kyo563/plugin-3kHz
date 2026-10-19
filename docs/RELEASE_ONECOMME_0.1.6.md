@@ -44,4 +44,6 @@ Botのモデレーター登録には [Botのチャンネル](https://www.youtube
 
 自動テスト775件（Python563件・JavaScript110件・共通バックエンド102件）が成功。Windows配布版の隔離起動・終了、合成わんコメコメントの受信、OBS用データ、設定復元とZIP検査を確認しました。今回の更新で実Google認証・実チャット投稿・OBS実描画を確認済みとは扱いません。
 
+共通Botサーバーも更新済みです。既存のBot認証情報・投稿設定・Google認証の公開範囲・課金設定は変更していません。
+
 [対応するソースコード](https://github.com/kyo563/plugin-3kHz/tree/onecomme-v0.1.6) ／ [プライバシーポリシー](https://kyo563.github.io/privacy.html)

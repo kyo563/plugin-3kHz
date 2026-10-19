@@ -8,6 +8,8 @@ Python563件・JavaScript110件・共通バックエンド102件、計775件成�
 
 本体ZIP SHA256 `f3f8b5b8328ec0963b369466ae44096cd147dddb8a44d26d08f7904a76e5419f`。共通サーバーの候補コードSHA256 `1244dc235cc9ff20aeb758755924a9a0a0fc4e54072b8df5418cd10144e86cd0`。本番は既存の変数・暗号化Secret・Durable Objectを維持してコードだけ配置する。配布出力は `dist/onecomme-release-0.1.6`。公開説明は `RELEASE_ONECOMME_0.1.6.md`。
 
+本番更新完了: Cloudflare active version `2957ba4c`。画面入力したコード全体を上記Worker SHA256と照合してから配置。変数・Secret・Durable Object・投稿有効化・Google公開範囲・課金設定は変更していない。Wranglerの新規認証や権限追加は実施せず、既存のダッシュボードから反映した。本番health・運営者認証入口の閉鎖・未認証投稿の拒否・合成試行の認証リンク再発行と旧リンク拒否・試行解除が成功。実Google認証・チャット投稿は実行していない。
+
 ## 初回参加優先を配信内の回数へ変更（2026-10-19）
 
 優先挿入の比較は累計 `participation_count` ではなく、現在の `participation_history` の対戦済み回数を使用する。履歴がない参加者は今回0回、同回数は先着順。NOW・NEXTは追い越さず、未告知の待機列だけに挿入する。累計の保存・対戦完了時の加算、独立版の優先動作、既存の手動並べ替え・再参加コメント時の最後尾移動は維持。
