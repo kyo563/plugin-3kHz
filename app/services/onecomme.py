@@ -317,6 +317,14 @@ class OneCommeBridge:
             return self.snapshot()
 
     def record(self, result):
+        rejected = result.get('status')
+        if rejected in {'unselected', 'history', 'invalid_timestamp'}:
+            now = time.monotonic()
+            prior = getattr(self, '_audit_rejections', {})
+            if now - prior.get(rejected, -1000) >= 15:
+                self.services.persistence_service.audit_note('comment_rejected', reason=rejected)
+                prior[rejected] = now
+                self._audit_rejections = prior
         status = result.get('status', 'processed')
         self.last_result = status
         self.results[status] = self.results.get(status, 0) + 1

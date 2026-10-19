@@ -35,14 +35,14 @@ def api_state(request: Request = None):
 @router.post("/api/control/reorder-waiting")
 def api_reorder_waiting(payload: ReorderWaitingPayload, request: Request = None):
     services = get_services(request)
-    services.persistence_service.manual_mutate(lambda s: services.queue_service.reorder_waiting(s, payload.ordered_user_ids))
+    services.persistence_service.manual_mutate(lambda s: services.queue_service.reorder_waiting(s, payload.ordered_user_ids), action='manual_reorder')
     return services.build_view_state()
 
 
 @router.post("/api/control/remove-user")
 def api_remove_user(payload: UserIdPayload, request: Request = None):
     services = get_services(request)
-    services.persistence_service.manual_mutate(lambda s: services.queue_service.remove_user_by_id(s, payload.user_id))
+    services.persistence_service.manual_mutate(lambda s: services.queue_service.remove_user_by_id(s, payload.user_id), action='manual_remove', actor=payload.user_id)
     return services.build_view_state()
 
 
@@ -57,7 +57,7 @@ def api_move_current_to_waiting(payload: MoveCurrentPayload, request: Request):
             raise HTTPException(409, "待機列が更新されました。最新の状態を確認してもう一度移動してください。")
         try:
             store.manual_mutate(lambda s: services.queue_service.move_current_to_waiting(
-                s, payload.user_id, payload.target_user_id, payload.after))
+                s, payload.user_id, payload.target_user_id, payload.after), action='manual_move', actor=payload.user_id)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
     return services.build_view_state()
@@ -66,7 +66,7 @@ def api_move_current_to_waiting(payload: MoveCurrentPayload, request: Request):
 @router.post("/api/control/move-to-waiting-tail")
 def api_move_to_waiting_tail(payload: UserIdPayload, request: Request = None):
     services = get_services(request)
-    services.persistence_service.manual_mutate(lambda s: services.queue_service.move_user_to_waiting_tail(s, payload.user_id))
+    services.persistence_service.manual_mutate(lambda s: services.queue_service.move_user_to_waiting_tail(s, payload.user_id), action='manual_tail', actor=payload.user_id)
     return services.build_view_state()
 
 
@@ -74,7 +74,7 @@ def api_move_to_waiting_tail(payload: UserIdPayload, request: Request = None):
 def api_update_declared_player_name(payload: UpdateDeclaredPlayerNamePayload, request: Request = None):
     services = get_services(request)
     services.persistence_service.manual_mutate(
-        lambda s: services.queue_service.update_declared_player_name(s, payload.user_id, payload.declared_player_name)
+        lambda s: services.queue_service.update_declared_player_name(s, payload.user_id, payload.declared_player_name), action='name_edit', actor=payload.user_id
     )
     return services.build_view_state()
 
@@ -255,10 +255,43 @@ def start_history(payload: HistoryStartPayload, request: Request):
     from app.services.participation_history import new_session
     services = get_services(request)
     try:
-        services.persistence_service.manual_mutate(lambda state: new_session(state, payload.label))
+        services.persistence_service.manual_mutate(lambda state: new_session(state, payload.label), action='history_reset')
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return participation_history(request)
+
+
+class SessionResetPayload(BaseModel):
+    confirmed: StrictBool
+    expected_revision: int = Field(strict=True, ge=0)
+
+
+@router.post('/api/control/reset-session-counts')
+def reset_session_counts(payload: SessionResetPayload, request: Request):
+    if not request.app.state.onecomme_mode:
+        raise HTTPException(404, 'わんコメ版専用の機能です')
+    if not payload.confirmed:
+        raise HTTPException(422, '確認が必要です')
+    from app.services.participation_history import new_session
+    services = get_services(request)
+    store = services.persistence_service
+    with services.comment_lock, store.serialized():
+        if store.revision != payload.expected_revision:
+            raise HTTPException(409, '待機列が更新されました。現在の状態を確認してもう一度操作してください。')
+        try:
+            store.manual_mutate(lambda s: new_session(s), action='history_reset')
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+    return services.build_view_state()
+
+
+@router.get('/api/control/diagnostic-log')
+def download_diagnostic_log(request: Request):
+    if not request.app.state.onecomme_mode:
+        raise HTTPException(404, 'わんコメ版専用の機能です')
+    report = get_services(request).persistence_service.export_audit()
+    return Response(report.encode('utf-8-sig'), media_type='text/plain; charset=utf-8', headers={
+        'Content-Disposition': 'attachment; filename="JoinQueue-operation-log.txt"'})
 
 
 class CooldownSettings(BaseModel):

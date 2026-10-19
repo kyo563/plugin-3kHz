@@ -5,6 +5,7 @@ from app.services.persistence_service import PersistenceService
 from app.services.queue_service import QueueService
 from app.services.state_change_cooldown_service import StateChangeCooldownService
 from app.services.user_identity_service import UserIdentityService
+from app.services.queue_audit import audit_reason
 
 
 class CommentQueueApplyService:
@@ -28,21 +29,25 @@ class CommentQueueApplyService:
 
         def _apply(state: dict) -> None:
             if result.command in {"join", "cancel"} and any(u.get("user_id") == user_id for u in state["current"]):
+                audit_reason('ignored_now')
                 state.setdefault("logs", []).append(f"{comment.display_name} はNOW参加中のため参加・辞退コメントを無視しました。変更は管理画面から行ってください")
                 state["logs"] = state["logs"][-30:]
                 return
             if result.command == "join" and not state["is_open"]:
+                audit_reason('closed')
                 state.setdefault("logs", []).append("受付終了中の参加希望")
                 state["logs"] = state["logs"][-30:]
                 return
             self._cooldown_service.clear_expired(state)
 
             if result.command == "join" and self._cooldown_service.is_locked(state, user_id):
+                audit_reason('cooldown')
                 state.setdefault("logs", []).append(f"{comment.display_name} は状態変更ロック中のため参加希望を無視しました")
                 state["logs"] = state["logs"][-30:]
                 return
 
             if result.command == "cancel" and self._cooldown_service.is_locked(state, user_id):
+                audit_reason('cooldown')
                 state.setdefault("logs", []).append(f"{comment.display_name} は状態変更ロック中のため参加辞退を無視しました")
                 state["logs"] = state["logs"][-30:]
                 return
@@ -68,6 +73,7 @@ class CommentQueueApplyService:
                         saved_names[user_id] = prior
                 if quoted and user_id not in saved_names:
                     if len(saved_names) >= 20000:
+                        audit_reason('name_limit')
                         state.setdefault("logs", []).append("コメント指定名の保存上限です。管理画面から追加してください")
                         state["logs"] = state["logs"][-30:]
                         return

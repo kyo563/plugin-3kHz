@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from app.schemas.overlay_settings import OverlaySettings
+from app.services.queue_audit import QueueAudit, audit_event
 
 DEFAULT_DB_PATH = "data/waiting_list.sqlite3"
 
@@ -25,8 +26,9 @@ DEFAULT_DB_PATH = "data/waiting_list.sqlite3"
 class SQLitePersistenceService:
     def __init__(self, initial_state: dict, db_path: str | None = None, *, overlay_settings_model: type[OverlaySettings] = OverlaySettings,
                  description_default: str = DEFAULT_DESCRIPTION,
-                 normalize_state: Callable[[dict], None] | None = None):
+                 normalize_state: Callable[[dict], None] | None = None, diagnostics: bool = False):
         self._normalize_state = normalize_state
+        self._audit = QueueAudit() if diagnostics else None
         self._overlay_settings_model = overlay_settings_model
         self._description_default = description_default
         self._legacy_descriptions = (LEGACY_DEFAULT_DESCRIPTION, DEFAULT_DESCRIPTION)
@@ -49,6 +51,7 @@ class SQLitePersistenceService:
             self._normalize_state(state)
             if state != before:
                 self.set_state(state)
+        self.audit_note('application_start')
 
     def _ensure_parent_dir(self) -> None:
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -68,6 +71,8 @@ class SQLitePersistenceService:
 
     def _initialize_schema(self) -> None:
         with self._connect() as conn:
+            if self._audit:
+                self._audit.initialize(conn)
             conn.execute("CREATE TABLE IF NOT EXISTS control_display (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)")
             conn.execute("CREATE TABLE IF NOT EXISTS onecomme_sessions (video_id TEXT PRIMARY KEY, value TEXT NOT NULL)")
             conn.execute("CREATE TABLE IF NOT EXISTS onecomme_active (id INTEGER PRIMARY KEY CHECK(id=1), video_id TEXT NOT NULL)")
@@ -207,6 +212,7 @@ class SQLitePersistenceService:
 
     def set_state(self, state: dict, *, transaction=None) -> None:
         with self._lock:
+            audit_before = self.get_state() if self._audit else None
             if self._normalize_state:
                 self._normalize_state(state)
             timestamp = self._now()
@@ -251,6 +257,8 @@ class SQLitePersistenceService:
                 conn.execute("DELETE FROM operation_logs")
                 for message in state.get("logs", [])[-30:]:
                     conn.execute("INSERT INTO operation_logs(message, created_at) VALUES(?, ?)", (message, timestamp))
+                if self._audit:
+                    self._audit.record(conn, audit_before, state, next_revision)
 
             self.revision = next_revision
             self._undo = None
@@ -269,6 +277,8 @@ class SQLitePersistenceService:
         """Associate legacy state once without clearing any existing people."""
         with self._lock, self._connect() as conn:
             conn.execute('INSERT OR IGNORE INTO onecomme_active VALUES(1,?)', (video_id,))
+            if self._audit and conn.execute('SELECT video_id FROM onecomme_active WHERE id=1').fetchone()[0] == video_id:
+                self._audit.adopt(conn, video_id)
 
     def switch_video(self, video_id, carry=False, expected_revision=None):
         with self._lock:
@@ -296,7 +306,8 @@ class SQLitePersistenceService:
                 conn.execute('INSERT OR REPLACE INTO onecomme_sessions VALUES(?,?)',
                              (previous, json.dumps(archived, ensure_ascii=False)))
                 conn.execute('INSERT OR REPLACE INTO onecomme_active VALUES(1,?)', (video_id,))
-            self.set_state(state, transaction=commit)
+            with audit_event('stream_resume' if row else 'stream_new'):
+                self.set_state(state, transaction=commit)
 
     def has_saved_video(self, video_id):
         with self._lock, self._connect() as conn:
@@ -310,7 +321,8 @@ class SQLitePersistenceService:
             state['participation_counts'] = deepcopy(previous['participation_counts'])
             for user in state['current'] + state['waiting']:
                 user['participation_count'] = state['participation_counts'].setdefault(user['user_id'], user.get('participation_count', 0))
-            self.set_state(state)
+            with audit_event('all_reset'):
+                self.set_state(state)
             return self.get_state()
 
     def mutate_state(self, callback: Callable[[dict], None]) -> dict:
@@ -320,8 +332,8 @@ class SQLitePersistenceService:
             self.set_state(state)
             return state
 
-    def manual_mutate(self, callback) -> dict:
-        with self._lock:
+    def manual_mutate(self, callback, *, action='manual_change', actor=None) -> dict:
+        with self._lock, audit_event(action, actor):
             before = self.get_state()
             result = self.mutate_state(callback)
             self._undo = (self.revision, before)
@@ -337,7 +349,8 @@ class SQLitePersistenceService:
                 raise ValueError("戻せる操作がありません。コメント受信・別操作・再起動後は戻せません。")
             state = deepcopy(self._undo[1])
             state["logs"].append("直前の手動操作を元に戻しました")
-            self.set_state(state)
+            with audit_event('undo'):
+                self.set_state(state)
             self._undo = None
 
     @contextmanager
@@ -354,8 +367,26 @@ class SQLitePersistenceService:
         with self._lock:
             if expected_revision != self.revision:
                 raise ValueError("確認中に状態が変わりました。内容を再確認して復元してください。")
-            self.set_state(state)
+            with audit_event('backup_restore'):
+                self.set_state(state)
             self._undo = None
+
+    def audit_note(self, action, actor=None, reason='none'):
+        if not self._audit:
+            return
+        from app.services.queue_audit import audit_reason
+        with self._lock, audit_event(action, actor), self._connect() as conn:
+            audit_reason(reason)
+            conn.execute('BEGIN IMMEDIATE')
+            state = self.get_state()
+            self._audit.record(conn, state, state, self.revision, force=True)
+
+    def export_audit(self):
+        if not self._audit:
+            raise ValueError('わんコメ版専用の機能です')
+        with self._lock, self._connect() as conn:
+            conn.execute('BEGIN')
+            return self._audit.export(conn)
 
 
     def list_fonts(self):
@@ -377,6 +408,9 @@ class SQLitePersistenceService:
         with self._lock, self._connect() as conn:
             conn.execute("INSERT INTO control_display(id,value) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value",
                          (validated.model_dump_json(),))
+            if self._audit:
+                state = self.get_state()
+                self._audit.record(conn, state, state, self.revision, force=True)
         return validated.model_dump()
 
     def get_font(self, font_id):

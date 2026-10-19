@@ -22,12 +22,12 @@ class ApplicationServices:
         self.comment_lock = RLock()
         self.add_counter = 0
         self.queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL,
-                                          compact_queue=onecomme)
+                                          compact_queue=onecomme, protect_next=onecomme)
         self.overlay_service = OverlayStateService(onecomme=onecomme)
         self.persistence_service = SQLitePersistenceService(initial_state(desktop=desktop), db_path,
             overlay_settings_model=OneCommeOverlaySettings if onecomme else OverlaySettings,
             description_default=ONECOMME_DEFAULT_DESCRIPTION if onecomme else DEFAULT_DESCRIPTION,
-            normalize_state=self.queue_service.compact if onecomme else None)
+            normalize_state=self.queue_service.compact if onecomme else None, diagnostics=onecomme)
         self.external_provider = ExternalChatProvider()
         self.manual_provider = ManualTestProvider()
         self.receive_service = CommentReceiveService(log_writer=self.add_log)
@@ -65,15 +65,15 @@ class ApplicationServices:
         self.persistence_service.manual_mutate(self.queue_service.cancel_user)
 
     def move_next(self) -> None:
-        self.persistence_service.manual_mutate(self.queue_service.move_next)
+        self.persistence_service.manual_mutate(self.queue_service.move_next, action='match_complete')
         if getattr(self, 'bot', None):
             self.bot.announce()
 
     def toggle_open(self) -> None:
-        self.persistence_service.manual_mutate(self.queue_service.toggle_open)
+        self.persistence_service.manual_mutate(self.queue_service.toggle_open, action='reception_toggle')
 
     def toggle_priority(self) -> None:
-        self.persistence_service.manual_mutate(self.queue_service.toggle_priority)
+        self.persistence_service.manual_mutate(self.queue_service.toggle_priority, action='priority_toggle')
 
     def build_view_state(self) -> dict:
         state, revision, undo = self.persistence_service.snapshot()
@@ -115,5 +115,10 @@ class ApplicationServices:
             provider = self.manual_provider if manual else self.external_provider
             received = provider.receive(comment)
             result = self.receive_service.receive(received, self.persistence_service.get_state()["command_settings"])
-            self.apply_service.apply(received, result)
+            from app.services.queue_audit import audit_event
+            identity = UserIdentityService().build_comment_user_id(received.source, received.user_key)
+            if result.duplicate:
+                self.persistence_service.audit_note('comment_duplicate', identity, 'duplicate')
+            with audit_event('comment_' + result.command, identity, received.youtube_handle):
+                self.apply_service.apply(received, result)
             return result

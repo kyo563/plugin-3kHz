@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from app.services.participation_history import current_session_counts
+from app.services.queue_audit import audit_reason
 
 GROUP_SIZE = 3
 OPEN_SLOT_LABEL = "参加者募集中"
@@ -46,6 +47,7 @@ class QueueService:
         if user.get("user_id") in state.get("name_overrides", {}):
             user["declared_player_name"] = state["name_overrides"][user["user_id"]]
         if len(state["current"]) < self.group_size:
+            audit_reason('fill_now')
             state["current"].append(user)
             self._log(state, f"{user['display_name']} をNOWへ補充しました")
             return True
@@ -57,6 +59,7 @@ class QueueService:
             incoming_count = counts.get(user.get("user_id"), 0)
             for index in range(self.group_size, len(state["waiting"])):
                 if counts.get(state["waiting"][index].get("user_id"), 0) > incoming_count:
+                    audit_reason('priority_insert')
                     state["waiting"].insert(index, user)
                     self._log(state, f"初回参加優先: {user['display_name']} をNEXTより後ろへ追加しました")
                     return True
@@ -86,6 +89,7 @@ class QueueService:
                 return True
 
         state["waiting"].append(user)
+        audit_reason('fifo_join')
         self._log(state, f"{user['display_name']} を待機列へ追加しました")
         return True
 
@@ -136,6 +140,7 @@ class QueueService:
             self._log(state, f"{merged_user['display_name']} が再参加希望したため最後尾へ移動しました")
 
         state["waiting"].append(merged_user)
+        audit_reason('rejoin_tail')
         self.compact(state)
         return True
 
@@ -247,10 +252,12 @@ class QueueService:
             for index, user in enumerate(users):
                 if user.get("user_id") == user_id:
                     removed = users.pop(index)
+                    audit_reason('cancelled')
                     self._log(state, f"{removed['display_name']} を取消しました")
                     self._refill_current(state)
                     return True
         self._log(state, "取消対象がいません")
+        audit_reason('not_found')
         return False
 
     def move_next(self, state: dict) -> None:

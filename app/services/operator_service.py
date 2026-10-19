@@ -17,7 +17,7 @@ def add_participant(services, display_name: str, user_id: str | None):
         services.queue_service.add_user(state, {"user_id": identity, "display_name": name,
             "participation_count": count})
         state["participation_counts"][identity] = count
-    services.persistence_service.manual_mutate(mutate)
+    services.persistence_service.manual_mutate(mutate, action='manual_add')
 
 
 def correct_count(services, user_id: str, count: int):
@@ -31,7 +31,7 @@ def correct_count(services, user_id: str, count: int):
             raise HTTPException(404, "参加者が見つかりません")
         state["participation_counts"][user_id] = count
         services.queue_service._log(state, f"参加回数を{count}回に補正しました")
-    services.persistence_service.manual_mutate(mutate)
+    services.persistence_service.manual_mutate(mutate, action='count_correct', actor=user_id)
 
 
 def export_backup(services):

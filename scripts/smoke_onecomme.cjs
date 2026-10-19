@@ -239,6 +239,30 @@ async function main() {
             assert.deepEqual(restored.current.map(u=>u.user_id),before.current.map(u=>u.user_id));
             assert.deepEqual(restored.waiting.map(u=>u.user_id),before.waiting.map(u=>u.user_id));
         }
+        stage = 'diagnostic-log-and-session-reset';
+        assert.ok(html.includes('id="session-count-reset"'));
+        assert.ok(html.includes('id="diagnostic-log-download"'));
+        const auditComment = event('audit-private-canary', '参加希望 『PRIVATE_AUDIT_DECLARED』');
+        Object.assign(auditComment.data, {userId:'opaque-audit-user',name:'PRIVATE_AUDIT_NAME',screenName:'@public_audit_handle'});
+        plugin.filterComment(auditComment, null, {id:'opaque-audit-user',memo:'PRIVATE_AUDIT_MEMO'});
+        await until(async () => (await api('/api/state')).waiting.some(u=>u.youtube_handle==='@public_audit_handle'));
+        const beforeReset = await api('/api/state');
+        const reset = await api('/api/control/reset-session-counts', {confirmed:true,expected_revision:beforeReset.revision});
+        assert.deepEqual(reset.session_participation_counts, {});
+        assert.deepEqual(reset.participation_counts, beforeReset.participation_counts);
+        assert.deepEqual(reset.current, beforeReset.current);
+        assert.deepEqual(reset.waiting, beforeReset.waiting);
+        await api('/api/control/undo', {});
+        const logResponse = await fetch('http://127.0.0.1:18765/api/control/diagnostic-log', {headers:{Authorization:'Bearer '+key}});
+        assert.equal(logResponse.status, 200);
+        assert.ok(logResponse.headers.get('content-type').includes('text/plain'));
+        const logText = await logResponse.text();
+        assert.ok(logText.includes('@public_audit_handle'));
+        for (const privateValue of ['PRIVATE_AUDIT', 'PRIVATE MEMO', 'opaque-audit-user','test-stream']) assert.ok(!logText.includes(privateValue));
+        const auditRecords = logText.split('\n').filter(line=>line.startsWith('{')).map(line=>JSON.parse(line));
+        assert.ok(auditRecords.some(e=>e.action==='history_reset'));
+        assert.ok(auditRecords.some(e=>e.action==='manual_move'));
+        assert.ok(auditRecords.some(e=>e.action==='comment_join'));
     } finally {
         plugin.destroy();
         if (child) await until(() => child.exitCode !== null, 15000);
@@ -246,6 +270,6 @@ async function main() {
     let listening = false;
     try { await fetch('http://127.0.0.1:18765/control', {signal: AbortSignal.timeout(1000)}); listening = true; } catch (_) {}
     assert.equal(listening, false);
-    console.log(JSON.stringify({ok: true, packaged_worker: true, plugin_lifecycle: true, management_page: true, control_display_restart: true, protected_next: true, overlay_number: true, obs_named_drag: true, template_download: true, thumbnail: true, join: true, isolated_data: true, now_move_remove_tail_compaction: true, single_undo: true, stopped: true}));
+    console.log(JSON.stringify({ok: true, packaged_worker: true, plugin_lifecycle: true, management_page: true, control_display_restart: true, protected_next: true, overlay_number: true, obs_named_drag: true, template_download: true, thumbnail: true, join: true, isolated_data: true, now_move_remove_tail_compaction: true, single_undo: true, handle_only_log: true, reset_session_only: true, stopped: true}));
 }
 main().catch(() => { console.error('OneComme prototype smoke failed at ' + stage); process.exitCode = 1; });

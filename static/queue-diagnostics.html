@@ -1,0 +1,15 @@
+<section class="operator-tools" aria-labelledby="session-tools-title">
+    <h2 id="session-tools-title">今回の参加回数・診断ログ</h2>
+    <p>新しい配信として識別できた場合、今回の参加回数は自動で0から始まります。同じ配信への再接続・再起動や、保存済み配信への復帰は、その配信の記録を引き継ぎます。</p>
+    <p>配信を区別できない場合や、テスト後に数え直す場合に使用してください。累計参加回数は変更しません。</p>
+    <button id="session-count-reset" type="button">今回の参加回数をリセット</button>
+    <button id="diagnostic-log-download" type="button">操作ログを保存（現在・前回の配信）</button>
+    <p id="diagnostic-tools-status" role="status"></p>
+    <small>ログはこの更新以降を記録します。識別情報は@ハンドルだけを含み、表示名・申告名・ID・コメント・メモ・URL・認証情報は含みません。ハンドル未取得の人は仮番号です。</small>
+</section>
+<dialog id="session-reset-dialog" aria-labelledby="session-reset-title">
+    <h2 id="session-reset-title">今回の参加回数を0から数え直しますか？</h2>
+    <p>現在の待機列・累計回数・過去の履歴・申告名・設定は残します。優先判定とOBSの「○回目」は今回0回から数え直します。現在の並び順は変更しません。</p>
+    <button id="session-reset-cancel" type="button" autofocus>戻る</button>
+    <button id="session-reset-confirm" type="button">確認して今回の回数をリセット</button>
+</dialog>
