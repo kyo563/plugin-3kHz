@@ -54,11 +54,15 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
                                                      bot_store)
             application.state.services.bot = application.state.bot
             application.state.onecomme.bot = application.state.bot
+            from app.services.reception_schedule import ReceptionSchedule
+            application.state.reception_schedule = ReceptionSchedule(application.state.services, application.state.bot)
+            application.state.reception_schedule.start()
             application.state.bot.start()
         try:
             yield
         finally:
             if onecomme:
+                application.state.reception_schedule.stop()
                 application.state.bot.stop()
             await application.state.youtube.stop()
             # SQLite connections close after each operation; release service/cache references.

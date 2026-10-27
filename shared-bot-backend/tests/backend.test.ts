@@ -337,3 +337,18 @@ test('backend: Google側のクォータ障害は共通Bot全体を停止する',
     assert.equal(calls, 1);
   } finally { f.store.close(); }
 });
+
+
+test('reception closure uses fixed text, authentication and event deduplication', async () => {
+  const f = fixture();
+  try {
+    const post = f.body({templateId:'reception-closed',variables:{}});
+    assert.equal(renderPost(parsePost(post)), '受付を終了しました');
+    assert.throws(()=>parsePost({...post,variables:{text:'arbitrary'}}));
+    assert.throws(()=>parsePost({...post,recipient:{service:'youtube',userId:'viewer'}}));
+    assert.equal((await f.submit(post, '')).body.error?.code,'UNAUTHENTICATED');
+    assert.equal((await f.submit(post)).body.status,'sent');
+    await f.submit(post);
+    assert.deepEqual(f.sent,['受付を終了しました']);
+  } finally { f.store.close(); }
+});

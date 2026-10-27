@@ -37,6 +37,7 @@ def correct_count(services, user_id: str, count: int):
 def export_backup(services):
     state, _, _ = services.persistence_service.snapshot()
     state.pop("user_action_locks", None)
+    state.pop("reception_schedule", None)
     for user in state["current"] + state["waiting"]:
         user.pop("created_at", None)
         user.pop("updated_at", None)

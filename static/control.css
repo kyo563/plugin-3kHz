@@ -66,3 +66,11 @@ dialog::backdrop { background:#0009; } dialog li { margin:8px 0; } dialog button
 
 .status #toggle-priority { text-align:left; width:100%; cursor:pointer; }
 .status #toggle-priority:disabled { cursor:wait; }
+
+.reception-deadline { border:1px solid #789bcf; border-radius:8px; padding:12px; margin:12px 0; background:#20324e; }
+.reception-deadline-row { display:flex; align-items:center; gap:12px; }
+.reception-deadline-row label { font-weight:700; }
+.reception-deadline-row input { flex:0 0 7em; width:7em; font-size:1rem; text-align:center; box-sizing:border-box; }
+.reception-deadline p { margin:6px 0; }
+
+#reception-result:empty { display:none; }

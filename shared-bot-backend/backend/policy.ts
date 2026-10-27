@@ -43,7 +43,7 @@ export function parsePost(value: unknown): BotPostRequest {
   const eventId = text(p.eventId, 600);
   const videoId = text(p.videoId, 11);
   if (!/^[\w-]{11}$/.test(videoId) || !Number.isSafeInteger(p.createdAt) || (p.createdAt as number) < 0 ||
-      !['called', 'position', 'announcement', 'connection-test'].includes(p.templateId as string)) throw new BotFault('INVALID_MESSAGE');
+      !['called', 'position', 'announcement', 'connection-test', 'reception-closed'].includes(p.templateId as string)) throw new BotFault('INVALID_MESSAGE');
   const v = object(p.variables);
   const number = (value: unknown, min: number, max: number): number => {
     if (!Number.isSafeInteger(value) || (value as number) < min || (value as number) > max) throw new BotFault('INVALID_MESSAGE');
@@ -57,7 +57,7 @@ export function parsePost(value: unknown): BotPostRequest {
     return { name, ...(handle ? { handle } : {}) };
   };
   let variables: BotVariables;
-  if (p.templateId === 'connection-test') {
+  if (p.templateId === 'connection-test' || p.templateId === 'reception-closed') {
     keys(v, []);
     if (p.recipient !== undefined) throw new BotFault('INVALID_MESSAGE');
     variables = {};
@@ -103,6 +103,7 @@ export function assertFresh(post: BotPostRequest, now: number): void {
 export function renderPost(post: BotPostRequest): string {
   const name = post.variables.handle ?? post.variables.name;
   switch (post.templateId) {
+    case 'reception-closed': return '受付を終了しました';
     case 'connection-test': return '参加列整理bot 接続テスト';
     case 'called': return `次回の対局：${post.variables.members!.map(m => `${m.handle ?? m.name} さん`).join('、')}。参加の準備をお願いします。`;
     case 'position': return post.variables.state === 'waiting'

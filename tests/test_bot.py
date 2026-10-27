@@ -773,3 +773,51 @@ def test_creator_authorization_error_preserves_key_for_disconnect_retry(setup_bo
     assert 'private provider' not in str(result.value)
     assert bot.device == token and bot.store.data['shared_device'] == token
     assert not bot.running and services.build_view_state() == before
+
+
+
+def test_reception_deadline_shared_bot_and_restart(setup_bot):
+    from app.services.reception_schedule import ReceptionSchedule, ScheduleSettings
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    for i in range(5): services.receive_comment(comment(i))
+    before = services.build_view_state()
+    wall = [datetime(2026, 10, 27, 23, 29)]
+    schedule = ReceptionSchedule(services, bot, clock=lambda: wall[0])
+    schedule.configure(ScheduleSettings(enabled=True, time='23:30'))
+    schedule.tick(); assert services.build_view_state()['is_open']
+    wall[0] = datetime(2026, 10, 27, 23, 30)
+    schedule.tick(); bot.tick()
+    after = services.build_view_state()
+    assert not after['is_open']
+    assert after['current'] == before['current'] and after['waiting'] == before['waiting']
+    assert sent[-1]['templateId'] == 'reception-closed' and sent[-1]['variables'] == {}
+    schedule.tick(); now[0] += 11; bot.tick(); assert len(sent) == 1
+    assert bot._variables('announcement', None, after) is None
+    services.toggle_open(); schedule.tick(); assert services.build_view_state()['is_open']
+    bot.pause()
+    schedule.configure(ScheduleSettings(enabled=True, time='00:00'))
+    assert schedule.status()['due_at'] == '2026-10-28T00:00:00'
+    fresh = ApplicationServices(db_path=services.persistence_service._db_path, desktop=True)
+    restored = ReceptionSchedule(fresh, bot, clock=lambda: datetime(2026, 10, 28, 1))
+    restored.tick(); assert not fresh.build_view_state()['is_open']
+    assert not restored.status()['enabled']
+    assert '投稿できませんでした' in bot.last_result
+
+
+def test_reception_schedule_ui_and_validation(tmp_path):
+    with TestClient(create_app(db_path=str(tmp_path/'schedule.db'), desktop=True, onecomme=True), base_url='http://127.0.0.1') as c:
+        path = '/api/bot/reception-schedule'
+        assert c.post(path, json={'enabled':True,'time':'23:30'}).status_code == 401
+        c.headers['Authorization'] = 'Bearer ' + c.app.state.access_keys.admin
+        page = c.get('/control').text
+        assert page.index('id="toggle-reception"') < page.index('id="reception-time"') < page.index('id="operation-message"')
+        assert '<h2>対局中</h2>' in page
+        assert 'id="reception-help"' not in page
+        for invalid in ['24:00','12:60','1:30']:
+            assert c.post(path,json={'enabled':True,'time':invalid}).status_code == 422
+        assert c.post(path,json={'enabled':True,'time':'23:30'}).status_code == 200
+        assert c.get(path).json()['enabled']
+        assert 'reception_schedule' not in c.get('/api/control/backup').json()['state']
+        assert c.post(path,json={'enabled':False}).status_code == 200
+        assert not c.get(path).json()['enabled']

@@ -58,3 +58,16 @@ def erase(payload: Erase, request: Request):
         return request.app.state.bot.command('erase')
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
+
+
+from app.services.reception_schedule import ScheduleSettings
+
+
+@router.get('/api/bot/reception-schedule')
+def schedule_status(request: Request):
+    return request.app.state.reception_schedule.status()
+
+
+@router.post('/api/bot/reception-schedule')
+def schedule_settings(payload: ScheduleSettings, request: Request):
+    return request.app.state.reception_schedule.configure(payload)

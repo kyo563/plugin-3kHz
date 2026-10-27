@@ -507,9 +507,18 @@ class AnnouncementBot:
 
     def _enqueue(self, kind, data, event_id=None):
         with self.lock:
-            flags = {'called': self.settings.announce_now, 'position': self.settings.reply_position, 'announcement': self.settings.periodic}
+            flags = {'called': self.settings.announce_now, 'position': self.settings.reply_position, 'announcement': self.settings.periodic, 'reception-closed': True}
             if self.running and self.settings.enabled and flags[kind]:
                 self.queue.append((self.clock(), self.generation, self.active_video, kind, data, event_id or str(uuid4())))
+
+    def announce_closed(self):
+        with self.lock:
+            if not self.running or not self.settings.enabled:
+                self.last_result = '受付は終了しましたが、Bot停止中のため終了通知を投稿できませんでした。'
+                self.services.add_log(self.last_result)
+                return
+            self._enqueue('reception-closed', None)
+            self.queue.rotate(1)
 
     def announce(self):
         state = self.services.build_view_state()
@@ -572,12 +581,16 @@ class AnnouncementBot:
 
     def _variables(self, kind, data, state):
         group = state.get('total_match_count', 0) + 1
+        if kind == 'reception-closed':
+            return {} if not state.get('is_open') else None
         if kind == 'called':
             members = [u for u in state['current'] if not u.get('is_placeholder')]
             if tuple(u['user_id'] for u in members) != data:
                 return None
             return {'members': [self._name(u) for u in members], 'group': group}
         if kind == 'announcement':
+            if not state.get('is_open'):
+                return None
             count = len(state['waiting'])
             return {'waitingCount': count, 'groupCount': math.ceil(count / 3), 'groupSize': 3}
         uid, handle, display = data
