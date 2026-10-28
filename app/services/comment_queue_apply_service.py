@@ -33,7 +33,7 @@ class CommentQueueApplyService:
                 state.setdefault("logs", []).append(f"{comment.display_name} はNOW参加中のため参加・辞退コメントを無視しました。変更は管理画面から行ってください")
                 state["logs"] = state["logs"][-30:]
                 return
-            if result.command == "join" and not state["is_open"]:
+            if result.command == "join" and not self._queue_service.can_join(state, user_id):
                 audit_reason('closed')
                 state.setdefault("logs", []).append("受付終了中の参加希望")
                 state["logs"] = state["logs"][-30:]

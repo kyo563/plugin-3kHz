@@ -163,7 +163,9 @@ function renderState(state){
     q('#toggle-reception').disabled = mutationPending;
     q("#undo").disabled = mutationPending || !state.undo_available;
     renderSearch();
-    q('#open').textContent=`受付状態: ${state.is_open ? '受付中':'受付終了'}`;
+    const receptionLabel = state.is_open ? '受付中' : state.final_group_slots > 0
+        ? `受付終了（最終組空きあり@${state.final_group_slots}名）` : '受付終了';
+    q('#open').textContent=`受付状態: ${receptionLabel}`;
     q('#toggle-priority').className = state.priority_mode ? 'priority-on' : 'priority-off';
     q('#toggle-priority').setAttribute('aria-pressed', String(state.priority_mode));
     q('#toggle-priority').textContent = state.priority_mode ? '✓ 初回参加優先モード：ON（クリックでOFF）' : '初回参加優先モード：OFF（クリックでON）';

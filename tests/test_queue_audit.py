@@ -109,7 +109,10 @@ def test_rejoin_cooldown_now_and_closed_are_distinguished(client):
     send('three', 'commenter')  # duplicate is its own event, not a second join
     client.post('/api/control/toggle-open')
     send('four', 'closed')
+    # Closing with two waiting users now accepts exactly one final-group fill.
+    send('five', 'closed-extra')
     reasons = [r['reason'] for r in events(report(client))]
+    assert 'final_group_fill' in reasons
     assert 'cooldown' in reasons and 'rejoin_tail' in reasons and 'duplicate' in reasons and 'closed' in reasons
     assert 'PRIVATE_COMMENTER' not in report(client)
     assert any(r['actor_handle'] == '@viewer' for r in events(report(client)))

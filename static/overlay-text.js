@@ -2,8 +2,11 @@
 function overlayTextLines(template, state, appearance) {
     if (!template.trim()) return [];
     const clean = value => String(value ?? '').replace(/[\r\n\t]/g, ' ');
+    const closedLabel = state.final_group_slots > 0
+        ? `受付終了（最終組空きあり@${state.final_group_slots}名）`
+        : (appearance.closed_label ?? '受付終了');
     const tokens = {
-        '受付': [state.is_open ? (appearance.open_label ?? '受付中') : (appearance.closed_label ?? '受付終了'), 'status', state.is_open ? 'status-open' : 'status-closed'],
+        '受付': [state.is_open ? (appearance.open_label ?? '受付中') : closedLabel, 'status', state.is_open ? 'status-open' : 'status-closed'],
         'NOW見出し': [appearance.now_label ?? 'NOW', 'now-heading', ''],
         'NEXT見出し': [appearance.next_label ?? 'NEXT', 'next-heading', ''],
         'QUEUE見出し': [appearance.queue_label ?? 'QUEUE', 'queue-heading', ''],

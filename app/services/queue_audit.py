@@ -19,7 +19,7 @@ ACTIONS = {'state_update', 'application_start', 'manual_change', 'manual_add', '
            'comment_join', 'comment_cancel', 'comment_duplicate', 'comment_rejected'}
 REASONS = {'none', 'priority_insert', 'fifo_join', 'fill_now', 'rejoin_tail', 'cancelled',
            'ignored_now', 'closed', 'cooldown', 'name_limit', 'not_found', 'duplicate',
-           'unselected', 'history', 'invalid_timestamp'}
+           'unselected', 'history', 'invalid_timestamp', 'final_group_fill'}
 
 
 @contextmanager

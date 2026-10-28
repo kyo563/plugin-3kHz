@@ -268,6 +268,32 @@ async function main() {
         assert.ok(auditRecords.some(e=>e.action==='history_reset'));
         assert.ok(auditRecords.some(e=>e.action==='manual_move'));
         assert.ok(auditRecords.some(e=>e.action==='comment_join'));
+        stage = 'closed-final-group';
+        await api('/api/control/reset', {});
+        if (!(await api('/api/state')).is_open) await api('/api/control/toggle-open', {});
+        await api('/api/settings/comments', {cooldown_seconds:0});
+        for (let i=0;i<7;i++) await api('/api/control/add-user', {user_id:`final-${i}`,display_name:`Final ${i}`});
+        await api('/api/control/toggle-open', {});
+        assert.equal((await api('/api/overlay-state')).final_group_slots,2);
+        for (let i=0;i<3;i++) {
+            const comment=event(`closed-fill-${i}`, '参加希望');
+            comment.data.userId=`closed-fill-${i}`;
+            plugin.filterComment(comment);
+        }
+        await until(async()=> (await api('/api/state')).waiting.length===6);
+        await until(async()=> (await api('/api/state')).logs.includes('受付終了中の参加希望'));
+        const full=await api('/api/state');
+        assert.equal(full.is_open,false);
+        assert.equal(full.waiting.length,6);
+        assert.equal(full.waiting[4].display_name,'試験参加者');
+        assert.equal((await api('/api/overlay-state')).final_group_slots,0);
+        await api('/api/control/remove-user', {user_id:full.waiting[0].user_id});
+        assert.equal((await api('/api/overlay-state')).final_group_slots,1);
+        const script=await fetch('http://127.0.0.1:18765/static/overlay-text.js').then(r=>r.text());
+        const sandbox={}; require('node:vm').createContext(sandbox);
+        require('node:vm').runInContext(script,sandbox);
+        const overlay=await api('/api/overlay-state');
+        assert.equal(sandbox.overlayTextLines('[受付]',overlay,overlay.appearance)[0][0].text,'受付終了（最終組空きあり@1名）');
     } finally {
         plugin.destroy();
         if (child) await until(() => child.exitCode !== null, 15000);

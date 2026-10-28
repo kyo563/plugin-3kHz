@@ -9,6 +9,19 @@ function harness(){
  return {sandbox,element};
 }
 const state={is_open:true,total_waiting_count:4,total_waiting_group_count:2,now_view:[{display_name:'Alice'}],next_view:[{display_name:'Bob'}]};
+
+test('closed final-group vacancies refresh the exact reception text in all layouts',()=>{
+ const {sandbox}=harness();
+ for(const template of ['[受付]', '[受付]\n[NOW1]', '[受付] [待機人数]']) {
+  for(const slots of [2,1,0]) {
+   const lines=sandbox.overlayTextLines(template,{...state,is_open:false,final_group_slots:slots},{});
+   assert.equal(lines[0][0].text, slots ? `受付終了（最終組空きあり@${slots}名）` : '受付終了');
+   assert.equal(lines[0][0].className,'status-closed');
+  }
+ }
+ assert.equal(sandbox.overlayTextLines('[受付]',{...state,final_group_slots:0},{open_label:'募集しています'})[0][0].text,'募集しています');
+ assert.equal(sandbox.overlayTextLines('[受付]',{...state,is_open:false,final_group_slots:0},{closed_label:'締切'})[0][0].text,'締切');
+});
 test('empty and trailing lines stay editable while dynamic values refresh',()=>{
  const {sandbox}=harness();
  const text='[受付]\n\n[NOW1]\n\n[NEXT1] [待機人数]\n';

@@ -42,6 +42,7 @@ class OverlayStateService:
                           else None)
         return {
             "is_open": view_state["is_open"],
+            **({"final_group_slots": view_state.get("final_group_slots", 0)} if self.onecomme else {}),
             "now_view": [self._to_overlay_user(user, show_declared, session_counts, placeholder_label) for user in view_state["now_view"]],
             "next_view": [self._to_overlay_user(user, show_declared, session_counts, placeholder_label) for user in view_state["next_view"]],
             "queue_count": view_state["queue_count"],

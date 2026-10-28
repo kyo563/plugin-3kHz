@@ -15,11 +15,25 @@ class ParticipationCountLimitError(ValueError):
 
 class QueueService:
     def __init__(self, group_size: int = GROUP_SIZE, open_slot_label: str = OPEN_SLOT_LABEL,
-                 *, protect_next: bool = False, compact_queue: bool = False):
+                 *, protect_next: bool = False, compact_queue: bool = False,
+                 fill_final_group: bool = False):
         self.group_size = group_size
         self.open_slot_label = open_slot_label
         self.protect_next = protect_next
         self.compact_queue = compact_queue
+        self.fill_final_group = fill_final_group
+
+    def final_group_slots(self, state: dict) -> int:
+        if state["is_open"] or not self.fill_final_group:
+            return 0
+        remainder = len(state["waiting"]) % self.group_size
+        return self.group_size - remainder if remainder else 0
+
+    def can_join(self, state: dict, user_id: str) -> bool:
+        if state["is_open"]:
+            return True
+        return bool(self.final_group_slots(state)) and not any(
+            u.get("user_id") == user_id for u in state["current"] + state["waiting"])
 
     def _log(self, state: dict, message: str) -> None:
         state["logs"].append(message)
@@ -40,12 +54,19 @@ class QueueService:
         return None
 
     def add_user(self, state: dict, user: dict) -> bool:
-        if not state["is_open"]:
+        if not self.can_join(state, user.get("user_id")):
             self._log(state, "受付終了中の参加希望")
             return False
 
         if user.get("user_id") in state.get("name_overrides", {}):
             user["declared_player_name"] = state["name_overrides"][user["user_id"]]
+        if not state["is_open"]:
+            # Closed reception only completes the existing last waiting group.
+            # Never refill NOW, reorder NEXT, or apply priority insertion here.
+            state["waiting"].append(user)
+            audit_reason('final_group_fill')
+            self._log(state, f"{user['display_name']} を受付終了後の最終組へ補充しました")
+            return True
         if len(state["current"]) < self.group_size:
             audit_reason('fill_now')
             state["current"].append(user)
@@ -95,8 +116,7 @@ class QueueService:
 
     def join_or_requeue_user_by_id(self, state: dict, user: dict) -> bool:
         if not state["is_open"]:
-            self._log(state, "受付終了中の参加希望")
-            return False
+            return self.add_user(state, user)
         existing_user = None
         for section in ("current", "waiting"):
             users = state[section]
@@ -325,6 +345,7 @@ class QueueService:
 
         return {
             **snapshot,
+            "final_group_slots": self.final_group_slots(state),
             "now_view": self._pad_open_slots(current),
             "next_view": self._pad_open_slots(next_users),
             "queue_view": queue_users,
