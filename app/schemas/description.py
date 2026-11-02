@@ -6,10 +6,27 @@ DEFAULT_DESCRIPTION = '【参加方法】\nコメントで「参加希望」と�
 
 PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION = DEFAULT_DESCRIPTION + '\n\n参加回数が少ない方を優先させる場合があります。\n\n【Botの使い方】\n待機順を確認する場合は、@JoinQueueBotへリプライしてください。\n※Botが稼働している場合に利用できます。'
 
-ONECOMME_DEFAULT_DESCRIPTION = PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION.replace(
+PREVIOUS_HANDLE_ONECOMME_DEFAULT_DESCRIPTION = PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION.replace(
     '待機順を確認する場合は、@JoinQueueBotへリプライしてください。',
     '参加順を確認する場合は、コメントに「@参加列整理bot」または「@bot」を入れて送ってください。',
 )
+
+ONECOMME_DEFAULT_DESCRIPTION = '''【参加方法】
+コメントで「参加希望」と送ると自動的に登録されます。
+ゲーム内プレイヤー名が異なる場合は「参加希望 『◯◯』」のように、プレイヤー名を『』で囲んで教えてください。
+
+【参加を辞退する場合】
+コメントで「参加辞退」または「参加を辞退」と送ってください。
+※配信者都合で名称を変更させて頂く場合があります。
+
+参加回数が少ない方を優先させる場合があります。
+
+参加希望を2回送った場合、2回目の希望順に並び直しになります。
+荒し対策のため、連続で参加希望や辞退を送った場合反映されない場合があります。
+
+【Botの使い方】
+参加順を確認する場合は、コメントに「@参加列整理bot」または「@bot」を入れて送ってください。
+現在の順番を回答します。'''
 
 # Match only the previously shipped default, never an edited description.
 LEGACY_ONECOMME_DEFAULT_DESCRIPTION = PREVIOUS_ONECOMME_DEFAULT_DESCRIPTION.replace(

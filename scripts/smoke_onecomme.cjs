@@ -68,6 +68,16 @@ async function main() {
         });
         assert.ok(html.includes('onecomme-status')); assert.ok(!html.includes('youtube-key'));
         assert.ok(html.includes('waiting-expand'));
+        assert.ok(!html.includes('現在の参加者の回数を＋1して、次の3人へ交代します。'));
+        assert.ok(!html.includes('move-next-note'));
+        stage = 'description-copy';
+        const description = (await api('/api/settings/description')).text;
+        assert.ok(description.startsWith('【参加方法】\nコメントで「参加希望」と送ると自動的に登録されます。'));
+        assert.ok(description.includes('参加希望を2回送った場合、2回目の希望順に並び直しになります。'));
+        assert.ok(description.includes('荒し対策のため、連続で参加希望や辞退を送った場合反映されない場合があります。'));
+        assert.ok(description.endsWith('参加順を確認する場合は、コメントに「@参加列整理bot」または「@bot」を入れて送ってください。\n現在の順番を回答します。'));
+        assert.ok(!description.includes('※Botが稼働している場合に利用できます。'));
+        assert.equal((await api('/api/control/backup')).state.description_text, description);
         const setup = {completed:true,deferred:false,step:4,use_bot:false,use_obs:true};
         assert.equal((await api('/api/setup')).completed,false);
         assert.deepEqual(await api('/api/setup',setup),setup);
@@ -174,6 +184,7 @@ async function main() {
         await until(async () => (await plugin.request({method: 'GET'})).response.ready, 30000);
         assert.deepEqual(await api('/api/settings/control-display'), display);
         assert.deepEqual(await api('/api/setup'),setup);
+        assert.equal((await api('/api/settings/description')).text, description);
         assert.equal((await api('/api/onecomme/status')).selected,'test-stream');
         assert.equal((await api('/api/state')).current.length, 2);
         assert.equal((await api('/api/overlay-state')).now_view[0].display_name, 'Test *1回目');

@@ -32,6 +32,8 @@ def control_page(request: Request):
         html = html.replace('<p id="operation-message"', (STATIC_DIR / 'reception-schedule.html').read_text(encoding='utf-8') + '<p id="operation-message"', 1)
         html = html.replace('</body>', '<script src="/static/reception-schedule.js"></script></body>')
         html = html.replace('<h2>NOW</h2>', '<h2>対局中</h2>')
+        html = html.replace(' aria-describedby="move-next-note"', '')
+        html = html.replace('<p id="move-next-note">現在の参加者の回数を＋1して、次の3人へ交代します。</p>', '')
         html = html.replace('<h1>待機列管理</h1>', '<p><a href="/settings?tab=bot">Bot設定</a></p><h1>待機列管理</h1>')
         html = html.replace('<h1>待機列管理</h1>', '<h1>待機列整理アプリ</h1>')
         html = html.replace('<body>', '<body data-onecomme="true">')
