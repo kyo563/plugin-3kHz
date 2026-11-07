@@ -188,6 +188,7 @@ class AnnouncementBot:
         self.test_available = False
         self.deletion_available = False
         self.running, self.active_video = False, ''
+        self.start_notice_pending = False
         self.queue = deque(maxlen=20)
         self.seen, self.reply_times, self.now_events = OrderedDict(), OrderedDict(), OrderedDict()
         self.last_sent, self.next_guide, self.last_result = -100.0, None, ''
@@ -202,6 +203,7 @@ class AnnouncementBot:
     def pause(self):
         with self.lock:
             self.running, self.active_video = False, ''
+            self.start_notice_pending = False
             self.generation += 1
             self.queue.clear()
             self.next_guide = self.checked = None
@@ -475,6 +477,8 @@ class AnnouncementBot:
                         self.queue.clear()
                         self.running, self.active_video = True, video
                         self.settings = self.settings.model_copy(update={'enabled': True})
+                        features = data.get('features')
+                        self.start_notice_pending = isinstance(features, dict) and features.get('receptionStarted') is True
                         self.first_guide_pending = True
                         self.next_guide = self.clock() + self.settings.initial_delay_minutes * 60 if self.settings.periodic else None
             else:
@@ -540,7 +544,7 @@ class AnnouncementBot:
         if self.is_self(comment):
             return True
         # Match ordinary comment text; YouTube's reply/mention UI is not required.
-        if comment.source != 'youtube' or not re.search(r'(?<![\w@.·-])@(?:参加列整理bot|JoinQueueBot|bot)(?![\w.·-])', comment.message, re.I):
+        if comment.source != 'youtube' or not re.search(r'(?<![\w@＠.·-])[@＠](?:参加列整理bot|JoinQueueBot|bot)(?![\w.·-])', comment.message, re.I):
             return False
         with self.lock:
             key = comment.external_message_id
@@ -622,15 +626,27 @@ class AnnouncementBot:
                     self.next_guide = now + self.settings.interval_minutes * 60
                     if late <= 60:
                         self._enqueue('announcement', None)
-                if not self.queue or now - self.last_sent < 10:
+                if now - self.last_sent < 10 or not (self.queue or self.start_notice_pending):
                     return
-                at, epoch, video, kind, data, event_id = self.queue.popleft()
-                if now - at > 60 or epoch != self.generation or not self.connection:
-                    return
-            variables = self._variables(kind, data, self.services.build_view_state())
+                epoch = self.generation
+            state = self.services.build_view_state()
             current = self.bridge.snapshot()
             with self.lock:
-                if variables is None or epoch != self.generation or not self.running or current['selected'] != video or not current['connected']:
+                if (epoch != self.generation or not self.running or not self.connection
+                        or current['selected'] != self.active_video or not current['connected']):
+                    return
+                if self.start_notice_pending and state['is_open']:
+                    self.start_notice_pending = False
+                    video, kind, event_id = self.active_video, 'reception-started', str(uuid4())
+                    variables = {}
+                elif self.queue:
+                    at, queued_epoch, video, kind, data, event_id = self.queue.popleft()
+                    if now - at > 60 or queued_epoch != epoch or video != self.active_video:
+                        return
+                    variables = self._variables(kind, data, state)
+                    if variables is None:
+                        return
+                else:
                     return
                 candidate = {'channelConnectionId': self.connection['connectionId'], 'eventId': event_id,
                              'videoId': video, 'createdAt': int(time.time() * 1000),

@@ -339,16 +339,19 @@ test('backend: Google側のクォータ障害は共通Bot全体を停止する',
 });
 
 
-test('reception closure uses fixed text, authentication and event deduplication', async () => {
+for (const [templateId, message] of [
+  ['reception-closed', '受付を終了しました'],
+  ['reception-started', '参加列整理機能をオンにしました。ご参加をお待ちしております。'],
+] as const) test(`${templateId} uses fixed text, authentication and event deduplication`, async () => {
   const f = fixture();
   try {
-    const post = f.body({templateId:'reception-closed',variables:{}});
-    assert.equal(renderPost(parsePost(post)), '受付を終了しました');
+    const post = f.body({templateId,variables:{}});
+    assert.equal(renderPost(parsePost(post)), message);
     assert.throws(()=>parsePost({...post,variables:{text:'arbitrary'}}));
     assert.throws(()=>parsePost({...post,recipient:{service:'youtube',userId:'viewer'}}));
     assert.equal((await f.submit(post, '')).body.error?.code,'UNAUTHENTICATED');
     assert.equal((await f.submit(post)).body.status,'sent');
     await f.submit(post);
-    assert.deepEqual(f.sent,['受付を終了しました']);
+    assert.deepEqual(f.sent,[message]);
   } finally { f.store.close(); }
 });

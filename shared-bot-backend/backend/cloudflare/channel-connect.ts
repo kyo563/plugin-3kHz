@@ -173,7 +173,7 @@ export class ChannelConnections {
       }
       this.store.recordUse(connection.id, principal.userId, this.clock());
       return json({ status: 'connected', channelId: connection.channelId, connectionId: connection.id, serviceEnabled,
-        features:{connectionTest:true, dataDeletion:this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true'}, bot:this.youtube.profile?.() ?? null });
+        features:{connectionTest:true, receptionStarted:true, dataDeletion:this.env.BOT_DATA_LIFECYCLE_ENABLED === 'true'}, bot:this.youtube.profile?.() ?? null });
     } catch (e) { return rejected(e instanceof BotFault ? e : new BotFault('BOT_UNAVAILABLE', 503)); }
   }
   private async browser(r: Request): Promise<Response> {

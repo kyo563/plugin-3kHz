@@ -24,12 +24,13 @@ def comment(n, text='参加希望', message_id=None):
                            receivedAt=datetime.now(timezone.utc).isoformat())
 
 @pytest.fixture
-def setup_bot(tmp_path):
+def setup_bot(tmp_path, request):
     services = ApplicationServices(db_path=str(tmp_path/'queue.db'), desktop=True)
     bridge = OneCommeBridge(services)
     bridge.frames['abcdefghijk'] = 'Test'
     bridge.select('abcdefghijk'); bridge.heartbeat()
     sent, calls = [], []
+    features = {'connectionTest': True, **getattr(request, 'param', {})}
     def transport(request):
         assert str(request.url).startswith(BOT_ORIGIN + '/')
         assert request.headers['Authorization'].startswith('Bearer ')
@@ -40,7 +41,8 @@ def setup_bot(tmp_path):
         if request.url.path.endswith('/start'):
             return httpx.Response(200, json=pairing_response())
         return httpx.Response(200, json={'status': 'connected', 'channelId': 'UC' + '9'*22,
-                            'connectionId': '11111111-1111-4111-8111-111111111111', 'serviceEnabled': True, 'features':{'connectionTest':True}})
+                            'connectionId': '11111111-1111-4111-8111-111111111111', 'serviceEnabled': True,
+                            'features': features})
     now = [100.0]
     bot = AnnouncementBot(services, bridge, MemoryStore(), client=httpx.Client(transport=httpx.MockTransport(transport)), clock=lambda: now[0])
     services.bot = bridge.bot = bot
@@ -307,6 +309,58 @@ def test_optional_connection_test_works_while_stopped_and_is_throttled(setup_bot
     assert len(sent) == 1
 
 
+@pytest.mark.parametrize('setup_bot', [{'receptionStarted': True}], indirect=True)
+@pytest.mark.parametrize('reception_open', [True, False])
+def test_start_notice_waits_for_open_reception_and_sends_once_per_start(setup_bot, reception_open):
+    bot, bridge, services, now, sent, calls = setup_bot
+    if not reception_open:
+        services.toggle_open()
+    bot.command('connect'); bot.command('status'); bot.command('check')
+    bot.tick()
+    assert not sent
+
+    bot.command('start'); bot.command('start')
+    bot.tick()
+    if not reception_open:
+        assert not sent
+        services.toggle_open()
+        bot.tick()
+    assert [(post['templateId'], post['videoId'], post['variables']) for post in sent] == [
+        ('reception-started', 'abcdefghijk', {})]
+    bot.command('start')
+    services.toggle_open(); services.toggle_open()
+    now[0] += 11
+    bot.tick()
+    assert len(sent) == 1
+
+    bot.pause(); bot.command('start'); bot.tick()
+    assert len(sent) == 2
+    assert sent[0]['eventId'] != sent[1]['eventId']
+
+
+@pytest.mark.parametrize('setup_bot', [{'receptionStarted': True}], indirect=True)
+def test_start_notice_is_dropped_on_disconnect_and_is_not_retried_after_timeout(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    services.toggle_open()
+    activate(bot)
+    bridge.select('')
+    services.toggle_open()
+    bot.tick()
+    assert not sent and not bot.running
+
+    bridge.select('abcdefghijk'); bridge.heartbeat()
+    bot.command('start')
+    attempts = []
+    def timeout(request):
+        attempts.append(json.loads(request.content)['templateId'])
+        raise httpx.ReadTimeout('unknown delivery')
+    replace_transport(bot, timeout)
+    bot.tick()
+    now[0] += 11
+    bot.tick()
+    assert attempts == ['reception-started']
+
+
 def test_upcoming_frame_can_check_without_posting_and_missing_frame_is_distinct(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     bot.command('connect'); bot.command('status')
@@ -455,7 +509,7 @@ def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     activate(bot)
     for i in range(8): services.receive_comment(comment(i))
-    bridge.receive('abcdefghijk', 'Test', comment(6, '@bot @user7 順番？'))
+    bridge.receive('abcdefghijk', 'Test', comment(6, '＠bot @user7 順番？'))
     bot.tick()
     assert sent[-1]['variables'] == {'name':'@user6','handle':'@user6','state':'waiting','position':4,'group':2}
     assert sent[-1]['recipient']['userId'] == comment(6).user_key
@@ -477,6 +531,8 @@ def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
     ('@JoinQueueBot', True),
     ('@JoinQueueBot こんにちは', True),
     ('@bot', True),
+    ('＠bot', True),
+    ('こんにちは ＠BOT！', True),
     ('@bot 順番は？', True),
     ('こんにちは @BOT！', True),
     ('@bot、教えてください', True),
@@ -494,6 +550,10 @@ def test_sender_identity_waiting_rank_now_unknown_and_cooldown(setup_bot):
     ('@bot-other', False),
     ('@bot.name', False),
     ('@@bot', False),
+    ('@＠bot', False),
+    ('＠@bot', False),
+    ('viewer＠bot', False),
+    ('＠bot123', False),
     ('viewer@bot', False),
     ('bot', False),
     ('@otherbot 順番', False),
