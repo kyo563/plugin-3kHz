@@ -21,8 +21,9 @@ const fault = (code: string) => (error: any) => { assert.equal(error.code, code)
 
 test('YouTube: Bot本人・配信所有者・稼働チャットを検証してから投稿する', async () => {
   const f = apiFixture();
-  const chat = await f.api.resolveChat(video.id, owner); assert.equal(chat, 'verified-chat');
-  await f.api.post(chat, '@taro さん、順番です。');
+  const chat = await f.api.resolveChat(video.id, owner);
+  assert.deepEqual(chat, {chatId: 'verified-chat', actualStartTime: video.liveStreamingDetails.actualStartTime});
+  await f.api.post(chat.chatId, '@taro さん、順番です。');
   assert.deepEqual(f.calls.map(c => new URL(c.url).pathname), ['/youtube/v3/channels', '/youtube/v3/videos', '/youtube/v3/liveChat/messages']);
   assert.deepEqual(f.calls.map(c => c.init?.method), ['GET', 'GET', 'POST']);
   assert.ok(f.calls.every(c => c.url.startsWith('https://www.googleapis.com/youtube/v3/') && !c.url.includes('token')));
@@ -61,7 +62,7 @@ test('YouTube: Botアカウント違い・所有者違い・非ライブ・終�
 test('YouTube: upcoming chat is accepted without actualStartTime and check never posts', async () => {
   const upcoming={...video,snippet:{...video.snippet,liveBroadcastContent:'upcoming'},liveStreamingDetails:{activeLiveChatId:'prelive-chat'}};
   const f=apiFixture([{items:[{id:bot}]},{items:[upcoming]}]);
-  assert.equal(await f.api.resolveChat(video.id,owner),'prelive-chat');
+  assert.equal((await f.api.resolveChat(video.id,owner)).chatId,'prelive-chat');
   assert.ok(f.calls.every(c=>c.init?.method==='GET'));
 });
 
@@ -72,7 +73,7 @@ test('YouTube: missing upcoming chat uses only the verified connection resolver;
   const api=new YouTubeApi({async accessToken(){return 'test-server-only-token';}},bot,transport,async(id,v,c)=>{
     assert.deepEqual([id,v,c],['connection-a',video.id,owner]);resolved++;return 'creator-chat';
   });
-  assert.equal(await api.resolveChat(video.id,owner,'connection-a'),'creator-chat');
+  assert.equal((await api.resolveChat(video.id,owner,'connection-a')).chatId,'creator-chat');
   await assert.rejects(api.resolveChat(video.id,owner),fault('CHAT_UNAVAILABLE'));
   await assert.rejects(api.resolveChat(video.id,bot,'connection-a'),fault('CHANNEL_MISMATCH'));
   const disabled=apiFixture([{items:[{id:bot}]},{items:[upcoming]}]);

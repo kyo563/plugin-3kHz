@@ -36,7 +36,7 @@ export class TestLedger {
         return Response.json({ ok: true });
       }
       const service = new BotService(this.store, {
-        async resolveChat() { return 'test-chat'; },
+        async resolveChat() { return {chatId: 'test-chat'}; },
         async post() {
           if (input.fail) throw new Error('fake-secret');
         },

@@ -25,11 +25,15 @@ function participantItem(user, { draggable = false, listType = "", position = nu
     const participant = user.user_id && !user.is_placeholder;
     const label = document.createElement('span');
     label.className = 'participant-label'; label.textContent = formatDisplayName(user, false); label.title = label.textContent;
+    const groupSize = latestState?.group_size ?? 3;
+    if (position !== null && position > 0 && position % groupSize === 0 && document.body?.dataset.onecomme === 'true') {
+        li.className = 'waiting-group-start';
+    }
     if (position !== null && (!display || display.order)) {
         const order = document.createElement('span');
         order.className = 'participant-order';
-        order.textContent = `${position + 1}${position < 3 ? ' 次' : ''}`;
-        order.title = position < 3 ? '次の対戦の参加者（NEXT）' : '待機順';
+        order.textContent = `${position + 1}${position < groupSize ? ' 次' : ''}`;
+        order.title = position < groupSize ? '次の対戦の参加者（NEXT）' : `待機順・第${Math.floor(position / groupSize) + 1}組`;
         li.appendChild(order);
     }
     if (participant && (display ? display.avatar : listType === 'waiting')) {
@@ -130,7 +134,7 @@ function participantItem(user, { draggable = false, listType = "", position = nu
 }
 
 function renderList(selector, users, opts = {}) {
-    const el = q(selector); const signature = JSON.stringify([users, latestState?.session_participation_counts, window.controlListDisplay?.values]);
+    const el = q(selector); const signature = JSON.stringify([users, latestState?.group_size, latestState?.session_participation_counts, window.controlListDisplay?.values]);
     if (el.dataset.signature === signature) return;
     el.dataset.signature = signature; el.innerHTML = "";
     users.forEach((user, index) => el.appendChild(participantItem(user, {...opts, position: opts.listType === "waiting" ? index : null})));
@@ -171,7 +175,8 @@ function renderState(state){
     q('#toggle-priority').textContent = state.priority_mode ? '✓ 初回参加優先モード：ON（クリックでOFF）' : '初回参加優先モード：OFF（クリックでON）';
     q('#toggle-priority').disabled = mutationPending;
     renderList('#now',state.now_view,{ draggable: document.body?.dataset.onecomme === 'true', listType: 'now' });
-    q("#waiting-count").textContent = `${state.waiting.length}人`;
+    q("#waiting-count").textContent = document.body?.dataset.onecomme === 'true'
+        ? `${state.waiting.length}人・${state.total_waiting_group_count}組` : `${state.waiting.length}人`;
     renderWaiting(state);
     renderLogs(state.logs);
 }

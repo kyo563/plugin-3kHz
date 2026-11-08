@@ -31,6 +31,9 @@ def control_page(request: Request):
         html = html.replace('/static/youtube.js', '/static/onecomme.js')
         html = html.replace('<p id="operation-message"', (STATIC_DIR / 'reception-schedule.html').read_text(encoding='utf-8') + '<p id="operation-message"', 1)
         html = html.replace('</body>', '<script src="/static/reception-schedule.js"></script></body>')
+        html = html.replace('<!-- ONECOMME_CALL_TIMESTAMPS -->',
+                            (STATIC_DIR / 'call-timestamps.html').read_text(encoding='utf-8'))
+        html = html.replace('</body>', '<script src="/static/call-timestamps.js"></script></body>')
         html = html.replace('<h2>NOW</h2>', '<h2>対局中</h2>')
         html = html.replace(' aria-describedby="move-next-note"', '')
         html = html.replace('<p id="move-next-note">現在の参加者の回数を＋1して、次の3人へ交代します。</p>', '')
@@ -55,6 +58,14 @@ def control_page(request: Request):
         html = html.replace('<ul id="waiting" aria-label="待機中の全参加者"></ul>', '<ul id="waiting" aria-label="待機中の参加者（最大128人表示）"></ul><button id="waiting-expand" type="button" aria-expanded="false" aria-controls="waiting" hidden>残りを表示</button><p id="waiting-overflow" role="status"></p>')
         return HTMLResponse(branded_page(html))
     return FileResponse(STATIC_DIR / "control.html")
+
+
+@router.post("/onecomme-launch")
+def launch_from_onecomme(request: Request):
+    # LocalSecurityMiddleware admits only a top-level navigation from OneComme.
+    if not request.app.state.onecomme_mode:
+        raise HTTPException(404)
+    return RedirectResponse("/control#key=" + request.app.state.access_keys.admin, status_code=303)
 
 
 @router.get("/overlay")
@@ -131,6 +142,7 @@ def settings_page(request: Request):
         end = html.index('</section>', html.index('<form id="command-settings-form">')) + len('</section>')
         html = html[:end] + label_panel + html[end:]
         general = (STATIC_DIR / 'setup-general.html').read_text(encoding='utf-8').replace('<!-- CONNECTION -->', (STATIC_DIR / 'onecomme-panel.html').read_text(encoding='utf-8'))
+        html = html.replace('</body>', '<script src="/static/group-size.js"></script></body>')
         wizard = (STATIC_DIR / 'setup-wizard.html').read_text(encoding='utf-8')
         html = html.replace('</header>', '</header>' + wizard, 1)
         html = html.replace('</header>', '</header>' + tabs + '<div id="settings-general-panel" role="tabpanel" aria-labelledby="settings-general-tab">', 1)

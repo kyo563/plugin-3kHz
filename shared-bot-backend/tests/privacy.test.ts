@@ -18,7 +18,7 @@ function fixture() {
   const env: ChannelEnv={BOT_CHANNEL_ID:'UC'+'b'.repeat(22), BOT_DATA_LIFECYCLE_ENABLED:'true', BOT_POSTING_ENABLED:'true',
     CHANNEL_CONNECT_ENABLED:'true',GOOGLE_CLIENT_ID:'fake',GOOGLE_CLIENT_SECRET:'fake',BOT_VAULT_KEY:randomBytes(32).toString('base64url')};
   let lookups=0;
-  const channels=new ChannelConnections(driver,env,{async resolveChat(){lookups++;return 'chat';},async post(){assert.fail('No post from privacy API');}},fetch,()=>now);
+  const channels=new ChannelConnections(driver,env,{async resolveChat(){lookups++;return {chatId: 'chat'};},async post(){assert.fail('No post from privacy API');}},fetch,()=>now);
   const store=new SqlBotStore(driver,true), privacy=new PrivacyRecords(driver); store.setEnabled(true);
   function seed(n:string, age=0) {
     const channel='UC'+n.repeat(22), user='youtube:'+channel, device='device-'+n, token=randomBytes(32).toString('base64url'), connection='connection-'+n;
@@ -117,7 +117,7 @@ test('erasure during destination validation prevents a pending YouTube post, wit
   const f=fixture();try{
     const a=f.seed('a');f.advance(70000);let entered!:()=>void,release!:()=>void,posts=0;
     const gate=new Promise<void>(r=>entered=r),pause=new Promise<void>(r=>release=r);
-    const service=new BotService(f.store,{async resolveChat(){entered();await pause;return 'chat';},async post(){posts++;}},()=>{},f.now);
+    const service=new BotService(f.store,{async resolveChat(){entered();await pause;return {chatId: 'chat'};},async post(){posts++;}},()=>{},f.now);
     const pending=service.submit('Bearer '+a.token,{channelConnectionId:a.connection,videoId:'abcdefghijk',eventId:'in-flight',createdAt:f.now(),templateId:'connection-test',variables:{}});
     await gate;await f.api(a.token,{confirmation:a.channel});release();await pending;
     assert.equal(posts,0);assert.equal(f.db.prepare('SELECT count(*) AS n FROM posts').get()!.n,0);

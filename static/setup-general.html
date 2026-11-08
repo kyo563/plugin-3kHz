@@ -1,6 +1,21 @@
 <section class="panel" id="setup-connection"><h2>接続先の配信</h2>
 <!-- CONNECTION -->
 </section>
+<section class="panel" aria-labelledby="group-size-title">
+  <h2 id="group-size-title">参加人数の変更</h2>
+  <form id="group-size-form">
+    <label>1組あたりの参加人数
+      <select id="group-size" disabled>
+        <option value="3">3名</option>
+        <option value="2">2名</option>
+        <option value="1">1名</option>
+      </select>
+    </label>
+    <p>保存すると、対局中・次回・待機列をこの人数に切り替えます。</p>
+    <button id="group-size-save" type="submit" disabled>参加人数を保存</button>
+    <p id="group-size-result" role="status"></p>
+  </form>
+</section>
 <section class="panel" id="setup-restart-panel"><h2>初回セットアップ</h2>
 <p>接続・参加キーワード・Bot・OBSの順に案内します。保存済みの設定は引き継ぎます。</p>
 <button id="setup-restart" type="button">セットアップを開く</button><p id="setup-state" role="status"></p></section>

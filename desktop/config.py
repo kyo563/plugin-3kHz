@@ -39,7 +39,7 @@ class DesktopConfig:
             self.onboarding_completed = True
 
 
-def load_keys(folder: Path) -> AccessKeys:
+def load_keys(folder: Path, *, onecomme_launch: bool = False) -> AccessKeys:
     path = safe_path(folder / "access-keys.json")
     if path.exists():
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -47,7 +47,14 @@ def load_keys(folder: Path) -> AccessKeys:
             any(not isinstance(data.get(k), str) or not re.fullmatch(r"[A-Za-z0-9_-]{40,128}", data[k]) for k in ("admin", "ingest")) or
             data["admin"] == data["ingest"]):
             raise ValueError("接続キーのファイルが不正です")
-        return AccessKeys(admin=data["admin"], ingest=data["ingest"])
-    keys = AccessKeys()
-    atomic_json(path, {"admin": keys.admin, "ingest": keys.ingest})
+        if not onecomme_launch or data.get("onecomme_launch") is True:
+            return AccessKeys(admin=data["admin"], ingest=data["ingest"])
+        # Retire the old administrator key formerly returned by the OneComme API.
+        keys = AccessKeys(ingest=data["ingest"])
+    else:
+        keys = AccessKeys()
+    data = {"admin": keys.admin, "ingest": keys.ingest}
+    if onecomme_launch:
+        data["onecomme_launch"] = True
+    atomic_json(path, data)
     return keys

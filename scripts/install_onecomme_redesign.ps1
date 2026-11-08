@@ -4,7 +4,7 @@ param(
     [string]$Version = '0.1.4'
 )
 $ErrorActionPreference = 'Stop'
-if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }
+if ($Version -notmatch '^\d+\.\d+(\.\d+)?$') { throw 'Invalid version' }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $candidate = Join-Path (Join-Path $repoRoot $ReleaseDirectory) 'sankagata-seiretsu'
 $archive = Join-Path (Split-Path -Parent $candidate) "Taikiretsu-Seiri-App-OneComme-$Version-windows-x64.zip"

@@ -27,13 +27,12 @@ def main():
 
     Thread(target=watch_parent, daemon=True).start()
     with InstanceLock(folder / "worker.lock"):
-        keys = load_keys(folder)
+        keys = load_keys(folder, onecomme_launch=True)
         app = create_app(db_path=str(folder / "waiting_list.sqlite3"), desktop=True,
                          access_keys=keys, onecomme=True)
         # Stable and separate from the standalone edition's default 8080.
         with LocalServer(app, 18765) as server:
-            print(json.dumps({"base": server.url, "control": server.url + "/control#key=" + keys.admin,
-                              "ingest": keys.ingest}), flush=True)
+            print(json.dumps({"base": server.url, "ingest": keys.ingest}), flush=True)
             stopped.wait()
     return 0
 

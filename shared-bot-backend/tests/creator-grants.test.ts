@@ -51,7 +51,7 @@ function fixture() {
     if(mode==='transient')return Response.json({error:'private secret diagnostic'},{status:503});
     return Response.json({access_token:'PRIVATE-CREATOR-ACCESS-'+body.get('refresh_token')!.slice(-1),expires_in:3600,token_type:'Bearer',scope:mode==='scope'?CREATOR_SCOPE+' write-scope':CREATOR_SCOPE});
   };
-  const youtube={async resolveChat(){return 'chat';},async post(){assert.fail('No live posting in grant tests');}};
+  const youtube={async resolveChat(){return {chatId: 'chat'};},async post(){assert.fail('No live posting in grant tests');}};
   new ChannelConnections(driver,env,youtube,request,()=>now);
   const store=new SqlBotStore(driver);store.setEnabled(true);
   db.prepare('INSERT INTO bot_credentials VALUES (1,?,?,?,?,?)').run('PRESERVE-BOT-CIPHERTEXT',env.BOT_CHANNEL_ID,digest(env.GOOGLE_CLIENT_ID!),now,0);
@@ -314,7 +314,7 @@ test('valid Bot requests count as channel use, invalid or foreign-destination re
   const f=fixture();try{
     const a=await f.seed('a'),initial=f.now();f.advance(60001);
     const store=new SqlBotStore(f.driver,true,true);let posts=0;
-    const youtube={async resolveChat(video:string){if(video==='wrong000000')throw new BotFault('CHANNEL_MISMATCH',403);return 'chat';},async post(){posts++;}};
+    const youtube={async resolveChat(video:string){if(video==='wrong000000')throw new BotFault('CHANNEL_MISMATCH',403);return {chatId: 'chat'};},async post(){posts++;}};
     const svc=new BotService(store,youtube,()=>{},f.now,{},conn=>f.grants.ensure(conn.id));
     const input={channelConnectionId:a.connection,videoId:'wrong000000',eventId:'wrong-target',createdAt:f.now(),templateId:'connection-test',variables:{}};
     assert.equal((await svc.submit('Bearer '+a.token,input)).body.error?.code,'CHANNEL_MISMATCH');

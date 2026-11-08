@@ -48,6 +48,7 @@ class BackupState(StrictModel):
     participation_history: list[HistorySession] = Field(default_factory=list, max_length=100)
     description_text: str = Field(default=DEFAULT_DESCRIPTION, max_length=10000)
     total_match_count: Count = 0
+    group_size: int = Field(default=3, strict=True, ge=1, le=3)
     overlay_settings: OverlaySettings = Field(default_factory=OverlaySettings)
     name_overrides: dict[UserId, Name] = Field(default_factory=dict, max_length=20000)
     is_open: bool

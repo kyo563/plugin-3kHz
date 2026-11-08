@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field, StrictBool
 
 from app.dependencies import get_services
@@ -84,6 +84,30 @@ def api_control_toggle_open(request: Request = None):
     services = get_services(request)
     services.toggle_open()
     return services.build_view_state()
+
+
+class GroupSizeSettings(BaseModel):
+    group_size: int = Field(strict=True, ge=1, le=3)
+
+
+@router.get("/api/settings/group-size")
+def group_size_settings(request: Request):
+    if not request.app.state.onecomme_mode:
+        raise HTTPException(404)
+    return {"group_size": get_services(request).persistence_service.get_state()["group_size"]}
+
+
+@router.post("/api/settings/group-size")
+def save_group_size(payload: GroupSizeSettings, request: Request):
+    if not request.app.state.onecomme_mode:
+        raise HTTPException(404)
+    services = get_services(request)
+    store = services.persistence_service
+    with store.serialized():
+        if store.get_state()["group_size"] != payload.group_size:
+            store.manual_mutate(lambda state: services.queue_service.resize(state, payload.group_size),
+                                action="group_size_change")
+    return {"group_size": payload.group_size}
 
 
 @router.post("/api/control/toggle-priority")
@@ -249,6 +273,19 @@ class HistoryStartPayload(BaseModel):
 def participation_history(request: Request):
     state = get_services(request).persistence_service.get_state()
     return {"sessions": state.get("participation_history", []), "cumulative_counts": state.get("participation_counts", {})}
+
+
+@router.get("/api/control/call-timestamps")
+def call_timestamps(request: Request, video_id: str | None = Query(default=None, max_length=200)):
+    if not request.app.state.onecomme_mode:
+        raise HTTPException(404)
+    videos, selected, seconds = get_services(request).persistence_service.call_timestamps(video_id)
+    lines = ["00:00:00 \t配信開始"] if seconds else []
+    for number, elapsed in enumerate(seconds, 1):
+        hours, remainder = divmod(elapsed, 3600)
+        minutes, second = divmod(remainder, 60)
+        lines.append(f"{hours:02d}:{minutes:02d}:{second:02d} \t第{number}局")
+    return {"videos": videos, "video_id": selected, "text": "\n".join(lines)}
 
 @router.post("/api/control/history/start")
 def start_history(payload: HistoryStartPayload, request: Request):

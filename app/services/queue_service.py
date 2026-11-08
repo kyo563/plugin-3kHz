@@ -16,18 +16,28 @@ class ParticipationCountLimitError(ValueError):
 class QueueService:
     def __init__(self, group_size: int = GROUP_SIZE, open_slot_label: str = OPEN_SLOT_LABEL,
                  *, protect_next: bool = False, compact_queue: bool = False,
-                 fill_final_group: bool = False):
+                 fill_final_group: bool = False, variable_group_size: bool = False):
         self.group_size = group_size
         self.open_slot_label = open_slot_label
         self.protect_next = protect_next
         self.compact_queue = compact_queue
         self.fill_final_group = fill_final_group
+        self.variable_group_size = variable_group_size
+
+    def size_for(self, state: dict) -> int:
+        return state.get("group_size", self.group_size) if self.variable_group_size else self.group_size
+
+    def resize(self, state: dict, size: int) -> None:
+        state["group_size"] = size
+        self.compact(state)
+        self._log(state, f"1組の参加人数を{size}名に変更しました")
 
     def final_group_slots(self, state: dict) -> int:
         if state["is_open"] or not self.fill_final_group:
             return 0
-        remainder = len(state["waiting"]) % self.group_size
-        return self.group_size - remainder if remainder else 0
+        size = self.size_for(state)
+        remainder = len(state["waiting"]) % size
+        return size - remainder if remainder else 0
 
     def can_join(self, state: dict, user_id: str) -> bool:
         if state["is_open"]:
@@ -39,10 +49,10 @@ class QueueService:
         state["logs"].append(message)
         state["logs"] = state["logs"][-30:]
 
-    def _pad_open_slots(self, users: list[dict]) -> list[dict]:
+    def _pad_open_slots(self, users: list[dict], size: int) -> list[dict]:
         return users + [
             {"display_name": self.open_slot_label, "is_placeholder": True}
-            for _ in range(max(0, self.group_size - len(users)))
+            for _ in range(max(0, size - len(users)))
         ]
 
     def _find_and_remove_user(self, state: dict, user_id: str):
@@ -67,26 +77,27 @@ class QueueService:
             audit_reason('final_group_fill')
             self._log(state, f"{user['display_name']} を受付終了後の最終組へ補充しました")
             return True
-        if len(state["current"]) < self.group_size:
+        size = self.size_for(state)
+        if len(state["current"]) < size:
             audit_reason('fill_now')
             state["current"].append(user)
             self._log(state, f"{user['display_name']} をNOWへ補充しました")
             return True
 
         if state["priority_mode"] and self.protect_next:
-            # NOW is handled above. Never displace the three announced NEXT users;
+            # NOW is handled above. Never displace the announced NEXT users;
             # compare active-stream matches only, leaving lifetime totals untouched.
             counts = current_session_counts(state)
             incoming_count = counts.get(user.get("user_id"), 0)
-            for index in range(self.group_size, len(state["waiting"])):
+            for index in range(size, len(state["waiting"])):
                 if counts.get(state["waiting"][index].get("user_id"), 0) > incoming_count:
                     audit_reason('priority_insert')
                     state["waiting"].insert(index, user)
                     self._log(state, f"初回参加優先: {user['display_name']} をNEXTより後ろへ追加しました")
                     return True
 
-        if state["priority_mode"] and not self.protect_next and len(state["waiting"]) >= self.group_size:
-            next_slice = state["waiting"][: self.group_size]
+        if state["priority_mode"] and not self.protect_next and len(state["waiting"]) >= size:
+            next_slice = state["waiting"][:size]
             candidates = [
                 (index, queued_user)
                 for index, queued_user in enumerate(next_slice)
@@ -101,7 +112,7 @@ class QueueService:
                     if index != demote_index
                 ]
                 new_next.append(user)
-                state["waiting"] = new_next + [demoted] + state["waiting"][self.group_size :]
+                state["waiting"] = new_next + [demoted] + state["waiting"][size:]
                 self._log(
                     state,
                     f"初回参加優先: {user['display_name']} をNEXTへ、"
@@ -189,14 +200,19 @@ class QueueService:
         self._log(state, "待機列を手動で並び替えました")
 
     def _refill_current(self, state: dict) -> None:
-        while len(state["current"]) < self.group_size and state["waiting"]:
+        size = self.size_for(state)
+        while len(state["current"]) < size and state["waiting"]:
             user = state["waiting"].pop(0)
             state["current"].append(user)
             self._log(state, f"{user['display_name']} を待機先頭からNOWへ補充しました")
 
     def compact(self, state: dict) -> None:
-        """OneComme queues never leave a NOW vacancy while anyone is waiting."""
+        """Rebalance NOW and waiting without changing the overall order."""
         if self.compact_queue:
+            size = self.size_for(state)
+            if len(state["current"]) > size:
+                state["waiting"][:0] = state["current"][size:]
+                del state["current"][size:]
             self._refill_current(state)
 
     def move_current_to_waiting(self, state: dict, user_id: str,
@@ -318,8 +334,9 @@ class QueueService:
             except ValueError as exc:
                 raise ParticipationCountLimitError(str(exc)) from exc
             state["total_match_count"] = total + 1
-        next_users = state["waiting"][: self.group_size]
-        state["waiting"] = state["waiting"][self.group_size :]
+        size = self.size_for(state)
+        next_users = state["waiting"][:size]
+        state["waiting"] = state["waiting"][size:]
         state["current"] = next_users
         self._log(state, "次の対戦に移りました（対戦中グループの参加回数+1）")
 
@@ -340,17 +357,19 @@ class QueueService:
         current = list(snapshot["current"])
         waiting = snapshot["waiting"]
 
-        next_users = waiting[: self.group_size]
-        queue_users = waiting[self.group_size :]
+        size = self.size_for(state)
+        next_users = waiting[:size]
+        queue_users = waiting[size:]
 
         return {
             **snapshot,
+            "group_size": size,
             "final_group_slots": self.final_group_slots(state),
-            "now_view": self._pad_open_slots(current),
-            "next_view": self._pad_open_slots(next_users),
+            "now_view": self._pad_open_slots(current, size),
+            "next_view": self._pad_open_slots(next_users, size),
             "queue_view": queue_users,
             "total_waiting_count": len(waiting),
-            "total_waiting_group_count": (len(waiting) + self.group_size - 1) // self.group_size,
+            "total_waiting_group_count": (len(waiting) + size - 1) // size,
             "queue_count": len(queue_users),
-            "queue_group_count": (len(queue_users) + self.group_size - 1) // self.group_size,
+            "queue_group_count": (len(queue_users) + size - 1) // size,
         }

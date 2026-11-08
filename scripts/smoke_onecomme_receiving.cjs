@@ -30,7 +30,10 @@ async function main(){
         plugin.init({dir},{services:[source]});
         await until(async()=>{
             const ready=(await plugin.request({method:'GET'})).response;
-            if(!ready.ready)return false;key=new URL(ready.control).hash.slice(5);return true;
+            if(!ready.ready)return false;
+            assert.deepEqual(ready,{ready:true});
+            key=JSON.parse(fs.readFileSync(path.join(local,'WaitingListAppOneComme','access-keys.json'),'utf8')).admin;
+            return true;
         });
         await until(async()=>{const state=await api('/api/onecomme/status');return state.connected&&(direct||state.ready_to_receive);});
     }

@@ -58,7 +58,14 @@ class LocalSecurityMiddleware:
         if not valid_host:
             return await JSONResponse({"detail": "許可されないHost"}, 400)(scope, receive, send)
         origin = headers.get(b"origin")
-        if origin is not None and origin != "http://" + host:
+        path = scope["path"]
+        onecomme_launch = (
+            self.onecomme and path == "/onecomme-launch" and scope["method"] == "POST"
+            and origin in {"http://localhost:11180", "http://127.0.0.1:11180"}
+            and headers.get(b"sec-fetch-mode") == "navigate" and headers.get(b"sec-fetch-dest") == "document"
+        )
+        if (path == "/onecomme-launch" and not onecomme_launch) or (
+                origin is not None and origin != "http://" + host and not onecomme_launch):
             return await JSONResponse({"detail": "許可されないOrigin"}, 403)(scope, receive, send)
         # OneComme's localhost page navigates to the worker on 127.0.0.1.
         # Permit only the top-level, read-only HTML entry point. This never
@@ -68,9 +75,8 @@ class LocalSecurityMiddleware:
                               and headers.get(b"sec-fetch-mode") == "navigate"
                               and (headers.get(b"sec-fetch-dest") == "document" or
                                    (scope["path"] == "/onecomme-overlay" and headers.get(b"sec-fetch-dest") == "iframe")))
-        if headers.get(b"sec-fetch-site") == "cross-site" and not control_navigation:
+        if headers.get(b"sec-fetch-site") == "cross-site" and not (control_navigation or onecomme_launch):
             return await JSONResponse({"detail": "外部サイトからの接続を拒否しました"}, 403)(scope, receive, send)
-        path = scope["path"]
         public = path == "/api/overlay-state" or (scope["method"] == "GET" and re.fullmatch(r"/api/font-assets/[a-f0-9]{64}", path) is not None)
         if path.startswith("/api/") and not public or path in {"/openapi.json", "/docs", "/redoc"}:
             authorization = headers.get(b"authorization", "")

@@ -25,12 +25,13 @@ def comment(n, text='参加希望', message_id=None):
 
 @pytest.fixture
 def setup_bot(tmp_path, request):
-    services = ApplicationServices(db_path=str(tmp_path/'queue.db'), desktop=True)
+    params = getattr(request, 'param', {})
+    services = ApplicationServices(db_path=str(tmp_path/'queue.db'), desktop=True, onecomme=params.get('onecomme', False))
     bridge = OneCommeBridge(services)
     bridge.frames['abcdefghijk'] = 'Test'
     bridge.select('abcdefghijk'); bridge.heartbeat()
     sent, calls = [], []
-    features = {'connectionTest': True, **getattr(request, 'param', {})}
+    features = {'connectionTest': True, **params.get('features', {})}
     def transport(request):
         assert str(request.url).startswith(BOT_ORIGIN + '/')
         assert request.headers['Authorization'].startswith('Bearer ')
@@ -309,7 +310,7 @@ def test_optional_connection_test_works_while_stopped_and_is_throttled(setup_bot
     assert len(sent) == 1
 
 
-@pytest.mark.parametrize('setup_bot', [{'receptionStarted': True}], indirect=True)
+@pytest.mark.parametrize('setup_bot', [{'features': {'receptionStarted': True}}], indirect=True)
 @pytest.mark.parametrize('reception_open', [True, False])
 def test_start_notice_waits_for_open_reception_and_sends_once_per_start(setup_bot, reception_open):
     bot, bridge, services, now, sent, calls = setup_bot
@@ -338,7 +339,7 @@ def test_start_notice_waits_for_open_reception_and_sends_once_per_start(setup_bo
     assert sent[0]['eventId'] != sent[1]['eventId']
 
 
-@pytest.mark.parametrize('setup_bot', [{'receptionStarted': True}], indirect=True)
+@pytest.mark.parametrize('setup_bot', [{'features': {'receptionStarted': True}}], indirect=True)
 def test_start_notice_is_dropped_on_disconnect_and_is_not_retried_after_timeout(setup_bot):
     bot, bridge, services, now, sent, calls = setup_bot
     services.toggle_open()
@@ -881,3 +882,28 @@ def test_reception_schedule_ui_and_validation(tmp_path):
         assert 'reception_schedule' not in c.get('/api/control/backup').json()['state']
         assert c.post(path,json={'enabled':False}).status_code == 200
         assert not c.get(path).json()['enabled']
+
+
+@pytest.mark.parametrize('setup_bot', [{'onecomme': True}], indirect=True)
+def test_queued_calls_recalculate_after_resize_and_save_only_confirmed_call_times(setup_bot):
+    bot, bridge, services, now, sent, calls = setup_bot
+    activate(bot)
+    for i in range(7):
+        services.receive_comment(comment(i))
+    services.move_next()
+    services.persistence_service.mutate_state(lambda s: services.queue_service.resize(s, 1))
+    def transport(request):
+        post = json.loads(request.content)
+        sent.append(post)
+        return httpx.Response(200, json={'status': 'sent', 'elapsedSeconds': 754})
+    replace_transport(bot, transport)
+    bot.tick()
+    assert sent[0]['templateId'] == 'called'
+    assert len(sent[0]['variables']['members']) == 1
+    assert services.persistence_service.call_timestamps('abcdefghijk')[2] == [754]
+    bot.receive(comment(6, '@bot'))
+    now[0] += 11
+    bot.tick()
+    assert sent[-1]['variables']['groupSize'] == 1
+    assert sent[-1]['variables']['group'] == sent[-1]['variables']['position']
+    assert services.persistence_service.call_timestamps('abcdefghijk')[2] == [754]

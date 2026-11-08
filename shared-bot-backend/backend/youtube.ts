@@ -1,5 +1,5 @@
 import { BotFault } from './policy';
-import type { YouTubeGateway } from './service';
+import type { ChatDestination, YouTubeGateway } from './service';
 
 export interface ServerTokenProvider { accessToken(): Promise<string> }
 type Fetch = typeof fetch;
@@ -40,7 +40,7 @@ export class YouTubeApi implements YouTubeGateway {
     }
     return data;
   }
-  async resolveChat(videoId: string, ownerChannelId: string, connectionId?: string): Promise<string> {
+  async resolveChat(videoId: string, ownerChannelId: string, connectionId?: string): Promise<ChatDestination> {
     if (!/^[\w-]{11}$/.test(videoId) || !/^UC[\w-]{22}$/.test(ownerChannelId)) throw new BotFault('INVALID_MESSAGE');
     const mine = await this.call('channels?part=id,snippet&mine=true');
     if (!Array.isArray(mine.items) || mine.items.length !== 1 || obj(mine.items[0]).id !== this.botChannelId) throw new BotFault('BOT_UNAVAILABLE', 503);
@@ -54,16 +54,20 @@ export class YouTubeApi implements YouTubeGateway {
     if (obj(video.snippet).channelId !== ownerChannelId) throw new BotFault('CHANNEL_MISMATCH', 403);
     const state = obj(video.snippet).liveBroadcastContent;
     if (live.actualEndTime || !['live', 'upcoming'].includes(state)) throw new BotFault('LIVE_NOT_ACTIVE');
-    if (typeof live.activeLiveChatId === 'string' && live.activeLiveChatId && live.activeLiveChatId.length <= 1000 && !/[\p{Cc}\p{Cf}]/u.test(live.activeLiveChatId)) return live.activeLiveChatId;
+    if (typeof live.activeLiveChatId === 'string' && live.activeLiveChatId && live.activeLiveChatId.length <= 1000 && !/[\p{Cc}\p{Cf}]/u.test(live.activeLiveChatId)) {
+      return { chatId: live.activeLiveChatId, actualStartTime: typeof live.actualStartTime === 'string' ? live.actualStartTime : undefined };
+    }
     // Upcoming rooms may require verified creator readonly broadcast metadata.
-    if (state === 'upcoming' && this.upcomingChat && connectionId) return this.upcomingChat(connectionId, videoId, ownerChannelId);
+    if (state === 'upcoming' && this.upcomingChat && connectionId) return { chatId: await this.upcomingChat(connectionId, videoId, ownerChannelId) };
     throw new BotFault('CHAT_UNAVAILABLE');
   }
-  async post(chatId: string, message: string): Promise<void> {
+  async post(chatId: string, message: string): Promise<string | undefined> {
     if (!chatId || chatId.length > 1000 || !message || [...message].length > 200 || /[\p{Cc}\p{Cf}]/u.test(message)) throw new BotFault('INVALID_MESSAGE');
     const result = await this.call('liveChat/messages?part=snippet', { snippet: {
       liveChatId: chatId, type: 'textMessageEvent', textMessageDetails: { messageText: message },
     } });
     if (typeof result.id !== 'string' || !result.id) throw new BotFault('DELIVERY_UNKNOWN', 503);
+    const publishedAt = obj(result.snippet).publishedAt;
+    return typeof publishedAt === 'string' ? publishedAt : undefined;
   }
 }

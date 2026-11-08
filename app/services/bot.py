@@ -538,7 +538,7 @@ class AnnouncementBot:
             self.now_events[key] = True
             while len(self.now_events) > 1000:
                 self.now_events.popitem(last=False)
-        self._enqueue('called', ids)
+        self._enqueue('called', (key[1], state.get('group_size', 3), ids))
 
     def receive(self, comment):
         if self.is_self(comment):
@@ -585,18 +585,24 @@ class AnnouncementBot:
 
     def _variables(self, kind, data, state):
         group = state.get('total_match_count', 0) + 1
+        size = state.get('group_size', 3)
         if kind == 'reception-closed':
             return {} if not state.get('is_open') else None
         if kind == 'called':
             members = [u for u in state['current'] if not u.get('is_placeholder')]
-            if tuple(u['user_id'] for u in members) != data:
+            match_count, queued_size, queued_ids = data
+            member_ids = tuple(u['user_id'] for u in members)
+            shared = min(len(member_ids), len(queued_ids))
+            if not shared or match_count != group - 1:
+                return None
+            if member_ids != queued_ids and (size == queued_size or member_ids[:shared] != queued_ids[:shared]):
                 return None
             return {'members': [self._name(u) for u in members], 'group': group}
         if kind == 'announcement':
             if not state.get('is_open'):
                 return None
             count = len(state['waiting'])
-            return {'waitingCount': count, 'groupCount': math.ceil(count / 3), 'groupSize': 3}
+            return {'waitingCount': count, 'groupCount': math.ceil(count / size), 'groupSize': size}
         uid, handle, display = data
         identity = UserIdentityService().build_comment_user_id('youtube', uid)
         variables = self._name({'youtube_handle': handle, 'display_name': display})
@@ -604,7 +610,9 @@ class AnnouncementBot:
             return {**variables, 'state': 'now'}
         for i, user in enumerate(state['waiting'], 1):
             if user['user_id'] == identity:
-                return {**variables, 'state': 'waiting', 'position': i, 'group': math.ceil(i / 3)}
+                if size != 3:
+                    variables['groupSize'] = size
+                return {**variables, 'state': 'waiting', 'position': i, 'group': math.ceil(i / size)}
         return {**variables, 'state': 'not-queued'}
 
     def tick(self):
@@ -656,8 +664,17 @@ class AnnouncementBot:
                 self.last_sent = now
             try:
                 result = self._api('/v1/bot/posts', candidate)
+                sent = result.get('status') == 'sent'
+                message = 'Bot通知を送信しました。' if sent else ERRORS['DELIVERY_UNKNOWN']
+                if kind == 'called' and sent:
+                    seconds = result.get('elapsedSeconds')
+                    if type(seconds) is int and 0 <= seconds < 2**31:
+                        try:
+                            self.services.persistence_service.record_call_timestamp(video, event_id, seconds)
+                        except sqlite3.Error:
+                            message = 'Bot通知を送信しましたが、対局タイムスタンプを保存できませんでした。'
                 if epoch == self.generation:
-                    self.last_result = 'Bot通知を送信しました。' if result.get('status') == 'sent' else ERRORS['DELIVERY_UNKNOWN']
+                    self.last_result = message
             except BotError as exc:
                 if epoch == self.generation:
                     self.error = str(exc)

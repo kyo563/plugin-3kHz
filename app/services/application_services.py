@@ -23,7 +23,7 @@ class ApplicationServices:
         self.add_counter = 0
         self.queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL,
                                           compact_queue=onecomme, protect_next=onecomme,
-                                          fill_final_group=onecomme)
+                                          fill_final_group=onecomme, variable_group_size=onecomme)
         self.overlay_service = OverlayStateService(onecomme=onecomme)
         self.persistence_service = SQLitePersistenceService(initial_state(desktop=desktop), db_path,
             overlay_settings_model=OneCommeOverlaySettings if onecomme else OverlaySettings,

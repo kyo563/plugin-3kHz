@@ -51,7 +51,16 @@ async function main() {
         plugin.init({dir});
         stage = 'worker-ready';
         const ready = await until(async () => { const r = await plugin.request({method: 'GET'}); return r.response.ready && r.response; }, 30000);
-        const key = new URL(ready.control).hash.slice(5);
+        assert.deepEqual(ready, {ready: true});
+        const launch = await new Promise((resolve, reject) => {
+            const req = require('node:http').request('http://127.0.0.1:18765/onecomme-launch', {
+                method:'POST', headers:{Origin:'http://localhost:11180', 'Sec-Fetch-Site':'cross-site',
+                    'Sec-Fetch-Mode':'navigate', 'Sec-Fetch-Dest':'document'},
+            }, r => { r.resume(); resolve(r); });
+            req.on('error', reject); req.end();
+        });
+        assert.equal(launch.statusCode, 303);
+        const key = new URL(launch.headers.location, 'http://127.0.0.1:18765').hash.slice(5);
         async function api(endpoint, body) {
             const r = await fetch('http://127.0.0.1:18765' + endpoint, {headers: {Authorization: 'Bearer ' + key, 'Content-Type': 'application/json'},
                 method: body ? 'POST' : 'GET', body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(5000)});

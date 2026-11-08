@@ -29,6 +29,7 @@ export type BotErrorCode =
 export interface BotPostResponse {
   requestId: string;
   status: BotPostStatus;
+  elapsedSeconds?: number;
   error?: { code: BotErrorCode; message: string; retryAfterSeconds?: number };
 }
 

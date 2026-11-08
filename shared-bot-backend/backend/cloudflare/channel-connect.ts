@@ -132,7 +132,19 @@ export class ChannelConnections {
       const pairing = this.db.prepare('SELECT * FROM channel_pairings WHERE tokenHash=?').get(tokenHash);
       if (!pairing) throw denied();
       if (u.pathname.endsWith('/disconnect')) {
-        if (this.env.CHANNEL_GRANTS_ENABLED === 'true' && pairing.channelId) await this.grants.revoke(String(pairing.channelId));
+        if (pairing.status === 'connected') {
+          const principal = this.store.authenticate(r.headers.get('Authorization')!, this.clock());
+          const connection = this.store.connection(String(pairing.connectionId), principal.userId, this.clock());
+          if (this.env.CHANNEL_GRANTS_ENABLED === 'true') await this.grants.revoke(connection.channelId);
+        } else if (pairing.status === 'revoked' && pairing.channelId && this.env.CHANNEL_GRANTS_ENABLED === 'true'
+            && this.db.prepare("SELECT 1 FROM creator_grants WHERE channelId=? AND status='revoking'").get(String(pairing.channelId))) {
+          // A failed provider revoke may be retried by its still-unexpired device.
+          // A revoked key cannot start a new channel-wide revoke.
+          const owner = this.db.prepare("SELECT 1 FROM devices WHERE hash=? AND deviceId=? AND userId=? AND expiresAt>?")
+            .get(tokenHash, String(pairing.deviceId), 'youtube:' + pairing.channelId, this.clock());
+          if (!owner) throw new BotFault('UNAUTHENTICATED', 401);
+          await this.grants.revoke(String(pairing.channelId));
+        }
         // Also cancels a pending or consumed callback; callback rechecks after Google awaits.
         this.db.transaction(() => {
           if (pairing.deviceId) this.store.revokeDevice(String(pairing.deviceId));

@@ -2,11 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { assertFresh, BotFault, digest, failure, parsePost, renderPost, type ApiResult } from './policy';
 import { SqlBotStore, DEFAULT_LIMITS, type Limits, type Connection } from './sql-store';
 
+export interface ChatDestination {
+  chatId: string;
+  actualStartTime?: string;
+}
+
 export interface YouTubeGateway {
   profile?(): {id:string; name:string; icon:string} | null;
   /** Confirms the authenticated bot identity and validates live video's owner. */
-  resolveChat(videoId: string, ownerChannelId: string, connectionId?: string): Promise<string>;
-  post(chatId: string, message: string): Promise<void>;
+  resolveChat(videoId: string, ownerChannelId: string, connectionId?: string): Promise<ChatDestination>;
+  post(chatId: string, message: string): Promise<string | void>;
 }
 export interface AuditEvent { requestId: string; userId?: string; deviceId?: string; status: string; code?: string }
 
@@ -41,15 +46,19 @@ export class BotService {
       if (raced) return raced;
       reserved = true;
       // No waiting/backlog: expire instead of posting old notifications on reconnect.
-      const chatId = await this.youtube.resolveChat(post.videoId, connection.channelId, connection.id);
+      const destination = await this.youtube.resolveChat(post.videoId, connection.channelId, connection.id);
       await this.creatorAuthorization?.(connection);
       this.store.authenticate(authorization, this.clock());
       this.store.connection(post.channelConnectionId, userId, this.clock());
       this.store.assertEnabled(); assertFresh(post, this.clock());
       this.store.recordUse(connection.id, userId, this.clock());
       dispatching = true;
-      await this.youtube.post(chatId, message);
+      const publishedAt = await this.youtube.post(destination.chatId, message);
       result = { http: 200, body: { requestId, status: 'sent' } };
+      if (post.templateId === 'called' && publishedAt && destination.actualStartTime) {
+        const elapsed = Math.floor((Date.parse(publishedAt) - Date.parse(destination.actualStartTime)) / 1000);
+        if (Number.isSafeInteger(elapsed) && elapsed >= 0 && elapsed < 2**31) result.body.elapsedSeconds = elapsed;
+      }
     } catch (error) {
       result = failure(requestId, error instanceof BotFault ? error : new BotFault(dispatching ? 'DELIVERY_UNKNOWN' : 'BOT_UNAVAILABLE', 503));
       // A provider quota/auth/connectivity failure must not cause every client to

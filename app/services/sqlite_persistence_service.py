@@ -77,6 +77,10 @@ class SQLitePersistenceService:
             conn.execute("CREATE TABLE IF NOT EXISTS control_display (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)")
             conn.execute("CREATE TABLE IF NOT EXISTS onecomme_sessions (video_id TEXT PRIMARY KEY, value TEXT NOT NULL)")
             conn.execute("CREATE TABLE IF NOT EXISTS onecomme_active (id INTEGER PRIMARY KEY CHECK(id=1), video_id TEXT NOT NULL)")
+            if self._audit:
+                conn.execute("""CREATE TABLE IF NOT EXISTS onecomme_call_timestamps (
+                    video_id TEXT NOT NULL, event_id TEXT NOT NULL, elapsed_seconds INTEGER NOT NULL,
+                    recorded_at TEXT NOT NULL, PRIMARY KEY(video_id, event_id))""")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS app_state (
                     key TEXT PRIMARY KEY,
@@ -200,6 +204,7 @@ class SQLitePersistenceService:
             "participation_history": json.loads(app_state.get("participation_history", "[]")),
             "total_match_count": int(app_state.get("total_match_count", "0")),
             "reception_schedule": json.loads(app_state.get("reception_schedule", "{}")),
+            "group_size": int(app_state["group_size"]) if app_state.get("group_size") in ("1", "2", "3") else 3,
             "is_open": app_state.get("is_open", "1") == "1",
             "priority_mode": app_state.get("priority_mode", "1") == "1",
             "command_settings": json.loads(app_state["command_settings"]) if "command_settings" in app_state else CommandSettings().model_dump(),
@@ -234,6 +239,7 @@ class SQLitePersistenceService:
                 ("name_overrides", json.dumps(state.get("name_overrides", {}), ensure_ascii=False)),
                 ("overlay_settings", json.dumps(state.get("overlay_settings", self._overlay_settings_model().model_dump()), ensure_ascii=False)),
                 ("reception_schedule", json.dumps(state.get("reception_schedule", {}))),
+                ("group_size", str(state.get("group_size", 3))),
                 ("is_open", "1" if state["is_open"] else "0"),
                 ("priority_mode", "1" if state["priority_mode"] else "0"),
                 ("cooldown_seconds", str(state["cooldown_seconds"])),
@@ -316,11 +322,34 @@ class SQLitePersistenceService:
         with self._lock, self._connect() as conn:
             return conn.execute('SELECT 1 FROM onecomme_sessions WHERE video_id=?', (video_id,)).fetchone() is not None
 
+    def record_call_timestamp(self, video_id: str, event_id: str, seconds: int) -> None:
+        if not self._audit:
+            return
+        # Keep real posted notifications independent of participation resets and undo.
+        with self._lock, self._connect() as conn:
+            conn.execute("INSERT OR IGNORE INTO onecomme_call_timestamps VALUES(?,?,?,?)",
+                         (video_id, event_id, seconds, self._now()))
+
+    def call_timestamps(self, video_id: str | None) -> tuple[list[dict], str, list[int]]:
+        with self._lock, self._connect() as conn:
+            videos = [dict(row) for row in conn.execute("""SELECT video_id, MAX(recorded_at) AS recorded_at
+                FROM onecomme_call_timestamps GROUP BY video_id ORDER BY recorded_at DESC LIMIT 100""")]
+            active = conn.execute("SELECT video_id FROM onecomme_active WHERE id=1").fetchone()
+            selected = video_id
+            if selected is None:
+                selected = active[0] if active else (videos[0]['video_id'] if videos else '')
+            if selected and not any(v['video_id'] == selected for v in videos):
+                videos.insert(0, {'video_id': selected, 'recorded_at': None})
+            seconds = [row[0] for row in conn.execute("""SELECT elapsed_seconds FROM onecomme_call_timestamps
+                WHERE video_id=? ORDER BY elapsed_seconds, recorded_at, event_id""", (selected,))]
+            return videos, selected, seconds
+
     def reset_state(self) -> dict:
         with self._lock:
             state = deepcopy(self._initial_state)
             previous = self.get_state()
             state['description_text'] = previous['description_text']
+            state['group_size'] = previous['group_size']
             state['participation_counts'] = deepcopy(previous['participation_counts'])
             for user in state['current'] + state['waiting']:
                 user['participation_count'] = state['participation_counts'].setdefault(user['user_id'], user.get('participation_count', 0))

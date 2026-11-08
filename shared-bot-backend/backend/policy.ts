@@ -66,7 +66,7 @@ export function parsePost(value: unknown): BotPostRequest {
     if (!Array.isArray(v.members) || !v.members.length || v.members.length > 10 || p.recipient !== undefined) throw new BotFault('INVALID_MESSAGE');
     variables = { group: number(v.group, 1, 1_000_000), members: v.members.map(m => { const member = object(m); keys(member, ['name', 'handle']); return person(member); }) };
   } else if (p.templateId === 'position') {
-    keys(v, ['name', 'handle', 'state', 'position', 'group']);
+    keys(v, ['name', 'handle', 'state', 'position', 'group', 'groupSize']);
     if (!['waiting', 'now', 'not-queued'].includes(v.state as string) || p.recipient === undefined) throw new BotFault('INVALID_MESSAGE');
     variables = { ...person(v), state: v.state as BotVariables['state'] };
     if (v.state === 'waiting') variables.position = number(v.position, 1, 500);
@@ -74,10 +74,13 @@ export function parsePost(value: unknown): BotPostRequest {
     if (v.state === 'waiting') {
       // Older clients sent cumulative match groups. Validate but do not display them.
       number(v.group, 1, 1_000_000);
-      variables.group = Math.ceil(variables.position! / 3);
+      const size = v.groupSize === undefined ? 3 : number(v.groupSize, 1, 3);
+      if (v.groupSize !== undefined) variables.groupSize = size;
+      variables.group = Math.ceil(variables.position! / size);
     } else if (v.state === 'now') {
       if (v.group !== undefined) number(v.group, 1, 1_000_000);
-    } else if (v.group !== undefined) throw new BotFault('INVALID_MESSAGE');
+      if (v.groupSize !== undefined) throw new BotFault('INVALID_MESSAGE');
+    } else if (v.group !== undefined || v.groupSize !== undefined) throw new BotFault('INVALID_MESSAGE');
   } else {
     keys(v, ['waitingCount', 'groupCount', 'groupSize']);
     if (p.recipient !== undefined) throw new BotFault('INVALID_MESSAGE');

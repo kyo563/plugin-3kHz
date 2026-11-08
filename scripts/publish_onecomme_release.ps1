@@ -3,7 +3,7 @@ param(
     [string]$ReleaseDirectory = 'dist\onecomme-release-0.1.7'
 )
 $ErrorActionPreference = 'Stop'
-if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }
+if ($Version -notmatch '^\d+\.\d+(\.\d+)?$') { throw 'Invalid version' }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $candidate = Join-Path $repoRoot $ReleaseDirectory
 $zipName = "Taikiretsu-Seiri-App-OneComme-$Version-windows-x64.zip"

@@ -81,7 +81,7 @@ function fixture(limits: Partial<Limits> = {}, path = ':memory:') {
   store.setEnabled(true);
   const sent: string[] = []; const verified: string[] = []; const logs: AuditEvent[] = [];
   const gateway: YouTubeGateway = {
-    async resolveChat(video, owner) { verified.push(`${owner}/${video}`); return 'chat'; },
+    async resolveChat(video, owner) { verified.push(`${owner}/${video}`); return {chatId: 'chat'}; },
     async post(_chat, message) { sent.push(message); },
   };
   const service = new BotService(store, gateway, event => logs.push(event), () => now, limits);
@@ -90,6 +90,33 @@ function fixture(limits: Partial<Limits> = {}, path = ':memory:') {
   return { store, token, service, gateway, sent, verified, logs, body, clock: () => now, advance: (ms: number) => { now += ms; },
     submit: (data: unknown = body(), auth = `Bearer ${token}`) => service.submit(auth, data) };
 }
+
+test('position groups support the configured size and legacy three-person requests', () => {
+  const f = fixture();
+  try {
+    for (const size of [undefined, 1, 2, 3, 4]) {
+      const post = f.body({templateId: 'position', recipient: {service: 'youtube', userId: 'viewer'},
+        variables: {name: 'Viewer', state: 'waiting', position: 5, group: 99, groupSize: size}});
+      if (size === 4) assert.throws(() => parsePost(post));
+      else assert.equal(parsePost(post).variables.group, Math.ceil(5 / (size ?? 3)));
+    }
+  } finally { f.store.close(); }
+});
+
+test('confirmed call returns its elapsed YouTube time without posting again on duplicate', async () => {
+  const f = fixture();
+  try {
+    f.gateway.resolveChat = async () => ({chatId: 'chat', actualStartTime: '2026-09-22T00:00:00Z'});
+    f.gateway.post = async (_chat, message) => {
+      f.sent.push(message);
+      return '2026-09-22T00:12:34.999Z';
+    };
+    const first = await f.submit();
+    assert.equal(first.body.elapsedSeconds, 754);
+    assert.deepEqual(await f.submit(), first);
+    assert.equal(f.sent.length, 1);
+  } finally { f.store.close(); }
+});
 
 test('backend: 認証・チャンネル紐付けなしではYouTubeにアクセスしない', async () => {
   const f = fixture();
@@ -152,7 +179,7 @@ test('backend: 投稿直前に端末失効・接続失効・期限・全体停�
         if (action === 'connection') f.store.revokeConnection('connection-1');
         if (action === 'expired') f.advance(61_000);
         if (action === 'disabled') f.store.setEnabled(false);
-        return 'chat';
+        return {chatId: 'chat'};
       };
       assert.notEqual((await f.submit()).body.status, 'sent'); assert.equal(f.sent.length, 0);
     } finally { f.store.close(); }
@@ -222,7 +249,7 @@ test('backend: two creators route independently; foreign connection, own limit a
     f.store.provisionDevice(token2, {userId: 'user-2', deviceId: 'device-2'}, f.clock() + 3_600_000);
     f.store.provisionVerifiedConnection({id: 'connection-2', userId: 'user-2', channelId: anotherChannel, verifiedAt: f.clock()});
     const deliveries: Array<{chat: string; message: string}> = [];
-    f.gateway.resolveChat = async (video, owner) => { f.verified.push(`${owner}/${video}`); return `chat:${owner}`; };
+    f.gateway.resolveChat = async (video, owner) => { f.verified.push(`${owner}/${video}`); return {chatId: `chat:${owner}`}; };
     f.gateway.post = async (chat, message) => { deliveries.push({chat, message}); };
     const second = () => f.body({channelConnectionId: 'connection-2', videoId: 'lmnopqrstuv',
       variables: {members: [{name: 'Creator B viewer', handle: '@viewerB'}], group: 2}});

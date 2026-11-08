@@ -4,21 +4,26 @@ import io
 import json
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import sys
 import zipfile
 
 archive_path = Path(sys.argv[1])
 version = sys.argv[2] if len(sys.argv) > 2 else '0.1.7'
-assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Invalid version'
+assert re.fullmatch(r'\d+\.\d+(?:\.\d+)?', version), 'Invalid version'
 with zipfile.ZipFile(archive_path) as archive:
     names = archive.namelist()
     assert archive.testzip() is None, 'Damaged archive'
     assert len(names) == len(set(names)), 'Duplicate archive paths'
+    assert len(names) == len({name.casefold() for name in names}), 'Duplicate Windows archive paths'
     assert all(name.startswith('sankagata-seiretsu/') and '..' not in PurePosixPath(name).parts for name in names)
+    assert all('\\' not in name and ':' not in name for name in names), 'Unsafe Windows archive path'
+    assert not any(stat.S_ISLNK(item.external_attr >> 16) for item in archive.infolist()), 'Unexpected archive link'
     forbidden = r'(?i)(\.sqlite|access-keys|ownership\.json|\.env|\.dev\.vars|client_secret|credentials\.json|\.log$)'
     assert not any(re.search(forbidden, name) for name in names), 'Private runtime file in release'
     root = 'sankagata-seiretsu/'
-    assert f"version: '{version}'".encode() in archive.read(root + 'plugin.js')
+    plugin_version = version if version.count('.') == 2 else version + '.0'
+    assert f"version: '{plugin_version}'".encode() in archive.read(root + 'plugin.js')
     static = root + 'runtime/_internal/static/'
     for asset in ('control-display.html', 'control-display.js', 'control-display.css'):
         assert static + asset in names

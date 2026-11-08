@@ -129,7 +129,7 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
     }
     return {
         name: '待機列整理アプリ',
-        uid: 'jp.kyo563.sankagata-seiretsu', version: '0.1.11', author: 'kyo563',
+        uid: 'jp.kyo563.sankagata-seiretsu', version: '1.10.0', author: 'kyo563',
         url: 'http://localhost:11180/plugins/jp.kyo563.sankagata-seiretsu/index.html',
         permissions: ['filter.comment', 'services', 'meta', 'meta.clear'],
         init({dir}, initialData) {
@@ -151,7 +151,7 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
                     const line = buffer.slice(0, nl); buffer = buffer.slice(nl + 1);
                     try {
                         const msg = JSON.parse(line);
-                        if (msg.base === 'http://127.0.0.1:18765' && /^http:\/\/127\.0\.0\.1:18765\/control#key=[A-Za-z0-9_-]{40,128}$/.test(msg.control) && /^[A-Za-z0-9_-]{40,128}$/.test(msg.ingest)) {
+                        if (msg.base === 'http://127.0.0.1:18765' && /^[A-Za-z0-9_-]{40,128}$/.test(msg.ingest)) {
                             ready = msg; error = '';
                             void drain();
                         } else error = '処理を起動できませんでした。重複起動やポート18765を確認してください';
@@ -240,7 +240,7 @@ function createPlugin({spawnWorker = spawn, http = fetch} = {}) {
         },
         async request(req) {
             if (req.method !== 'GET') return {code: 405, response: {error: 'GET only'}};
-            return {code: 200, response: ready ? {ready: true, control: ready.control} : {ready: false, message: error}};
+            return {code: 200, response: ready ? {ready: true} : {ready: false, message: error}};
         },
         destroy() {
             generation++; clearInterval(timer); timer = null; ready = null; queue = []; services = null;

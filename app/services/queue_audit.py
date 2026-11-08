@@ -14,7 +14,7 @@ from app.services.participation_history import current_session_counts
 _event = ContextVar('queue_audit_event', default=None)
 ACTIONS = {'state_update', 'application_start', 'manual_change', 'manual_add', 'manual_remove',
            'manual_reorder', 'manual_move', 'manual_tail', 'name_edit', 'count_correct',
-           'match_complete', 'reception_toggle', 'priority_toggle', 'history_reset',
+           'match_complete', 'reception_toggle', 'priority_toggle', 'history_reset', 'group_size_change',
            'undo', 'backup_restore', 'all_reset', 'stream_new', 'stream_resume',
            'comment_join', 'comment_cancel', 'comment_duplicate', 'comment_rejected'}
 REASONS = {'none', 'priority_insert', 'fifo_join', 'fill_now', 'rejoin_tail', 'cancelled',
@@ -83,7 +83,8 @@ class QueueAudit:
             counts = current_session_counts(state)
             users = state.get('current', []) + state.get('waiting', [])
             visible = users[:self.MAX_USERS]
-            current = [alias(u['user_id']) for u in state.get('current', [])[:3]]
+            size = state.get('group_size', 3)
+            current = [alias(u['user_id']) for u in state.get('current', [])[:size]]
             waiting = [alias(u['user_id']) for u in state.get('waiting', [])[:self.MAX_USERS - len(current)]]
             appearance = state.get('overlay_settings', {})
             empty = 'EMPTY_OPEN' if state.get('is_open') else 'EMPTY_CLOSED'
@@ -92,7 +93,7 @@ class QueueAudit:
                 return [p + (f' *{number(counts.get(u["user_id"], 0)) + 1}' if shown else '')
                         for p, u in items]
             pairs = [(alias(u['user_id']), u) for u in visible]
-            return {'NOW': current, 'WAITING': waiting, 'NEXT': waiting[:3], 'QUEUE': waiting[3:],
+            return {'NOW': current, 'WAITING': waiting, 'NEXT': waiting[:size], 'QUEUE': waiting[size:],
                     'handles': {alias(u['user_id']): self.handle(u.get('youtube_handle')) for u in visible},
                     'this_stream_completed': {alias(u['user_id']): number(counts.get(u['user_id'], 0)) for u in visible},
                     'lifetime_completed': {alias(u['user_id']): max(number(state.get('participation_counts', {}).get(u['user_id'], 0)), number(u.get('participation_count', 0))) for u in visible},

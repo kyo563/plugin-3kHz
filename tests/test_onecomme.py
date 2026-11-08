@@ -41,6 +41,33 @@ def test_onecomme_cross_site_navigation_does_not_relax_api_or_iframe_security(tm
             assert c.get('/api/state', headers=auth).status_code == 200
 
 
+def test_onecomme_launch_requires_local_top_level_navigation(tmp_path):
+    with TestClient(create_app(db_path=str(tmp_path/'queue.db'), desktop=True, onecomme=True),
+                    base_url="http://127.0.0.1:18765") as client:
+        path = '/onecomme-launch'
+        headers = {'Origin': 'http://localhost:11180', 'Sec-Fetch-Site': 'cross-site',
+                   'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document'}
+        for override in [{'Origin': 'https://example.invalid'}, {'Origin': 'null'},
+                         {'Sec-Fetch-Dest': 'iframe'}, {'Sec-Fetch-Mode': 'cors'}]:
+            response = client.post(path, headers={**headers, **override}, follow_redirects=False)
+            assert response.status_code == 403 and 'location' not in response.headers
+        assert client.post(path, follow_redirects=False).status_code == 403
+        assert client.get(path, headers=headers, follow_redirects=False).status_code == 403
+        response = client.post(path, headers=headers, follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers['location'] == '/control#key=' + client.app.state.access_keys.admin
+        assert response.headers['cache-control'] == 'no-store'
+        assert client.post('/api/settings/group-size', headers=headers, json={'group_size': 1}).status_code == 403
+
+
+def test_onecomme_rotates_legacy_admin_key_once(tmp_path):
+    from desktop.config import load_keys
+    original = load_keys(tmp_path)
+    upgraded = load_keys(tmp_path, onecomme_launch=True)
+    assert upgraded.admin != original.admin and upgraded.ingest == original.ingest
+    assert load_keys(tmp_path, onecomme_launch=True) == upgraded
+
+
 def test_selection_history_identity_now_protection_refill_and_persistence(tmp_path):
     app = create_app(db_path=str(tmp_path / 'new.db'), desktop=True, onecomme=True)
     with TestClient(app, base_url='http://127.0.0.1') as c:

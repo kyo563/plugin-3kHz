@@ -37,7 +37,7 @@ function fixture(offline = false) {
     assert.equal(url, 'https://www.googleapis.com/youtube/v3/channels?part=id&mine=true');
     lookups++; return Response.json({ items: bad === 'empty' ? [] : [{ id: bad === 'bot' ? env.BOT_CHANNEL_ID : channelId }] });
   };
-  const auth = () => new ChannelConnections(driver, env, { async resolveChat(_video, owner) { checks++; assert.equal(owner, channelId); return 'chat'; }, async post() { assert.fail('No posting from connection endpoints'); } }, request, () => now);
+  const auth = () => new ChannelConnections(driver, env, { async resolveChat(_video, owner) { checks++; assert.equal(owner, channelId); return {chatId: 'chat'}; }, async post() { assert.fail('No posting from connection endpoints'); } }, request, () => now);
   const api = (path: string, body = {}, credential = token, source = 'a'.repeat(64)) => auth().handle(new Request(AUTH_ORIGIN + '/v1/connections/' + path, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + credential, 'X-JoinQueue-Source': source }, body: JSON.stringify(body),
   }));

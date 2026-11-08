@@ -8,8 +8,13 @@
             if (!r.ok) throw new Error();
             const data = await r.json();
             const result = data.response;
-            if (result?.ready && /^http:\/\/127\.0\.0\.1:18765\/control#key=[A-Za-z0-9_-]{40,128}$/.test(result.control)) {
-                location.replace(result.control); return;
+            if (result?.ready) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'http://127.0.0.1:18765/onecomme-launch';
+                document.body.appendChild(form);
+                form.submit();
+                return;
             }
             document.getElementById('status').textContent = result?.message || 'プラグインを有効にしてください';
         } catch (_) { document.getElementById('status').textContent = 'わんコメへの接続を確認してください'; }
