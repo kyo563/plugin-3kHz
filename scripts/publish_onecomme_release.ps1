@@ -61,11 +61,12 @@ foreach ($asset in $assets) {
     $download = Join-Path $verified $asset.name
     for ($downloadAttempt = 0; $downloadAttempt -lt 5; $downloadAttempt++) {
         try {
-            $downloadUrl = if ($downloadAttempt -eq 0) { $asset.url } else { "$($asset.url)?asset=$($asset.id)" }
-            Invoke-WebRequest -Uri $downloadUrl -OutFile $download -ErrorAction Stop
+            $downloadUrl = if ($downloadAttempt -eq 0) { $asset.url } else { "$api/releases/assets/$($asset.id)?download=1" }
+            Invoke-WebRequest -Uri $downloadUrl -Headers @{Accept='application/octet-stream'} -OutFile $download -ErrorAction Stop
             break
         } catch {
-            if ($downloadAttempt -eq 4 -or -not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 404) { throw }
+            $retryable = $_.Exception.Response -and [int]$_.Exception.Response.StatusCode -in @(404, 429, 500, 502, 503, 504)
+            if ($downloadAttempt -eq 4 -or -not $retryable) { throw }
             Start-Sleep -Seconds 3
         }
     }
