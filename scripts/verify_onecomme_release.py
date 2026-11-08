@@ -3,25 +3,48 @@ import hashlib
 import io
 import json
 from pathlib import Path, PurePosixPath
+import unicodedata
 import re
 import stat
 import sys
 import zipfile
+
+RESERVED = re.compile(r"^(CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9¹²³]|LPT[1-9¹²³])$", re.I)
+FORBIDDEN = re.compile(r"(?i)(\.sqlite|access-keys|ownership\.json|\.env|\.dev\.vars|client_secret|credentials\.json|\.log$)")
+
+
+def check_paths(archive, prefix):
+    files = set()
+    assert sum(item.file_size for item in archive.infolist()) <= 256 * 1024 * 1024, "Archive is too large"
+    directories = set()
+    for item in archive.infolist():
+        name = item.filename
+        parts = name.split("/")
+        assert name == item.orig_filename and name.startswith(prefix) and not item.is_dir(), "Unexpected archive entry"
+        assert not stat.S_ISLNK(item.external_attr >> 16), "Unexpected archive link"
+        assert not FORBIDDEN.search(name), "Private runtime file in release"
+        for part in parts:
+            assert part and part not in {".", ".."} and not part.endswith((" ", ".")), "Unsafe Windows path"
+            assert not re.search(r'[\\<>:"|?*\x00-\x1f]', part), "Unsafe Windows path"
+            assert not RESERVED.fullmatch(part.split(".", 1)[0].rstrip(" ")), "Reserved Windows path"
+        key = tuple(unicodedata.normalize("NFC", part).casefold() for part in parts)
+        parents = {key[:end] for end in range(1, len(key))}
+        assert key not in files and key not in directories and not files.intersection(parents), "Colliding archive path"
+        files.add(key)
+        directories.update(parents)
+
+
+if not __debug__:
+    raise RuntimeError("Run the archive verifier with assertions enabled")
 
 archive_path = Path(sys.argv[1])
 version = sys.argv[2] if len(sys.argv) > 2 else '0.1.7'
 assert re.fullmatch(r'\d+\.\d+(?:\.\d+)?', version), 'Invalid version'
 with zipfile.ZipFile(archive_path) as archive:
     names = archive.namelist()
-    assert archive.testzip() is None, 'Damaged archive'
-    assert len(names) == len(set(names)), 'Duplicate archive paths'
-    assert len(names) == len({name.casefold() for name in names}), 'Duplicate Windows archive paths'
-    assert all(name.startswith('sankagata-seiretsu/') and '..' not in PurePosixPath(name).parts for name in names)
-    assert all('\\' not in name and ':' not in name for name in names), 'Unsafe Windows archive path'
-    assert not any(stat.S_ISLNK(item.external_attr >> 16) for item in archive.infolist()), 'Unexpected archive link'
-    forbidden = r'(?i)(\.sqlite|access-keys|ownership\.json|\.env|\.dev\.vars|client_secret|credentials\.json|\.log$)'
-    assert not any(re.search(forbidden, name) for name in names), 'Private runtime file in release'
     root = 'sankagata-seiretsu/'
+    check_paths(archive, root)
+    assert archive.testzip() is None, 'Damaged archive'
     plugin_version = version if version.count('.') == 2 else version + '.0'
     assert f"version: '{plugin_version}'".encode() in archive.read(root + 'plugin.js')
     static = root + 'runtime/_internal/static/'
@@ -44,8 +67,14 @@ with zipfile.ZipFile(archive_path) as archive:
         assert '/api/control/move-current-to-waiting' in control_js
         assert 'expected_revision: latestState.revision' in control_js
         assert "draggable: document.body?.dataset.onecomme === 'true'" in control_js
+    if tuple(map(int, version.split('.'))) >= (1, 11):
+        for asset in ('obs-counter.html', 'obs-counter.js', 'obs-counter.css', 'obs-counter-fields.html',
+                      'obs-counter-settings.js', 'overlay-appearance.js'):
+            assert static + asset in names
     with zipfile.ZipFile(io.BytesIO(archive.read(root + 'Taikiretsu-Template.zip'))) as template:
+        check_paths(template, 'taikiretsu-display/')
         assert len(template.namelist()) == 5
+        assert all(PurePosixPath(name).parent.as_posix() == 'taikiretsu-display' for name in template.namelist())
         for name in template.namelist():
             assert template.read(name) == archive.read(static + 'onecomme-template/' + PurePosixPath(name).name)
         meta = json.loads(template.read('taikiretsu-display/template.json'))

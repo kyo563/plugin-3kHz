@@ -91,6 +91,8 @@ def create_app(*, db_path: str | None = None, desktop: bool | None = None,
         application.include_router(setup_router)
         from app.routes.bot_api import router as bot_router
         application.include_router(bot_router)
+        from app.routes.obs_counters import router as obs_counters_router
+        application.include_router(obs_counters_router)
     else:
         application.include_router(youtube_router)
     application.include_router(control_api_router)

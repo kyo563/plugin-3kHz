@@ -10,6 +10,7 @@ function harness() {
     fetch:async()=>({status:304}), window:{AppFonts:{apply(){}}}, renderOverlayText(){},
     document:{querySelector:s=>s === '.panel' ? panel : output, createElement:element}};
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync('static/overlay-appearance.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/overlay.js','utf8'),context);
   return {context, panel};
 }

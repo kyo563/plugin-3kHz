@@ -1,17 +1,21 @@
-const obsDragSource = document.getElementById('obs-drag-source');
-obsDragSource.addEventListener('dragstart', event => {
-    // Only the public, read-only display URL is sent to OBS. Never copy the
-    // current page URL, which can carry the management key in its fragment.
-    event.dataTransfer.clearData();
-    event.dataTransfer.setData('text/uri-list', obsDragSource.href);
-    event.dataTransfer.setData('text/plain', obsDragSource.href);
-    event.dataTransfer.effectAllowed = 'copy';
-});
-obsDragSource.addEventListener('click', event => {
-    event.preventDefault();
-    document.getElementById('obs-drag-result').textContent = 'このボタンを押したままOBSのプレビュー画面へ移動し、離してください。';
-});
-obsDragSource.addEventListener('dragend', () => obsDragSource.blur());
+function bindObsDrag(sourceId, resultId) {
+    const source = document.getElementById(sourceId);
+    if (!source) return;
+    source.addEventListener('dragstart', event => {
+        // Send only the display URL. The current page can have a management key.
+        event.dataTransfer.clearData();
+        event.dataTransfer.setData('text/uri-list', source.href);
+        event.dataTransfer.setData('text/plain', source.href);
+        event.dataTransfer.effectAllowed = 'copy';
+    });
+    source.addEventListener('click', event => {
+        event.preventDefault();
+        document.getElementById(resultId).textContent = 'このボタンを押したままOBSのプレビュー画面へ移動し、離してください。';
+    });
+    source.addEventListener('dragend', () => source.blur());
+}
+bindObsDrag('obs-drag-source', 'obs-drag-result');
+for (const kind of ['round', 'unique']) bindObsDrag('obs-' + kind + '-drag-source', 'obs-' + kind + '-drag-result');
 
 document.getElementById('download-template').addEventListener('click', async () => {
     const result = document.getElementById('template-result');

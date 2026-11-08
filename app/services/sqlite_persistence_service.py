@@ -196,6 +196,8 @@ class SQLitePersistenceService:
             user["participation_count"] = count
 
         return {
+            **({"obs_counter_settings": json.loads(app_state["obs_counter_settings"])}
+               if "obs_counter_settings" in app_state else {}),
             "name_overrides": json.loads(app_state["name_overrides"]) if "name_overrides" in app_state else {u["user_id"]: u["declared_player_name"] for u in current + waiting if u.get("declared_player_name")},
             "overlay_settings": self._overlay_settings_model.model_validate(json.loads(app_state.get("overlay_settings", "{}"))).model_dump(),
             "description_text": (self._description_default if app_state.get("description_text") in self._legacy_descriptions
@@ -248,6 +250,9 @@ class SQLitePersistenceService:
                 ("user_action_locks", json.dumps(state.get("user_action_locks", {}), ensure_ascii=False)),
                 ("participation_counts", json.dumps(self._sanitize_participation_counts(state.get("participation_counts", {})), ensure_ascii=False)),
             ])
+                if state.get("obs_counter_settings") is not None:
+                    conn.execute("INSERT INTO app_state(key, value) VALUES(?, ?)",
+                                 ("obs_counter_settings", json.dumps(state["obs_counter_settings"], ensure_ascii=False)))
                 previous = {row["user_id"]: row for row in conn.execute("SELECT * FROM participants")}
                 conn.execute("DELETE FROM participants WHERE status IN ('current', 'waiting')")
                 for status in ("current", "waiting"):
@@ -368,16 +373,21 @@ class SQLitePersistenceService:
         with self._lock, audit_event(action, actor):
             before = self.get_state()
             result = self.mutate_state(callback)
-            self._undo = (self.revision, before)
+            if action == "match_complete" and result["total_match_count"] == before["total_match_count"]:
+                action = None
+            self._undo = (self.revision, before, action)
             return result
 
-    def undo_available(self) -> bool:
+    def undo_available(self, action: str | None = None) -> bool:
         with self._lock:
-            return self._undo is not None and self._undo[0] == self.revision
+            return (self._undo is not None and self._undo[0] == self.revision
+                    and (action is None or self._undo[2] == action))
 
-    def undo(self) -> None:
+    def undo(self, *, action: str | None = None, expected_revision: int | None = None) -> None:
         with self._lock:
-            if not self.undo_available():
+            if expected_revision is not None and expected_revision != self.revision:
+                raise ValueError("操作後に待機列が更新されました。現在の状態を確認してください。")
+            if not self.undo_available(action):
                 raise ValueError("戻せる操作がありません。コメント受信・別操作・再起動後は戻せません。")
             state = deepcopy(self._undo[1])
             state["logs"].append("直前の手動操作を元に戻しました")

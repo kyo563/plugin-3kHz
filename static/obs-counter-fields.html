@@ -1,0 +1,13 @@
+<fieldset data-obs-counter="{kind}" data-token="{token}" class="obs-counter-fields">
+  <legend>{title}</legend>
+  <a id="obs-{kind}-drag-source" class="obs-drag-source" draggable="true" href="{drag_url}">OBSへドラッグして追加（{title}）</a>
+  <p id="obs-{kind}-drag-result" role="status"></p>
+  <div class="layout-fields">
+    <label>{title}の表示用URL<input type="text" readonly value="{url}"></label>
+    <label>{title}の表示文言<input name="{kind}" maxlength="80" required disabled></label>
+  </div>
+  <p>数字を表示する箇所に <code>{token}</code> を入れてください。</p>
+  <button type="button" data-insert-token disabled>差し込み項目を挿入</button>
+  <button type="button" data-reset-wording disabled>初期文言に戻す</button>
+  <p>表示例 <output></output></p>
+</fieldset>

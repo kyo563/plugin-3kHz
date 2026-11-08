@@ -15,6 +15,9 @@ $files = @(
 foreach ($file in $files) {
     if (-not (Test-Path -LiteralPath $file.path -PathType Leaf)) { throw 'Missing release asset' }
 }
+$python = Join-Path $repoRoot '.venv\Scripts\python.exe'
+& $python (Join-Path $PSScriptRoot 'verify_onecomme_release.py') ($files[0].path) $Version
+if ($LASTEXITCODE -ne 0) { throw 'Release archive verification failed' }
 $checksums = Get-Content -LiteralPath (Join-Path $candidate 'SHA256SUMS.txt') -Raw
 foreach ($file in $files | Where-Object name -ne 'SHA256SUMS.txt') {
     $file.hash = (Get-FileHash -LiteralPath $file.path -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -58,7 +61,8 @@ foreach ($asset in $assets) {
     $download = Join-Path $verified $asset.name
     for ($downloadAttempt = 0; $downloadAttempt -lt 5; $downloadAttempt++) {
         try {
-            Invoke-WebRequest -Uri $asset.url -OutFile $download -ErrorAction Stop
+            $downloadUrl = if ($downloadAttempt -eq 0) { $asset.url } else { "$($asset.url)?asset=$($asset.id)" }
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $download -ErrorAction Stop
             break
         } catch {
             if ($downloadAttempt -eq 4 -or -not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 404) { throw }

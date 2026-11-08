@@ -1,11 +1,13 @@
 from pathlib import Path
 from html import escape
+from urllib.parse import urlencode
 import json
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
 from app.schemas.command_settings import CommandSettings
 from app.schemas.overlay_settings import OneCommeOverlaySettings
+from app.schemas.obs_counters import COUNTER_TITLES, COUNTER_TOKENS
 
 router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -34,6 +36,8 @@ def control_page(request: Request):
         html = html.replace('<!-- ONECOMME_CALL_TIMESTAMPS -->',
                             (STATIC_DIR / 'call-timestamps.html').read_text(encoding='utf-8'))
         html = html.replace('</body>', '<script src="/static/call-timestamps.js"></script></body>')
+        html = html.replace('<!-- ONECOMME_UNDO_MATCH -->',
+            '<button id="undo-match" type="button" data-api="/api/control/undo-match" disabled>直前の対局確定を取り消す</button>')
         html = html.replace('<h2>NOW</h2>', '<h2>対局中</h2>')
         html = html.replace(' aria-describedby="move-next-note"', '')
         html = html.replace('<p id="move-next-note">現在の参加者の回数を＋1して、次の3人へ交代します。</p>', '')
@@ -151,10 +155,18 @@ def settings_page(request: Request):
         # Wizard stays outside tab panels so it remains visible at every step.
         html = html.replace(wizard, '', 1).replace('<div class="settings-tabs"', wizard + '<div class="settings-tabs"', 1)
         obs = (STATIC_DIR / 'obs-settings.html').read_text(encoding='utf-8')
+        counter_fields = (STATIC_DIR / 'obs-counter-fields.html').read_text(encoding='utf-8')
+        counters = []
+        for kind, title in COUNTER_TITLES.items():
+            url = str(request.url_for("counter_page", kind=kind))
+            params = urlencode({"layer-name": title, "layer-width": 600, "layer-height": 100})
+            counters.append(counter_fields.format(kind=kind, title=title, token=COUNTER_TOKENS[kind],
+                                                  url=escape(url, quote=True), drag_url=escape(f"{url}?{params}", quote=True)))
+        obs = obs.replace('<!-- ONECOMME_COUNTER_FIELDS -->', ''.join(counters))
         overlay = '<details id="setup-obs-details" open><summary>表示を細かく調整する</summary>' + overlay + '</details>'
         html = html.replace('</main>', '</div><div id="settings-obs-panel" role="tabpanel" aria-labelledby="settings-obs-tab" hidden>' + obs + overlay + '</div><div id="settings-bot-panel" role="tabpanel" aria-labelledby="settings-bot-tab" hidden>' + bot + '</div></main>')
         html = html.replace('</head>', '<link rel="stylesheet" href="/static/bot.css"><link rel="stylesheet" href="/static/settings-tabs.css"></head>')
-        html = html.replace('</body>', '<script src="/static/settings-tabs.js"></script><script src="/static/bot.js"></script><script src="/static/onecomme.js"></script><script src="/static/onecomme-obs-setup.js"></script><script src="/static/setup-wizard.js"></script></body>')
+        html = html.replace('</body>', '<script src="/static/settings-tabs.js"></script><script src="/static/bot.js"></script><script src="/static/onecomme.js"></script><script src="/static/onecomme-obs-setup.js"></script><script src="/static/obs-counter-settings.js"></script><script src="/static/setup-wizard.js"></script></body>')
         html = html.replace('</head>', '<link rel="stylesheet" href="/static/onecomme-obs-setup.css"><link rel="stylesheet" href="/static/setup.css"></head>')
         html = html.replace('href="/obs-setup"', 'href="/settings?tab=obs"')
         html = html.replace('OBSの「ソース」一覧で対象のブラウザソースを右クリック →「プロパティ」→「幅」「高さ」を、下に表示される現在の幅・高さに合わせてください。', 'わんコメの「待機列整理アプリ」テンプレートをOBSに追加します。OBSの枠は縦横共通で幅1200・高さ600以上を推奨します。')

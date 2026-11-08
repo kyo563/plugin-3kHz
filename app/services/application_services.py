@@ -19,6 +19,7 @@ class ApplicationServices:
     """One service graph per running application, created after the DB lock."""
 
     def __init__(self, *, db_path: str | None = None, desktop: bool = False, onecomme: bool = False):
+        self.onecomme = onecomme
         self.comment_lock = RLock()
         self.add_counter = 0
         self.queue_service = QueueService(group_size=GROUP_SIZE, open_slot_label=OPEN_SLOT_LABEL,
@@ -77,8 +78,11 @@ class ApplicationServices:
         self.persistence_service.manual_mutate(self.queue_service.toggle_priority, action='priority_toggle')
 
     def build_view_state(self) -> dict:
-        state, revision, undo = self.persistence_service.snapshot()
-        return {**self.queue_service.build_view_state(state), "revision": revision, "undo_available": undo}
+        store = self.persistence_service
+        with store.serialized():
+            state, revision, undo = store.snapshot()
+            match_undo = {"match_undo_available": store.undo_available("match_complete")} if self.onecomme else {}
+        return {**self.queue_service.build_view_state(state), "revision": revision, "undo_available": undo, **match_undo}
 
     def build_overlay_state(self) -> dict:
         return self.overlay_service.build_overlay_state(self.build_view_state())

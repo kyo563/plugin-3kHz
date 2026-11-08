@@ -166,6 +166,8 @@ function renderState(state){
     q('#toggle-reception').textContent = state.is_open ? '受付中止' : '受付を開始';
     q('#toggle-reception').disabled = mutationPending;
     q("#undo").disabled = mutationPending || !state.undo_available;
+    const undoMatch = q('#undo-match');
+    if (undoMatch) undoMatch.disabled = mutationPending || !state.match_undo_available;
     renderSearch();
     const receptionLabel = state.is_open ? '受付中' : state.final_group_slots > 0
         ? `受付終了（最終組空きあり@${state.final_group_slots}名）` : '受付終了';
@@ -210,6 +212,8 @@ async function post(api, payload){
         mutationPending = false;
         document.querySelectorAll('button[data-api]').forEach(button => { button.disabled = false; });
         q('#undo').disabled = !latestState?.undo_available;
+        const undoMatch = q('#undo-match');
+        if (undoMatch) undoMatch.disabled = !latestState?.match_undo_available;
     }
 }
 
@@ -276,7 +280,10 @@ async function runContextAction(action) {
     hideContextMenu();
 }
 
-document.querySelectorAll('button[data-api]').forEach((b)=>b.addEventListener('click',()=>post(b.dataset.api)));
+document.querySelectorAll('button[data-api]').forEach(button => button.addEventListener('click', () => {
+    const payload = button.id === 'undo-match' ? {expected_revision: latestState.revision} : undefined;
+    return post(button.dataset.api, payload);
+}));
 q("#context-menu").addEventListener("click", (e) => {
     const action = e.target?.dataset?.action;
     if (action) runContextAction(action);

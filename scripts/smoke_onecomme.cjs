@@ -109,6 +109,31 @@ async function main() {
         assert.equal(obsUrl.hash, '');
         assert.equal((await fetch(obsLink)).status, 200);
         assert.equal((await fetch('http://127.0.0.1:18765/static/onecomme-obs-setup.css')).status, 200);
+        stage = 'counter-security';
+        const counterBase = obsUrl.origin;
+        for (const counter of ['round', 'unique']) {
+            const page = await fetch(counterBase + '/onecomme-counter/' + counter);
+            assert.equal(page.status, 200);
+            assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
+            assert.ok((await page.text()).includes('/static/obs-counter.js'));
+        }
+        const counters = await fetch(counterBase + '/api/obs-counters');
+        assert.equal(counters.status, 200);
+        assert.equal(counters.headers.get('cross-origin-resource-policy'), 'same-origin');
+        assert.equal(counters.headers.get('cache-control'), 'no-store');
+        assert.deepEqual(Object.keys(await counters.json()).sort(), ['appearance', 'round', 'unique']);
+        assert.equal((await fetch(counterBase + '/api/obs-counters', {headers: {Origin: 'https://untrusted.invalid'}})).status, 403);
+        assert.equal((await fetch(counterBase + '/onecomme-launch', {method: 'POST', redirect: 'manual'})).status, 403);
+        for (const endpoint of ['/api/settings/obs-counters', '/api/control/undo-match']) {
+            assert.equal((await fetch(counterBase + endpoint, {method: 'POST'})).status, 401);
+        }
+        const previousAppearance = await api('/api/settings/overlay');
+        const sampleAppearance = {font_size: 52, text_color: '#26e7bf', background_color: '#543210',
+            background_transparency: 35, auto_fit_font: false, text_bold: false, text_shadow: false,
+            fonts: {all: 'gothic', obs_all: 'meiryo', summary: 'mincho'}};
+        await api('/api/settings/overlay', {...previousAppearance, ...sampleAppearance});
+        assert.deepEqual((await fetch(counterBase + '/api/obs-counters').then(r => r.json())).appearance, sampleAppearance);
+        await api('/api/settings/overlay', previousAppearance);
         stage = 'template-download';
         const templateResponse = await fetch('http://127.0.0.1:18765/api/onecomme/template', {
             headers: {Authorization: 'Bearer ' + key}, signal: AbortSignal.timeout(5000)});

@@ -9,6 +9,11 @@ from app.dependencies import get_services
 router = APIRouter()
 
 
+def mark_overlay_seen(request: Request):
+    with request.app.state.overlay_lock:
+        request.app.state.overlay_seen = time.monotonic()
+
+
 @router.get("/api/overlay-state")
 def api_overlay_state(request: Request = None):
     services = get_services(request)
@@ -16,8 +21,7 @@ def api_overlay_state(request: Request = None):
     if request is None:
         return state
     if request.query_params.get("preview") != "1":
-        with request.app.state.overlay_lock:
-            request.app.state.overlay_seen = time.monotonic()
+        mark_overlay_seen(request)
     encoded = json.dumps(state, ensure_ascii=False, sort_keys=True).encode("utf-8")
     encoded += str(len(services.persistence_service.list_fonts())).encode("ascii")
     etag = '"' + hashlib.sha256(encoded).hexdigest() + '"'

@@ -77,7 +77,10 @@ class LocalSecurityMiddleware:
                                    (scope["path"] == "/onecomme-overlay" and headers.get(b"sec-fetch-dest") == "iframe")))
         if headers.get(b"sec-fetch-site") == "cross-site" and not (control_navigation or onecomme_launch):
             return await JSONResponse({"detail": "外部サイトからの接続を拒否しました"}, 403)(scope, receive, send)
-        public = path == "/api/overlay-state" or (scope["method"] == "GET" and re.fullmatch(r"/api/font-assets/[a-f0-9]{64}", path) is not None)
+        public = (path == "/api/overlay-state" or
+                  (scope["method"] == "GET" and (
+                      (self.onecomme and path == "/api/obs-counters") or
+                      re.fullmatch(r"/api/font-assets/[a-f0-9]{64}", path) is not None)))
         if path.startswith("/api/") and not public or path in {"/openapi.json", "/docs", "/redoc"}:
             authorization = headers.get(b"authorization", "")
             token = authorization[7:] if authorization.lower().startswith("bearer ") else ""
@@ -135,6 +138,8 @@ class LocalSecurityMiddleware:
                     # OBS local-file template (opaque origin) or OneComme page.
                     extra = [(key, value.replace(b"frame-ancestors 'self'; ", b""))
                              if key == b"content-security-policy" else (key, value) for key, value in extra]
+                if self.onecomme and path == "/api/obs-counters":
+                    extra.append((b"cross-origin-resource-policy", b"same-origin"))
                 if path != "/api/overlay-state":
                     extra.append((b"cache-control", b"no-store"))
                 message = {**message, "headers": list(message.get("headers", [])) + extra}

@@ -214,6 +214,22 @@ def api_undo(request: Request):
         raise HTTPException(409, str(exc)) from exc
     return services.build_view_state()
 
+class UndoMatchPayload(BaseModel):
+    expected_revision: int = Field(strict=True, ge=0)
+
+
+@router.post("/api/control/undo-match")
+def api_undo_match(payload: UndoMatchPayload, request: Request):
+    if not request.app.state.onecomme_mode:
+        raise HTTPException(404)
+    services = get_services(request)
+    try:
+        services.persistence_service.undo(action="match_complete", expected_revision=payload.expected_revision)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return services.build_view_state()
+
+
 @router.get("/api/control/backup")
 def api_backup(request: Request):
     try:

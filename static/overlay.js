@@ -20,17 +20,8 @@ async function fetchOverlayState() {
 
 function renderOverlay(state) {
     const appearance = state.appearance || {};
-    window.AppFonts.apply(appearance.fonts);
     const panel = q('.panel');
-    const background = /^#[0-9a-fA-F]{6}$/.test(appearance.background_color || '') ? appearance.background_color : '#000000';
-    const transparency = Number.isFinite(appearance.background_transparency)
-        ? Math.min(100, Math.max(0, appearance.background_transparency)) : 100;
-    const rgb = [1, 3, 5].map(index => parseInt(background.slice(index, index + 2), 16));
-    panel.style.setProperty('--background-color', `rgba(${rgb.join(', ')}, ${(100 - transparency) / 100})`);
-    panel.dataset.fontFit = appearance.auto_fit_font === false ? 'fixed' : 'auto';
-    panel.style.setProperty('--text-weight', appearance.text_bold === false ? '400' : '700');
-    panel.style.setProperty('--text-shadow', appearance.text_shadow === false ? 'none' : '0 1px 3px #000');
-    panel.style.setProperty('--text-color', /^#[0-9a-fA-F]{6}$/.test(appearance.text_color || '') ? appearance.text_color : '#ffffff');
+    applyOverlayAppearance(panel, appearance);
     panel.dataset.layout = appearance.layout || "vertical";
     const output = q('#custom-output');
     output.hidden = false;
@@ -58,8 +49,6 @@ function renderOverlay(state) {
     panel.style.setProperty('--line-units', String(lineCount * 1.3 + .5));
     panel.style.setProperty('--overlay-width', `${appearance.width || 480}px`);
     panel.style.setProperty('--overlay-height', `${appearance.height || 600}px`);
-    panel.style.setProperty('--font-size', `${appearance.font_size || 28}px`);
-
 }
 
 async function refresh() {

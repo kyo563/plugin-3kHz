@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.schemas.overlay_settings import OverlaySettings
+from app.schemas.obs_counters import ObsCounterSettings
 from app.schemas.description import DEFAULT_DESCRIPTION
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
@@ -50,6 +51,7 @@ class BackupState(StrictModel):
     total_match_count: Count = 0
     group_size: int = Field(default=3, strict=True, ge=1, le=3)
     overlay_settings: OverlaySettings = Field(default_factory=OverlaySettings)
+    obs_counter_settings: ObsCounterSettings | None = Field(default=None, exclude_if=lambda value: value is None)
     name_overrides: dict[UserId, Name] = Field(default_factory=dict, max_length=20000)
     is_open: bool
     priority_mode: bool

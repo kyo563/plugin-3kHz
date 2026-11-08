@@ -12,4 +12,6 @@
 }
 .obs-drag-source:hover { background: #23794d; }
 .obs-drag-source:active { cursor: grabbing; }
+.obs-counter-fields { min-width: 0; margin: 0 0 14px; border: 1px solid #2e3a4d; border-radius: 10px; }
+.obs-counter-fields output { font-weight: 700; overflow-wrap: anywhere; }
 .obs-drag-source:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
